@@ -1,0 +1,136 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-03-22 11:32:40.317822397 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-03-22 11:34:12.000995854 +0800
+@@ -176,6 +176,10 @@
+ CFLAGS += -DZCFG_VMG8828_B50B_WIND
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK),y)
++CFLAGS += -DZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++endif
++
+ #ONE SSID SECURITY SYNC
+ ifeq ($(CONFIG_ZY_WIFI_ONESSID_SECURITY_SYNC),y)
+ CFLAGS += -DWIFI_ONESSID_SECURITY_SYNC
+Index: libzcfg_fe_dal-1.0/network/nat/zcfg_fe_dal_nat_port_mapping.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/nat/zcfg_fe_dal_nat_port_mapping.c	2019-03-22 11:32:38.461822346 +0800
++++ libzcfg_fe_dal-1.0/network/nat/zcfg_fe_dal_nat_port_mapping.c	2019-03-22 11:34:05.902279450 +0800
+@@ -24,6 +24,9 @@
+ 	//{"X_ZYXEL_SetOriginatingIP",	dalType_boolean, 	0, 0, 		NULL,	NULL,	0},
+ 	{"SetOriginatingIP",			dalType_boolean, 	0,	0, 		NULL,	NULL,				dal_Add},
+ 	{"OriginatingIpAddress",		dalType_v4Addr, 	0, 	0, 		NULL,	NULL,				0},
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++	{"OriginatingSubnetMask",		dalType_v4Addr, 	0,	0,		NULL,	NULL,				0},
++#endif
+ 	{"X_ZYXEL_AutoDetectWanStatus",	dalType_boolean,	0,	0,		NULL,	NULL,				0},
+ #ifdef ELISA_NAT_PORTFORWARD_CUSTOMIZATIONN
+ 	{"WANIP",				dalType_v4Addr,		0,	0,		NULL,	NULL,				0},
+@@ -42,8 +45,13 @@
+ 		printf("wrong Jobj format!\n");
+ 		return;
+ 	}
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++	printf("%-5s %-15s %-7s %-15s %-15s %-17s %-15s %-10s %-10s %-25s %-25s %-10s\n",
++			"Index", "Description", "Enable", "Originating IP", "Originating SubnetMask", "Server IP Address", "WAN Interface", "Start Port", "End Port", "Translation Start Port", "Translation End Port", "Protocol");
++#else
+ 	printf("%-5s %-15s %-7s %-15s %-17s %-15s %-10s %-10s %-25s %-25s %-10s\n",
+ 		    "Index", "Description", "Enable", "Originating IP", "Server IP Address", "WAN Interface", "Start Port", "End Port", "Translation Start Port", "Translation End Port", "Protocol");
++#endif
+ 	len = json_object_array_length(Jarray);
+ 	for(i=0;i<len;i++){
+ 		obj = json_object_array_get_idx(Jarray, i);
+@@ -53,12 +61,18 @@
+ 		}
+ 		else
+ 			origIP = json_object_get_string(json_object_object_get(obj, "OriginatingIpAddress"));			
+-		
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++		printf("%-5s %-15s %-7d %-15s %-15s %-17s %-15s %-10s %-10s %-25s %-25s %-10s\n",
++#else
+ 		printf("%-5s %-15s %-7d %-15s %-17s %-15s %-10s %-10s %-25s %-25s %-10s\n",
++#endif		
+ 			json_object_get_string(json_object_object_get(obj, "Index")),
+ 			json_object_get_string(json_object_object_get(obj, "Description")),
+ 			json_object_get_boolean(json_object_object_get(obj, "Enable")),
+ 			origIP,
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK		
++			json_object_get_string(json_object_object_get(obj, "OriginatingSubnetMask")),
++#endif			
+ 			json_object_get_string(json_object_object_get(obj, "InternalClient")),
+ 			json_object_get_string(json_object_object_get(obj, "Interface")),
+ 			json_object_get_string(json_object_object_get(obj, "ExternalPortStart")),
+@@ -79,6 +93,9 @@
+ 	bool enable = false;
+ 	const char *interface = NULL;
+ 	const char *originatingipaddress = NULL;
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++	const char *originatingSubnetMask = NULL;
++#endif
+ 	int externalport = 0;
+ 	int externalportendrange = 0;
+ 	int internalport = 0;
+@@ -121,6 +138,10 @@
+ 		enable = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
+ 		interface = json_object_get_string(json_object_object_get(Jobj, "Interface"));
+ 		originatingipaddress = json_object_get_string(json_object_object_get(Jobj, "OriginatingIpAddress"));		
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++		originatingSubnetMask = json_object_get_string(json_object_object_get(Jobj, "OriginatingSubnetMask"));	
++		printf("#### ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK #### Add originatingSubnetMask = %s \n", originatingSubnetMask);
++#endif
+ 		externalport = json_object_get_int(json_object_object_get(Jobj, "ExternalPortStart"));
+ 		externalportendrange = json_object_get_int(json_object_object_get(Jobj, "ExternalPortEnd"));
+ 		internalport = json_object_get_int(json_object_object_get(Jobj, "InternalPortStart"));
+@@ -168,6 +189,10 @@
+ 			json_object_object_add(NatPortMappingJobj, "X_ZYXEL_SetOriginatingIP", json_object_new_boolean(setoriginatingip));
+ 		if(json_object_object_get(Jobj, "OriginatingIpAddress") != NULL)
+ 			json_object_object_add(NatPortMappingJobj, "OriginatingIpAddress", json_object_new_string(originatingipaddress));
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++		if(json_object_object_get(Jobj, "OriginatingSubnetMask") != NULL)
++			json_object_object_add(NatPortMappingJobj, "OriginatingSubnetMask", json_object_new_string(originatingSubnetMask));
++#endif
+ 		if(json_object_object_get(Jobj, "Protocol") != NULL)
+ 			json_object_object_add(NatPortMappingJobj, "Protocol", json_object_new_string(protocol));
+ 		if(json_object_object_get(Jobj, "InternalClient") != NULL)
+@@ -198,6 +223,9 @@
+ 	bool enable = false;
+ 	const char *interface = NULL;
+ 	const char *originatingipaddress = NULL;
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++	const char *originatingSubnetMask = NULL;
++#endif
+ 	int externalport = 0;
+ 	int externalportendrange = 0;
+ 	int internalport = 0;
+@@ -262,6 +290,9 @@
+ 		enable = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
+ 		interface = json_object_get_string(json_object_object_get(Jobj, "Interface"));
+ 		originatingipaddress = json_object_get_string(json_object_object_get(Jobj, "OriginatingIpAddress"));		
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++		originatingSubnetMask = json_object_get_string(json_object_object_get(Jobj, "OriginatingSubnetMask"));		
++#endif
+ 		externalport = json_object_get_int(json_object_object_get(Jobj, "ExternalPortStart"));
+ 		externalportendrange = json_object_get_int(json_object_object_get(Jobj, "ExternalPortEnd"));
+ 		internalport = json_object_get_int(json_object_object_get(Jobj, "InternalPortStart"));
+@@ -290,6 +321,10 @@
+ 			json_object_object_add(NatPortMappingJobj, "X_ZYXEL_SetOriginatingIP", json_object_new_boolean(setoriginatingip));
+ 		if(json_object_object_get(Jobj, "OriginatingIpAddress") != NULL)
+ 			json_object_object_add(NatPortMappingJobj, "OriginatingIpAddress", json_object_new_string(originatingipaddress));
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++		if(json_object_object_get(Jobj, "OriginatingSubnetMask") != NULL)
++			json_object_object_add(NatPortMappingJobj, "OriginatingSubnetMask", json_object_new_string(originatingSubnetMask));
++#endif
+ 		if(json_object_object_get(Jobj, "Protocol") != NULL)
+ 			json_object_object_add(NatPortMappingJobj, "Protocol", json_object_new_string(protocol));
+ 		if(json_object_object_get(Jobj, "InternalClient") != NULL)
+@@ -383,6 +418,9 @@
+ 				json_object_object_add(paramJobj, "InternalClient", JSON_OBJ_COPY(json_object_object_get(PortFwdJobj, "InternalClient")));
+ 				json_object_object_add(paramJobj, "SetOriginatingIP", JSON_OBJ_COPY(json_object_object_get(PortFwdJobj, "X_ZYXEL_SetOriginatingIP")));
+ 				json_object_object_add(paramJobj, "OriginatingIpAddress", JSON_OBJ_COPY(json_object_object_get(PortFwdJobj, "OriginatingIpAddress")));
++#ifdef ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
++				json_object_object_add(paramJobj, "OriginatingSubnetMask", JSON_OBJ_COPY(json_object_object_get(PortFwdJobj, "OriginatingSubnetMask")));
++#endif
+ 				json_object_object_add(paramJobj, "Index", json_object_new_int(PortFwdIid.idx[0]));
+ 				json_object_object_add(paramJobj, "X_ZYXEL_AutoDetectWanStatus", JSON_OBJ_COPY(json_object_object_get(PortFwdJobj, "X_ZYXEL_AutoDetectWanStatus")));
+ #ifdef ELISA_NAT_PORTFORWARD_CUSTOMIZATIONN

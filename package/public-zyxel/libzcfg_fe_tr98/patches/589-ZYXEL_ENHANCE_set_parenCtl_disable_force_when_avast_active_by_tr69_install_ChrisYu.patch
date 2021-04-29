@@ -1,0 +1,86 @@
+Index: libzcfg_fe_tr98-1.0/ispService.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/ispService.c	2018-11-29 14:11:00.369021730 +0800
++++ libzcfg_fe_tr98-1.0/ispService.c	2018-11-29 14:14:14.589289831 +0800
+@@ -54,7 +54,6 @@
+ 
+ 	return ZCFG_SUCCESS;
+ }
+-#if 1 //Chris Test
+ 
+ zcfgRet_t ispSrvObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
+ {
+@@ -67,6 +66,7 @@
+ 	struct json_object *tr181ParamValue = NULL;
+ 	struct json_object *tmpObj = NULL;
+ 	tr98Parameter_t *paramList = NULL;
++	bool bEnable = false;
+ 
+ 	zcfgLog(ZCFG_LOG_DEBUG, "Enter %s\n", __FUNCTION__);
+ 
+@@ -89,8 +89,14 @@
+ 		paramValue = json_object_object_get(tr98Jobj, paramList->name);
+ 		if(paramValue != NULL) {
+ 			tr181ParamValue = json_object_object_get(ispSrvObj, paramList->name);
++			if (strcmp(paramList->name, "Enable") == 0){
++				bEnable = json_object_get_boolean(paramValue);
++			}
+ 			if(tr181ParamValue != NULL) {
+ 				json_object_object_add(ispSrvObj, paramList->name, JSON_OBJ_COPY(paramValue));
++				if (strcmp(paramList->name, "Enable") == 0){
++					printf("%s : paramList->name >> %s = %d  \n", __FUNCTION__, paramList->name, bEnable);
++				}
+ 				paramList++;
+ 				continue;
+ 			}
+@@ -98,6 +104,10 @@
+ 		paramList++;	
+ 	} /*Edn while*/
+ 	
++	if (bEnable == true){
++		SetParenCtlDisableForce();
++	}
++
+ 	/*Set */
+ 	if(multiJobj){
+ 		json_object_put(tmpObj);
+@@ -157,4 +167,29 @@
+ 	return ret;
+ }
+ 
+-#endif
++void SetParenCtlDisableForce(){
++	printf("Enter : %s\n", __FUNCTION__);
++
++	zcfgRet_t ret = ZCFG_SUCCESS;
++
++	objIndex_t objIid = {0};
++	uint32_t  parenCtlOid = 0;
++	struct json_object *paCtlJobj = NULL;
++	struct json_object *tmpObj = NULL;
++
++	/*Get related tr181 objects*/
++	IID_INIT(objIid);
++	if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_PAREN_CTL, &objIid, &paCtlJobj)) != ZCFG_SUCCESS){
++		return;
++	}
++	
++	json_object_object_add(paCtlJobj, "Enable", json_object_new_boolean(false));
++
++	if((ret = zcfgFeObjJsonSet(RDM_OID_PAREN_CTL, &objIid, paCtlJobj, NULL)) != ZCFG_SUCCESS ){
++		json_object_put(paCtlJobj);
++		return;
++	}
++	json_object_put(paCtlJobj);
++
++}
++
+Index: libzcfg_fe_tr98-1.0/ispService.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/ispService.h	2018-11-29 14:11:00.369021730 +0800
++++ libzcfg_fe_tr98-1.0/ispService.h	2018-11-29 14:14:25.385230611 +0800
+@@ -7,3 +7,4 @@
+ extern zcfgRet_t ispSrvObjAdd(char *tr98FullPathName, int *idx);
+ extern zcfgRet_t ispSrvObjDel(char *tr98FullPathName);
+ 
++void SetParenCtlDisableForce();

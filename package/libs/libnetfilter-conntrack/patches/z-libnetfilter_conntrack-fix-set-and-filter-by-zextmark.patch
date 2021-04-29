@@ -1,0 +1,59 @@
+--- a/src/conntrack/filter_dump.c
++++ b/src/conntrack/filter_dump.c
+@@ -20,6 +20,17 @@ set_filter_dump_attr_mark(struct nfct_filter_dump *filter_dump,
+ 	filter_dump->set |= (1 << NFCT_FILTER_DUMP_MARK);
+ }
+ 
++static void
++set_filter_dump_attr_zextmark(struct nfct_filter_dump *filter_dump,
++			  const void *value)
++{
++	const struct nfct_filter_dump_mark *this = value;
++
++	filter_dump->zextmark.val = this->val;
++	filter_dump->zextmark.mask = this->mask;
++	filter_dump->set |= (1 << NFCT_FILTER_DUMP_ZEXTMARK);
++}
++
+ static void
+ set_filter_dump_attr_family(struct nfct_filter_dump *filter_dump,
+ 			    const void *value)
+@@ -31,12 +42,14 @@ set_filter_dump_attr_family(struct nfct_filter_dump *filter_dump,
+ const set_filter_dump_attr set_filter_dump_attr_array[NFCT_FILTER_DUMP_MAX] = {
+ 	[NFCT_FILTER_DUMP_MARK]		= set_filter_dump_attr_mark,
+ 	[NFCT_FILTER_DUMP_L3NUM]	= set_filter_dump_attr_family,
++	[NFCT_FILTER_DUMP_ZEXTMARK]	= set_filter_dump_attr_zextmark,
+ };
+ 
+ void __build_filter_dump(struct nfnlhdr *req, size_t size,
+ 			 const struct nfct_filter_dump *filter_dump)
+ {
+-	if (filter_dump->set & (1 << NFCT_FILTER_DUMP_MARK)) {
++	if (filter_dump->set & (1 << NFCT_FILTER_DUMP_MARK)
++	      || filter_dump->set & (1 << NFCT_FILTER_DUMP_ZEXTMARK)) {
+ 		nfnl_addattr32(&req->nlh, size, CTA_MARK,
+ 				htonl(filter_dump->mark.val));
+ 		nfnl_addattr32(&req->nlh, size, CTA_MARK_MASK,
+diff --git a/src/conntrack/setter.c b/src/conntrack/setter.c
+index 4dda6c9..c1f89c9 100644
+--- a/src/conntrack/setter.c
++++ b/src/conntrack/setter.c
+@@ -441,6 +441,12 @@ set_attr_connlabels_mask(struct nf_conntrack *ct, const void *value, size_t len)
+ 	ct->connlabels_mask = (void *) value;
+ }
+ 
++static void
++set_attr_zextmark(struct nf_conntrack *ct, const void *value, size_t len)
++{
++	ct->zextmark = *((u_int32_t *) value);
++}
++
+ static void
+ set_attr_do_nothing(struct nf_conntrack *ct, const void *value, size_t len) {}
+ 
+@@ -513,4 +519,5 @@ const set_attr set_attr_array[ATTR_MAX] = {
+ 	[ATTR_HELPER_INFO]	= set_attr_helper_info,
+ 	[ATTR_CONNLABELS]	= set_attr_connlabels,
+ 	[ATTR_CONNLABELS_MASK]	= set_attr_connlabels_mask,
++	[ATTR_ZEXTMARK] = set_attr_zextmark,
+ };

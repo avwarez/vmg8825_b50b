@@ -1,0 +1,57 @@
+Index: libzcfg_fe_dal-1.0/security/package3rdParty/zcfg_fe_dal_package3rdParty.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/package3rdParty/zcfg_fe_dal_package3rdParty.c	2018-12-07 17:51:26.394522632 +0800
++++ libzcfg_fe_dal-1.0/security/package3rdParty/zcfg_fe_dal_package3rdParty.c	2018-12-07 17:53:15.336073848 +0800
+@@ -38,8 +38,14 @@
+ 	struct json_object *script = NULL;
+ 	struct json_object *data = NULL;
+ 	struct json_object *custID = NULL;
++#if 1 //Avast Agent
++	char buffer[1024] = {0};
++	char *scriptName = NULL;
++	char sysCmd[512] = {0};
++	FILE *fp = NULL;
++#else
+ 	struct json_object *status = NULL;
+-
++#endif	
+ 	
+ 	IID_INIT(objIid);
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_PACKAGE, &objIid, &Package3rdPartyObj) == ZCFG_SUCCESS){
+@@ -51,8 +57,22 @@
+ 		enable = json_object_object_get(Package3rdPartyObj, "Enable");
+ 		data = json_object_object_get(Package3rdPartyObj, "Data");
+ 		custID = json_object_object_get(Package3rdPartyObj, "FixCustID");
++#if 1 //Avast Agnet
++		scriptName = json_object_get_string(json_object_object_get(Package3rdPartyObj, "Script"));
++		//printf("zcfgFeDalPackage3rdPartyGet : scriptName = %s\n", scriptName);
++		if((!strcmp(scriptName, "avast-agent.sh")) || (!strcmp(scriptName, "avast-smarthome.sh"))){
++			sprintf(sysCmd, "sh /misc/etc/init.d/%s status", scriptName);
++			//printf("zcfgFeDalPackage3rdPartyGet : syscmd get status cmd = %s\n", sysCmd);
++			if((fp = popen(sysCmd, "r")) != NULL && fgets(buffer, sizeof(buffer), fp) != NULL) {
++				printf("zcfgFeDalPackage3rdPartyGet : syscmd get status buffer: %s\n", buffer);
++				//json_object_object_add(Package3rdPartyObj, "Status", json_object_new_string(buffer));
++				//zcfgFeObjJsonSetWithoutApply(RDM_OID_PACKAGE, &objIid, Package3rdPartyObj, NULL);
++			}
++		}
++	
++#else
+ 		status = json_object_object_get(Package3rdPartyObj, "Status");
+-		
++#endif		
+ 		pramJobj = json_object_new_object();
+ 		json_object_object_add(pramJobj, "Index", json_object_new_int(index));
+ 		json_object_object_add(pramJobj, "Name", JSON_OBJ_COPY(name));
+@@ -61,8 +81,11 @@
+ 		json_object_object_add(pramJobj, "Enable", JSON_OBJ_COPY(enable));
+ 		json_object_object_add(pramJobj, "Data", JSON_OBJ_COPY(data));
+ 		json_object_object_add(pramJobj, "FixCustID", JSON_OBJ_COPY(custID));
++#if 1 //Avast Agnet		
++		json_object_object_add(pramJobj, "Status", json_object_new_string(buffer));
++#else
+ 		json_object_object_add(pramJobj, "Status", JSON_OBJ_COPY(status));
+-		
++#endif		
+ 		json_object_array_add(Jarray, pramJobj);
+ 		
+ 		zcfgFeJsonObjFree(Package3rdPartyObj);

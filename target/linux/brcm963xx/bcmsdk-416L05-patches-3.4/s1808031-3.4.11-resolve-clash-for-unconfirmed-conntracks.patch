@@ -1,0 +1,250 @@
+diff --git a/include/linux/netfilter.h b/include/linux/netfilter.h
+index 29734be334c1..92ae94a09730 100644
+--- a/include/linux/netfilter.h
++++ b/include/linux/netfilter.h
+@@ -385,6 +385,16 @@ nf_nat_decode_session(struct sk_buff *skb, struct flowi *fl, u_int8_t family)
+ }
+ #endif /*CONFIG_NETFILTER*/
+ 
++struct nf_conn;
++enum ip_conntrack_dir;
++enum nf_nat_manip_type;
++
++extern int (*nf_ct_update)(struct net *net, struct sk_buff *skb);
++extern unsigned int (*nf_nat_manip_pkt)(struct sk_buff *skb,
++					struct nf_conn *ct,
++					enum nf_nat_manip_type mtype,
++					enum ip_conntrack_dir dir);
++
+ #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+ extern void (*ip_ct_attach)(struct sk_buff *, struct sk_buff *) __rcu;
+ extern void nf_ct_attach(struct sk_buff *, struct sk_buff *);
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index abb52adf5acd..5b4ada46add8 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -335,6 +335,23 @@ nf_nat_setup_info(struct nf_conn *ct,
+ }
+ EXPORT_SYMBOL(nf_nat_setup_info);
+ 
++static unsigned int nat_manip_pkt(struct sk_buff *skb, struct nf_conn *ct,
++				  enum nf_nat_manip_type mtype,
++				  enum ip_conntrack_dir dir)
++{
++	const struct nf_nat_protocol *l4proto;
++	struct nf_conntrack_tuple target;
++
++	/* We are aiming to look like inverse of other direction. */
++	nf_ct_invert_tuplepr(&target, &ct->tuplehash[!dir].tuple);
++
++	l4proto = __nf_nat_proto_find(target.dst.protonum);
++	if (!l4proto->manip_pkt(skb, 0, &target, mtype))
++		return NF_DROP;
++
++	return NF_ACCEPT;
++}
++
+ /* Returns true if succeeded. */
+ static bool
+ manip_pkt(u_int16_t proto,
+@@ -731,6 +748,7 @@ static int __init nf_nat_init(void)
+ 			   nfnetlink_parse_nat_setup);
+ 	BUG_ON(nf_ct_nat_offset != NULL);
+ 	RCU_INIT_POINTER(nf_ct_nat_offset, nf_nat_get_offset);
++	RCU_INIT_POINTER(nf_nat_manip_pkt, nat_manip_pkt);
+ 	return 0;
+ 
+  cleanup_extend:
+@@ -747,6 +765,7 @@ static void __exit nf_nat_cleanup(void)
+ 	RCU_INIT_POINTER(nf_nat_seq_adjust_hook, NULL);
+ 	RCU_INIT_POINTER(nfnetlink_parse_nat_setup_hook, NULL);
+ 	RCU_INIT_POINTER(nf_ct_nat_offset, NULL);
++	RCU_INIT_POINTER(nf_nat_manip_pkt, NULL);
+ 	synchronize_net();
+ }
+ 
+diff --git a/net/netfilter/core.c b/net/netfilter/core.c
+index e1b7e051332e..0355159014fe 100644
+--- a/net/netfilter/core.c
++++ b/net/netfilter/core.c
+@@ -266,6 +266,17 @@ void nf_conntrack_destroy(struct nf_conntrack *nfct)
+ EXPORT_SYMBOL(nf_conntrack_destroy);
+ #endif /* CONFIG_NF_CONNTRACK */
+ 
++int (*nf_ct_update)(struct net *net, struct sk_buff *skb);
++EXPORT_SYMBOL(nf_ct_update);
++
++#include <linux/netfilter/nf_conntrack_tuple_common.h>
++#include <net/netfilter/nf_nat.h>
++
++unsigned int (*nf_nat_manip_pkt)(struct sk_buff *skb, struct nf_conn *ct,
++				 enum nf_nat_manip_type mtype,
++				 enum ip_conntrack_dir dir);
++EXPORT_SYMBOL(nf_nat_manip_pkt);
++
+ #ifdef CONFIG_PROC_FS
+ struct proc_dir_entry *proc_net_netfilter;
+ EXPORT_SYMBOL(proc_net_netfilter);
+diff --git a/net/netfilter/nf_conntrack_core.c b/net/netfilter/nf_conntrack_core.c
+index 729f157a0efa..567af3b51438 100644
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -1206,6 +1206,84 @@ static void nf_conntrack_attach(struct sk_buff *nskb, struct sk_buff *skb)
+ 	nf_conntrack_get(nskb->nfct);
+ }
+ 
++static int nf_conntrack_update(struct net *net, struct sk_buff *skb)
++{
++	unsigned int (*manip_pkt)(struct sk_buff *skb, struct nf_conn *ct,
++				  enum nf_nat_manip_type mtype,
++				  enum ip_conntrack_dir dir);
++	const struct nf_conntrack_l3proto *l3proto;
++	const struct nf_conntrack_l4proto *l4proto;
++	struct nf_conntrack_tuple_hash *h;
++	struct nf_conntrack_tuple tuple;
++	enum ip_conntrack_info ctinfo;
++	unsigned int dataoff, status;
++	struct nf_conn *ct;
++	u16 l3num;
++	u8 l4num;
++
++	ct = nf_ct_get(skb, &ctinfo);
++	if (!ct || nf_ct_is_confirmed(ct))
++		return 0;
++
++	l3num = nf_ct_l3num(ct);
++	l3proto = nf_ct_l3proto_find_get(l3num);
++
++	if (l3proto->get_l4proto(skb, skb_network_offset(skb), &dataoff,
++				 &l4num) <= 0)
++		return -1;
++
++	l4proto = nf_ct_l4proto_find_get(l3num, l4num);
++
++	if (!nf_ct_get_tuple(skb, skb_network_offset(skb), dataoff, l3num,
++			     l4num, &tuple, l3proto, l4proto))
++		return -1;
++
++	if (ct->status & IPS_SRC_NAT) {
++		memcpy(tuple.src.u3.all,
++		       ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.all,
++		       sizeof(tuple.src.u3.all));
++		tuple.src.u.all =
++			ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all;
++	}
++
++	if (ct->status & IPS_DST_NAT) {
++		memcpy(tuple.dst.u3.all,
++		       ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.all,
++		       sizeof(tuple.dst.u3.all));
++		tuple.dst.u.all =
++			ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all;
++	}
++
++	h = nf_conntrack_find_get(net, nf_ct_zone(ct), &tuple);
++	if (!h)
++		return 0;
++
++	/* Store status bits of the conntrack that is clashing to re-do NAT
++	 * mangling according to what it has been done already to this packet.
++	 */
++	status = ct->status;
++
++	nf_ct_put(ct);
++	ct = nf_ct_tuplehash_to_ctrack(h);
++
++	skb->nfct = &ct->ct_general;
++	skb->nfctinfo = ctinfo;
++
++	manip_pkt = rcu_dereference(nf_nat_manip_pkt);
++	if (!manip_pkt)
++		return 0;
++
++	if (status & IPS_SRC_NAT &&
++	    manip_pkt(skb, ct, NF_NAT_MANIP_SRC, IP_CT_DIR_ORIGINAL) == NF_DROP)
++		return -1;
++
++	if (status & IPS_DST_NAT &&
++	    manip_pkt(skb, ct, NF_NAT_MANIP_DST, IP_CT_DIR_ORIGINAL) == NF_DROP)
++		return -1;
++
++	return 0;
++}
++
+ /* Bring out ya dead! */
+ static struct nf_conn *
+ get_next_corpse(struct net *net, int (*iter)(struct nf_conn *i, void *data),
+@@ -1379,6 +1457,7 @@ void nf_conntrack_cleanup(struct net *net)
+ 
+ 	if (net_eq(net, &init_net)) {
+ 		RCU_INIT_POINTER(nf_ct_destroy, NULL);
++		RCU_INIT_POINTER(nf_ct_update, NULL);
+ 		nf_conntrack_cleanup_init_net();
+ 	}
+ }
+@@ -1633,6 +1712,7 @@ int nf_conntrack_init(struct net *net)
+ 		/* For use by REJECT target */
+ 		RCU_INIT_POINTER(ip_ct_attach, nf_conntrack_attach);
+ 		RCU_INIT_POINTER(nf_ct_destroy, destroy_conntrack);
++		RCU_INIT_POINTER(nf_ct_update, nf_conntrack_update);
+ 
+ 		/* Howto get NAT offsets */
+ 		RCU_INIT_POINTER(nf_ct_nat_offset, NULL);
+diff --git a/net/netfilter/nfnetlink_queue.c b/net/netfilter/nfnetlink_queue.c
+index a80b0cb03f17..7a715f9b1f22 100644
+--- a/net/netfilter/nfnetlink_queue.c
++++ b/net/netfilter/nfnetlink_queue.c
+@@ -200,6 +200,26 @@ find_dequeue_entry(struct nfqnl_instance *queue, unsigned int id)
+ 	return entry;
+ }
+ 
++static void nfqnl_reinject(struct nf_queue_entry *entry, unsigned int verdict)
++{
++	int (*ct_update)(struct net *net, struct sk_buff *skb);
++	int err;
++
++	if (verdict == NF_ACCEPT ||
++	    verdict == NF_REPEAT ||
++	    verdict == NF_STOP) {
++		rcu_read_lock();
++		ct_update = rcu_dereference(nf_ct_update);
++		if (ct_update) {
++			err = ct_update(&init_net, entry->skb);
++			if (err < 0)
++				verdict = NF_DROP;
++		}
++		rcu_read_unlock();
++	}
++	nf_reinject(entry, verdict);
++}
++
+ static void
+ nfqnl_flush(struct nfqnl_instance *queue, nfqnl_cmpfn cmpfn, unsigned long data)
+ {
+@@ -210,7 +229,7 @@ nfqnl_flush(struct nfqnl_instance *queue, nfqnl_cmpfn cmpfn, unsigned long data)
+ 		if (!cmpfn || cmpfn(entry, data)) {
+ 			list_del(&entry->list);
+ 			queue->queue_total--;
+-			nf_reinject(entry, NF_DROP);
++			nfqnl_reinject(entry, NF_DROP);
+ 		}
+ 	}
+ 	spin_unlock_bh(&queue->lock);
+@@ -698,7 +717,7 @@ nfqnl_recv_verdict_batch(struct sock *ctnl, struct sk_buff *skb,
+ 	list_for_each_entry_safe(entry, tmp, &batch_list, list) {
+ 		if (nfqa[NFQA_MARK])
+ 			entry->skb->mark = ntohl(nla_get_be32(nfqa[NFQA_MARK]));
+-		nf_reinject(entry, verdict);
++		nfqnl_reinject(entry, verdict);
+ 	}
+ 	return 0;
+ }
+@@ -742,7 +761,7 @@ nfqnl_recv_verdict(struct sock *ctnl, struct sk_buff *skb,
+ 	if (nfqa[NFQA_MARK])
+ 		entry->skb->mark = ntohl(nla_get_be32(nfqa[NFQA_MARK]));
+ 
+-	nf_reinject(entry, verdict);
++	nfqnl_reinject(entry, verdict);
+ 	return 0;
+ }
+ 

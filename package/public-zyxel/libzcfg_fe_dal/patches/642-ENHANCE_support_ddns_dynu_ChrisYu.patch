@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/network/dns/zcfg_fe_dal_d_dns.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/dns/zcfg_fe_dal_d_dns.c	2019-07-26 17:45:27.702389782 +0800
++++ libzcfg_fe_dal-1.0/network/dns/zcfg_fe_dal_d_dns.c	2019-07-26 17:47:21.666147286 +0800
+@@ -13,7 +13,7 @@
+ dal_param_t D_DNS_param[] =
+ {
+ 	{"Enable", 			dalType_boolean,	0,	0,		NULL, NULL,		0},
+-	{"ServiceProvider", 		dalType_string, 	1, 	32,		NULL, "dyndns|zoneedit|noip|dtdns|freedns|userdefined",		0},
++	{"ServiceProvider", 		dalType_string, 	1, 	32,		NULL, "dyndns|zoneedit|noip|dtdns|freedns|dynu|userdefined",		0},
+ 	{"HostName", 			dalType_string, 	0, 	256,	NULL, NULL,		0},
+ 	{"UserName", 			dalType_string, 	0, 	256, 	NULL, NULL,		0},
+ 	{"Password", 			dalType_string, 	0, 	64, 		NULL, NULL,		0},

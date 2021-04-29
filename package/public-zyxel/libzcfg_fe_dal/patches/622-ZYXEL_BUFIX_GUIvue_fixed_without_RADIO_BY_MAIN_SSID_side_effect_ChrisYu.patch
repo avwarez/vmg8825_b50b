@@ -1,0 +1,43 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2018-09-05 16:00:09.262907597 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2018-09-05 16:04:55.218915476 +0800
+@@ -137,6 +137,10 @@
+ CFLAGS += -DZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_ENABLE_DISABLE_RADIO_BY_MAIN_SSID),y)
++CFLAGS += -DZYXEL_ENABLE_DISABLE_RADIO_BY_MAIN_SSID
++endif
++
+ #iskon
+ ifeq ($(CONFIG_ISKON_CUSTOMIZATION),y)
+ CFLAGS += -DISKON_CUSTOMIZATION
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2018-09-05 16:00:09.278907597 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2018-09-05 16:04:17.934179599 +0800
+@@ -871,6 +871,8 @@
+ 		}
+ 	}
+ 	zcfgFeJsonObjFree(ssidJarray);
++	
++#ifdef ZYXEL_ENABLE_DISABLE_RADIO_BY_MAIN_SSID
+ 
+ 	//Consider if some project only support 2.4G or 5G only in the future.
+ 	if (support24G && support5G) {	
+@@ -888,6 +890,14 @@
+ 			GuestSSIDEnable = true;
+ 		}
+ 	}
++#else
++		if (Guest24GSSIDEnable && Guest5GSSIDEnable){
++			GuestSSIDEnable = true;
++		}
++		else{
++			GuestSSIDEnable = false;
++		}
++#endif
+ 
+ 	getWanLanList_ext(&wanLanJarray);
+ 	statusJobj = json_object_new_object();

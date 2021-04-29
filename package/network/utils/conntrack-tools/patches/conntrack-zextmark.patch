@@ -1,0 +1,251 @@
+--- a/include/conntrack.h
++++ b/include/conntrack.h
+@@ -10,7 +10,7 @@
+ #include <netinet/in.h>
+ 
+ #define NUMBER_OF_CMD   19
+-#define NUMBER_OF_OPT   27
++#define NUMBER_OF_OPT   28
+ 
+ struct ctproto_handler {
+ 	struct list_head 	head;
+diff --git a/src/conntrack.c b/src/conntrack.c
+index 00b09b6..13ee9a5 100644
+--- a/src/conntrack.c
++++ b/src/conntrack.c
+@@ -76,9 +76,11 @@ static struct {
+ 
+ 	/* Allows filtering/setting specific bits in the ctmark */
+ 	struct u32_mask mark;
++	struct u32_mask zextmark;
+ 
+ 	/* Allow to filter by mark from kernel-space. */
+ 	struct nfct_filter_dump_mark filter_mark_kernel;
++	struct nfct_filter_dump_mark filter_zextmark_kernel;
+ 
+ 	/* Allows filtering by ctlabels */
+ 	struct nfct_bitmask *label;
+@@ -95,6 +97,7 @@ static int alloc_tmpl_objects(void)
+ 	tmpl.exp = nfexp_new();
+ 
+ 	memset(&tmpl.mark, 0, sizeof(tmpl.mark));
++	memset(&tmpl.zextmark, 0, sizeof(tmpl.zextmark));
+ 
+ 	return tmpl.ct != NULL && tmpl.exptuple != NULL &&
+ 	       tmpl.mask != NULL && tmpl.exp != NULL;
+@@ -266,13 +269,16 @@ enum ct_options {
+ 
+ 	CT_OPT_DEL_LABEL_BIT	= 26,
+ 	CT_OPT_DEL_LABEL		= (1 << CT_OPT_DEL_LABEL_BIT),
++
++	CT_OPT_ZEXTMARK_BIT		= 27,
++	CT_OPT_ZEXTMARK			= (1 << CT_OPT_ZEXTMARK_BIT),
+ };
+ /* If you add a new option, you have to update NUMBER_OF_OPT in conntrack.h */
+ 
+ /* Update this mask to allow to filter based on new options. */
+ #define CT_COMPARISON (CT_OPT_PROTO | CT_OPT_ORIG | CT_OPT_REPL | \
+ 		       CT_OPT_MARK | CT_OPT_SECMARK |  CT_OPT_STATUS | \
+-		       CT_OPT_ID | CT_OPT_ZONE | CT_OPT_LABEL)
++		       CT_OPT_ID | CT_OPT_ZONE | CT_OPT_LABEL | CT_OPT_ZEXTMARK)
+ 
+ static const char *optflags[NUMBER_OF_OPT] = {
+ 	[CT_OPT_ORIG_SRC_BIT] 	= "src",
+@@ -302,6 +308,7 @@ static const char *optflags[NUMBER_OF_OPT] = {
+ 	[CT_OPT_LABEL_BIT]	= "label",
+ 	[CT_OPT_ADD_LABEL_BIT]	= "label-add",
+ 	[CT_OPT_DEL_LABEL_BIT]	= "label-del",
++	[CT_OPT_ZEXTMARK_BIT] = "zextmark",
+ };
+ 
+ static struct option original_opts[] = {
+@@ -345,11 +352,12 @@ static struct option original_opts[] = {
+ 	{"label", 1, 0, 'l'},
+ 	{"label-add", 1, 0, '<'},
+ 	{"label-del", 2, 0, '>'},
++	{"zextmark", 1, 0, 'x'},
+ 	{0, 0, 0, 0}
+ };
+ 
+ static const char *getopt_str = ":L::I::U::D::G::E::F::hVs:d:r:q:"
+-				"p:t:u:e:a:z[:]:{:}:m:i:f:o:n::"
++				"p:t:u:e:a:z[:]:{:}:m:x:i:f:o:n::"
+ 				"g::c:b:C::Sj::w:l:<:>::";
+ 
+ /* Table of legal combinations of commands and options.  If any of the
+@@ -365,26 +373,26 @@ static const char *getopt_str = ":L::I::U::D::G::E::F::hVs:d:r:q:"
+ static char commands_v_options[NUMBER_OF_CMD][NUMBER_OF_OPT] =
+ /* Well, it's better than "Re: Linux vs FreeBSD" */
+ {
+-          /*   s d r q p t u z e [ ] { } a m i f n g o c b j w l < > */
+-/*CT_LIST*/   {2,2,2,2,2,0,2,2,0,0,0,0,0,0,2,0,2,2,2,2,2,0,2,2,2,0,0},
+-/*CT_CREATE*/ {3,3,3,3,1,1,2,0,0,0,0,0,0,2,2,0,0,2,2,0,0,0,0,2,0,2,0},
+-/*CT_UPDATE*/ {2,2,2,2,2,2,2,0,0,0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,2,2,2},
+-/*CT_DELETE*/ {2,2,2,2,2,2,2,0,0,0,0,0,0,0,2,2,2,2,2,2,0,0,0,2,2,0,0},
+-/*CT_GET*/    {3,3,3,3,1,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,0,0,0,0,2,0,0},
+-/*CT_FLUSH*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*CT_EVENT*/  {2,2,2,2,2,0,0,0,2,0,0,0,0,0,2,0,0,2,2,2,2,2,2,2,2,0,0},
+-/*VERSION*/   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*HELP*/      {0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_LIST*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,2,0,0,0,0,0,0,0},
+-/*EXP_CREATE*/{1,1,2,2,1,1,2,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_DELETE*/{1,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_GET*/   {1,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_FLUSH*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_EVENT*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0},
+-/*CT_COUNT*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_COUNT*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*CT_STATS*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+-/*EXP_STATS*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++          /*   s d r q p t u z e [ ] { } a m i f n g o c b j w l < > x */
++/*CT_LIST*/   {2,2,2,2,2,0,2,2,0,0,0,0,0,0,2,0,2,2,2,2,2,0,2,2,2,0,0,2},
++/*CT_CREATE*/ {3,3,3,3,1,1,2,0,0,0,0,0,0,2,2,0,0,2,2,0,0,0,0,2,0,2,0,2},
++/*CT_UPDATE*/ {2,2,2,2,2,2,2,0,0,0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,2,2,2,2},
++/*CT_DELETE*/ {2,2,2,2,2,2,2,0,0,0,0,0,0,0,2,2,2,2,2,2,0,0,0,2,2,0,0,2},
++/*CT_GET*/    {3,3,3,3,1,0,0,0,0,0,0,0,0,0,0,2,0,0,0,2,0,0,0,0,2,0,0,2},
++/*CT_FLUSH*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*CT_EVENT*/  {2,2,2,2,2,0,0,0,2,0,0,0,0,0,2,0,0,2,2,2,2,2,2,2,2,0,0,2},
++/*VERSION*/   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*HELP*/      {0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_LIST*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,2,0,0,0,0,0,0,0,0},
++/*EXP_CREATE*/{1,1,2,2,1,1,2,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_DELETE*/{1,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_GET*/   {1,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_FLUSH*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_EVENT*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0},
++/*CT_COUNT*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_COUNT*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*CT_STATS*/  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
++/*EXP_STATS*/ {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+ };
+ 
+ static const int cmd2type[][2] = {
+@@ -419,6 +427,7 @@ static const int opt2type[] = {
+ 	['l']	= CT_OPT_LABEL,
+ 	['<']	= CT_OPT_ADD_LABEL,
+ 	['>']	= CT_OPT_DEL_LABEL,
++	['x']	= CT_OPT_ZEXTMARK,
+ };
+ 
+ static const int opt2family_attr[][2] = {
+@@ -448,6 +457,7 @@ static const int opt2attr[] = {
+ 	['l']	= ATTR_CONNLABELS,
+ 	['<']	= ATTR_CONNLABELS,
+ 	['>']	= ATTR_CONNLABELS,
++	['x']	= ATTR_ZEXTMARK,
+ };
+ 
+ static char exit_msg[NUMBER_OF_CMD][64] = {
+@@ -482,6 +492,7 @@ static const char usage_conntrack_parameters[] =
+ 	"  -g, --dst-nat ip\t\t\tdestination NAT ip\n"
+ 	"  -j, --any-nat ip\t\t\tsource or destination NAT ip\n"
+ 	"  -m, --mark mark\t\t\tSet mark\n"
++	"  -x, --zextmark mark\t\t\tSet Zextmark\n"
+ 	"  -c, --secmark secmark\t\t\tSet selinux secmark\n"
+ 	"  -e, --event-mask eventmask\t\tEvent mask, eg. NEW,DESTROY\n"
+ 	"  -z, --zero \t\t\t\tZero counters while listing\n"
+@@ -756,10 +767,10 @@ err2str(int err, enum ct_command command)
+ 	return strerror(err);
+ }
+ 
+-static int mark_cmp(const struct u32_mask *m, const struct nf_conntrack *ct)
++static int mark_cmp(int attr, const struct u32_mask *m, const struct nf_conntrack *ct)
+ {
+-	return nfct_attr_is_set(ct, ATTR_MARK) &&
+-		(nfct_get_attr_u32(ct, ATTR_MARK) & m->mask) == m->value;
++	return nfct_attr_is_set(ct, attr) &&
++		(nfct_get_attr_u32(ct, attr) & m->mask) == m->value;
+ }
+ 
+ #define PARSE_STATUS 0
+@@ -1102,8 +1113,13 @@ static int
+ filter_mark(const struct nf_conntrack *ct)
+ {
+ 	if ((options & CT_OPT_MARK) &&
+-	     !mark_cmp(&tmpl.mark, ct))
++	     !mark_cmp(ATTR_MARK, &tmpl.mark, ct))
++		return 1;
++
++	if ((options & CT_OPT_ZEXTMARK) &&
++	     !mark_cmp(ATTR_ZEXTMARK, &tmpl.zextmark, ct))
+ 		return 1;
++
+ 	return 0;
+ }
+ 
+@@ -1386,13 +1402,21 @@ static int print_cb(enum nf_conntrack_msg_type type,
+ 
+ static void copy_mark(struct nf_conntrack *tmp,
+ 		      const struct nf_conntrack *ct,
+-		      const struct u32_mask *m)
++		      const struct u32_mask *m,
++		      const struct u32_mask *z)
+ {
+ 	if (options & CT_OPT_MARK) {
+ 		uint32_t mark = nfct_get_attr_u32(ct, ATTR_MARK);
+ 		mark = (mark & ~m->mask) ^ m->value;
+ 		nfct_set_attr_u32(tmp, ATTR_MARK, mark);
+ 	}
++
++	if (options & CT_OPT_ZEXTMARK) {
++		fprintf(stdout, "Updating ZEXTMARK\n");
++		uint32_t mark = nfct_get_attr_u32(ct, ATTR_ZEXTMARK);
++		mark = (mark & ~z->mask) ^ z->value;
++		nfct_set_attr_u32(tmp, ATTR_ZEXTMARK, mark);
++	}
+ }
+ 
+ static void copy_status(struct nf_conntrack *tmp, const struct nf_conntrack *ct)
+@@ -1497,9 +1521,10 @@ static int update_cb(enum nf_conntrack_msg_type type,
+ 	if (tmp == NULL)
+ 		exit_error(OTHER_PROBLEM, "out of memory");
+ 
++	fprintf(stdout, "ZEXTMARK SET? %d\n", (options & CT_OPT_ZEXTMARK));
+ 	nfct_copy(tmp, ct, NFCT_CP_ORIG);
+ 	nfct_copy(tmp, obj, NFCT_CP_META);
+-	copy_mark(tmp, ct, &tmpl.mark);
++	copy_mark(tmp, ct, &tmpl.mark, &tmpl.zextmark);
+ 	copy_status(tmp, ct);
+ 	copy_label(tmp, ct);
+ 
+@@ -2135,6 +2160,12 @@ int main(int argc, char *argv[])
+ 			tmpl.filter_mark_kernel.val = tmpl.mark.value;
+ 			tmpl.filter_mark_kernel.mask = tmpl.mark.mask;
+ 			break;
++		case 'x':
++			options |= opt2type[c];
++			parse_u32_mask(optarg, &tmpl.zextmark);
++			tmpl.filter_zextmark_kernel.val = tmpl.zextmark.value;
++			tmpl.filter_zextmark_kernel.mask = tmpl.zextmark.mask;
++			break;
+ 		case 'l':
+ 		case '<':
+ 		case '>':
+@@ -2283,6 +2314,8 @@ int main(int argc, char *argv[])
+ 
+ 		nfct_filter_dump_set_attr(filter_dump, NFCT_FILTER_DUMP_MARK,
+ 					  &tmpl.filter_mark_kernel);
++		nfct_filter_dump_set_attr(filter_dump, NFCT_FILTER_DUMP_ZEXTMARK,
++					  &tmpl.filter_zextmark_kernel);
+ 		nfct_filter_dump_set_attr_u8(filter_dump,
+ 					     NFCT_FILTER_DUMP_L3NUM,
+ 					     family);
+@@ -2327,6 +2360,9 @@ int main(int argc, char *argv[])
+ 		if (options & CT_OPT_MARK)
+ 			nfct_set_attr_u32(tmpl.ct, ATTR_MARK, tmpl.mark.value);
+ 
++		if (options & CT_OPT_ZEXTMARK)
++			nfct_set_attr_u32(tmpl.ct, ATTR_ZEXTMARK, tmpl.zextmark.value);
++
+ 		if (options & CT_OPT_ADD_LABEL)
+ 			nfct_set_attr(tmpl.ct, ATTR_CONNLABELS,
+ 					xnfct_bitmask_clone(tmpl.label_modify));
+@@ -2382,6 +2418,8 @@ int main(int argc, char *argv[])
+ 
+ 		nfct_filter_dump_set_attr(filter_dump, NFCT_FILTER_DUMP_MARK,
+ 					  &tmpl.filter_mark_kernel);
++		nfct_filter_dump_set_attr(filter_dump, NFCT_FILTER_DUMP_ZEXTMARK,
++					  &tmpl.filter_zextmark_kernel);
+ 		nfct_filter_dump_set_attr_u8(filter_dump,
+ 					     NFCT_FILTER_DUMP_L3NUM,
+ 					     family);

@@ -1,0 +1,73 @@
+Index: libzcfg_fe_dal-1.0/security/package3rdParty/zcfg_fe_dal_package3rdParty.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/package3rdParty/zcfg_fe_dal_package3rdParty.c	2018-11-21 16:03:14.419125251 +0800
++++ libzcfg_fe_dal-1.0/security/package3rdParty/zcfg_fe_dal_package3rdParty.c	2018-11-21 16:05:14.122578300 +0800
+@@ -71,6 +71,44 @@
+ 	return ret;
+ }
+ 
++zcfgRet_t zcfgFeDalPackage3rdPartyEditArray(struct json_object *Jobj, char *replyMsg){ 
++	
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *package3rdPartyObj = NULL;
++	struct json_object *reqObj = NULL;
++	int reqObjIdx = 1;
++	objIndex_t package3rdPartyIid = {0};
++	
++	bool enable = false;
++	int Index = 0;
++
++	enum json_type jsonType;
++	//printf("### zcfgFeDalPackage3rdPartyEdit ### zcfgFeDalPackage3rdPartyEdit \n");
++	while((reqObj = json_object_array_get_idx(Jobj, reqObjIdx)) !=NULL){
++
++		Index = json_object_get_int(json_object_object_get(reqObj, "Index"));
++		enable = json_object_get_boolean(json_object_object_get(reqObj, "Enable"));
++		//printf("### objIndex ### Index = %d\n", Index);
++		//printf("### objIndex ### enable = %d\n", enable);
++		reqObjIdx++;
++	
++		IID_INIT(package3rdPartyIid);
++		package3rdPartyIid.level = 1;
++		package3rdPartyIid.idx[0] = Index;
++	
++		ret = zcfgFeObjJsonGet(RDM_OID_PACKAGE, &package3rdPartyIid, &package3rdPartyObj);
++		if(ret == ZCFG_SUCCESS) {
++			json_object_object_add(package3rdPartyObj, "Enable", json_object_new_boolean(enable));
++			ret = zcfgFeObjJsonBlockedSet(RDM_OID_PACKAGE, &package3rdPartyIid, package3rdPartyObj, NULL);
++		}
++		
++		zcfgFeJsonObjFree(package3rdPartyObj);
++		zcfgFeJsonObjFree(reqObj);
++	}
++	
++	return ret;
++}
++
+ zcfgRet_t zcfgFeDalPackage3rdPartyEdit(struct json_object *Jobj, char *replyMsg)
+ {
+  	zcfgRet_t ret = ZCFG_SUCCESS;
+@@ -81,6 +119,7 @@
+ 
+ 	objIndex_t objIid={0};
+ 	objIndex = json_object_get_int(json_object_object_get(Jobj, "Index"));
++	//printf("### objIndex ### objIndex = %d/n", objIndex);
+ 	ret = convertIndextoIid(objIndex, &objIid, RDM_OID_PACKAGE, NULL, NULL, replyMsg, json_object_get_string(json_object_object_get(Jobj, "cmdtype")) );
+ 	if(ret != ZCFG_SUCCESS){
+ 		printf("Wrong index..\n");
+@@ -107,8 +146,13 @@
+ 	if(!method || !Jobj)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
+-	if(!strcmp(method, "PUT")) {
+-		ret = zcfgFeDalPackage3rdPartyEdit(Jobj, replyMsg);
++	if(!strcmp(method, "PUT")) {	
++		if(json_object_get_type(Jobj) == json_type_array){ // for GUI, tmp solution
++			ret = zcfgFeDalPackage3rdPartyEditArray(Jobj, replyMsg);
++		}
++		else{
++			ret = zcfgFeDalPackage3rdPartyEdit(Jobj, replyMsg);
++		}
+ 	}
+ #if 0 // temp
+ 	else if(!strcmp(method, "POST")) {

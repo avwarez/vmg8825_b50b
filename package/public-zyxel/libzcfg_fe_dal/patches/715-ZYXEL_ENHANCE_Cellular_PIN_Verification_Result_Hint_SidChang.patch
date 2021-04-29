@@ -1,0 +1,26 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_wwanbackup.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_wwanbackup.c	2019-10-22 17:03:41.359113465 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_wwanbackup.c	2019-10-22 17:57:52.213220600 +0800
+@@ -21,6 +21,7 @@
+ {"DialNumber", dalType_string, 0, 0, NULL},
+ {"APN", dalType_string, 0, 0, NULL},
+ {"PIN_Code", dalType_string, 0, 0, NULL},
++{"PIN_Verification", dalType_string, 0, 0, NULL},
+ /* set IPV4 object */
+ {"IPStatic", dalType_boolean,	0,	0,	NULL},
+ {"IPAddress", dalType_v4Addr,	0,	0,	NULL},
+@@ -702,11 +703,12 @@
+ 	bool staticDns = false;
+ 	int disconnectTime = 0;
+ 
+-	if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ZY_W_W_A_N_BACKUP, &wwanBackupIid, &wwanBackupObj) == ZCFG_SUCCESS){
++	if(zcfgFeObjJsonGet(RDM_OID_ZY_W_W_A_N_BACKUP, &wwanBackupIid, &wwanBackupObj) == ZCFG_SUCCESS){
+ 		json_object_object_add(paramJobj, "Enable_3G", JSON_OBJ_COPY(json_object_object_get(wwanBackupObj, "Enable")));
+ 		json_object_object_add(paramJobj, "DialNumber", JSON_OBJ_COPY(json_object_object_get(wwanBackupObj, "DialNumber")));
+ 		json_object_object_add(paramJobj, "APN", JSON_OBJ_COPY(json_object_object_get(wwanBackupObj, "APN")));
+ 		json_object_object_add(paramJobj, "PIN_Code", JSON_OBJ_COPY(json_object_object_get(wwanBackupObj, "PIN")));
++		json_object_object_add(paramJobj, "PIN_Verification", JSON_OBJ_COPY(json_object_object_get(wwanBackupObj, "PIN_Verification")));
+ 		json_object_object_add(paramJobj, "Manufacturer", JSON_OBJ_COPY(json_object_object_get(wwanBackupObj, "Manufacturer")));
+ 		curIpIface = json_object_get_string(json_object_object_get(wwanBackupObj, "Interface"));
+ 		curPPPIface = json_object_get_string(json_object_object_get(wwanBackupObj, "PPPInterface"));

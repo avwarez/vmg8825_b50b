@@ -1,0 +1,198 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_scheduler_access.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_scheduler_access.c	2019-10-07 16:39:08.884061348 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_scheduler_access.c	2019-10-07 16:41:43.145581271 +0800
+@@ -21,13 +21,17 @@
+ 
+ #ifdef ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 	{"AutoSwitchWiFiRadio",		dalType_boolean,	0,	0,	NULL,	NULL,	NULL},	
+-	{"MasterShip",		dalType_boolean,	0,	0,	NULL,	NULL,	NULL},	
++	{"MasterShip",				dalType_boolean,	0,	0,	NULL,	NULL,	NULL},	
++	{"LastConfiguration",		dalType_string, 	0,	0,	NULL,	NULL,	NULL},
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 	{NULL,		0,	0,	0,	NULL,	NULL,	0}
+ };
+ 
+ void zcfgFeDalShowWlanSchAccess(struct json_object *Jarray){
+ 	int i;
++#ifdef ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
++	char *lastConfig = NULL;
++#endif
+ 	struct json_object *obj;
+ 	if(json_object_get_type(Jarray) != json_type_array){
+ 		printf("wrong Jobj format!\n");
+@@ -54,6 +58,10 @@
+ 	else{
+ 		printf("Disabled\n");
+ 	}
++
++	lastConfig = json_object_get_string(json_object_object_get(obj, "LastConfiguration"));		
++	printf("%-30s ", lastConfig);
++	
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 	
+ 	printf("\n");
+@@ -69,7 +77,7 @@
+ #ifdef ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 	struct json_object *autoSwitch = NULL;
+ 	struct json_object *masterShip = NULL;
+-
++	struct json_object *lastConfig = NULL;
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 
+ 	
+@@ -80,6 +88,7 @@
+ #ifdef ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 	autoSwitch = json_object_object_get(wlanSchObj, "AutoSwitchWiFiRadio");
+ 	masterShip = json_object_object_get(wlanSchObj, "MasterShip");
++	lastConfig = json_object_object_get(wlanSchObj, "LastConfiguration");
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON	
+ 
+ 	pramJobj = json_object_new_object();
+@@ -88,6 +97,7 @@
+ #ifdef ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 	json_object_object_add(pramJobj, "AutoSwitchWiFiRadio", JSON_OBJ_COPY(autoSwitch));
+ 	json_object_object_add(pramJobj, "MasterShip", JSON_OBJ_COPY(masterShip));
++	json_object_object_add(pramJobj, "LastConfiguration", JSON_OBJ_COPY(lastConfig));
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 
+ 	json_object_array_add(Jarray, pramJobj);
+@@ -111,17 +121,20 @@
+ 	defaultwlanConfig = false;
+ 	struct json_object *reqAutoObj = NULL;
+ 	struct json_object *reqMasterShipObj = NULL;
++	struct json_object *reqLastConfigObj = NULL;
+ 
+ 	bool autoSwitchEnable = false;
+ 	bool masterShip = false;
+ 	bool curEnable = false;
+-	
++	char *lastConfig = NULL;
+ 	
+ 	reqAutoObj = json_object_object_get(Jobj,"AutoSwitchWiFiRadio");
+ 	reqMasterShipObj = json_object_object_get(Jobj,"MasterShip");
++	reqLastConfigObj = json_object_object_get(Jobj,"LastConfiguration");
+ 	
+ 	autoSwitchEnable = json_object_get_boolean(reqAutoObj);
+ 	masterShip = json_object_get_boolean(reqMasterShipObj);
++	lastConfig = json_object_get_string(reqLastConfigObj);
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 
+ 
+@@ -140,8 +153,17 @@
+ 			json_object_object_add(wlanSchedulerActiveObj, "AutoSwitchWiFiRadio", json_object_new_boolean(autoSwitchEnable));
+ 		if(json_object_object_get(Jobj, "MasterShip"))
+ 			json_object_object_add(wlanSchedulerActiveObj, "MasterShip", json_object_new_boolean(masterShip));
+-		if ((enable == false) && (enable != curEnable) && (masterShip == true)){
+-			if (zcfgFeDalDefaultWiFiConfig() == ZCFG_SUCCESS){
++		
++		//enbale wlan scheduler set last modify wifi status
++		if ((enable == true) && (enable != curEnable) && (masterShip == true)){
++			if(json_object_object_get(Jobj, "LastConfiguration"))
++				json_object_object_add(wlanSchedulerActiveObj, "LastConfiguration", json_object_new_string(lastConfig));
++				#if 0 //zcfgFeDalWlanSchedulerAccessEdit
++				printf("zcfgFeDalWlanSchedulerAccessEdit : updated wifi lastConfig = %s\n", lastConfig);
++				#endif
++		}
++		else if ((enable == false) && (enable != curEnable) && (masterShip == true)){
++			if (zcfgFeDalDefaultWiFiConfig(lastConfig) == ZCFG_SUCCESS){
+ 				defaultwlanConfig = true;
+ 			}
+ 		}
+@@ -153,28 +175,57 @@
+ 	return ret;
+ }
+ 
+-zcfgRet_t zcfgFeDalDefaultWiFiConfig(void){
++zcfgRet_t zcfgFeDalDefaultWiFiConfig(char *lastConfig){
+ 
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	objIndex_t iid;
+ 	struct json_object *ssidObj = NULL;
+-	bool enableStatus;
+-
++	
++	const char *del = ",";
++	bool enable;
++	char *enableStatus[8];
++	split(enableStatus, lastConfig, del);
++
++	#if 0 //zcfgFeDalDefaultWiFiConfig
++	printf("=== updated >> get last config ====\n");
++	printf(">> enableStatus[0] = %s\n", enableStatus[0]);
++	printf(">> enableStatus[1] = %s\n", enableStatus[1]);
++	printf(">> enableStatus[2] = %s\n", enableStatus[2]);
++	printf(">> enableStatus[3] = %s\n", enableStatus[3]);
++	printf(">> enableStatus[4] = %s\n", enableStatus[4]);
++	printf(">> enableStatus[5] = %s\n", enableStatus[5]);
++	printf(">> enableStatus[6] = %s\n", enableStatus[6]);
++	printf(">> enableStatus[7] = %s\n", enableStatus[7]);								
++	printf("============================\n\n");
++	printf("=== updated >> set last config ====\n");
++	#endif
++	
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_WIFI_SSID, &iid, &ssidObj) == ZCFG_SUCCESS){
+-		if (json_object_get_int(json_object_object_get(ssidObj, "X_ZYXEL_Attribute")) == 0){
+-			if (!strcmp(json_object_get_string(json_object_object_get(ssidObj, "X_ZYXEL_GuestAPs")),"")){
+-				//GUEST	
+-				enableStatus = false;
+-			}
+-			else{
+-				//MAIN
+-				enableStatus = true;
++		enable = false;
++		if (iid.idx[0] < 9){
++			if (json_object_get_int(json_object_object_get(ssidObj, "X_ZYXEL_Attribute")) == 0){
++				
++				#if 0 //zcfgFeDalDefaultWiFiConfig
++				if (!strcmp(json_object_get_string(json_object_object_get(ssidObj, "X_ZYXEL_GuestAPs")),"")){
++					//GUEST	
++					enableStatus = false;
++				}
++				else{
++					//MAIN
++					enableStatus = true;
++				}
++				#endif
++				
++				if (!strcmp(enableStatus[iid.idx[0]-1],"1")) {
++					enable = true;
++				}
++				//printf(">> SET ssidObj[%d] = %d\n", iid.idx[0], enable);
++				json_object_object_add(ssidObj, "Enable", json_object_new_boolean(enable));
+ 			}
+-
+-			json_object_object_add(ssidObj, "Enable", json_object_new_boolean(enableStatus));
++			zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_SSID, &iid, ssidObj, NULL);
++			//printf("============================\n\n");
+ 		}
+-		zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_SSID, &iid, ssidObj, NULL);
+ 		json_object_put(ssidObj);
+ 	}
+ 	return ret;
+@@ -195,6 +246,16 @@
+ 	
+ }
+ 
++void split(char **arr, char *str, const char *del)
++{
++   char *s = strtok(str, del);
++
++   while(s != NULL) {
++     *arr++ = s;
++     s = strtok(NULL, del);
++   }
++}
++
+ zcfgRet_t zcfgFeDalWlanSchAccess(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+@@ -213,7 +274,6 @@
+ 		}
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON	
+ 
+-		
+ 	}
+ 	else if(!strcmp(method, "GET")) {
+ 		ret = zcfgFeDalWlanSchedulerAccessGet(Jobj, Jarray, NULL);

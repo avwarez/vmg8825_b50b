@@ -1,0 +1,193 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2018-11-20 18:41:45.125006734 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2018-11-20 18:48:19.026083063 +0800
+@@ -34,6 +34,7 @@
+ SECURITY_MACFILTER_PATH = ./security/macFilter
+ SECURITY_PARENTALCTL_PATH = ./security/parentalControl
+ SECURITY_SCHEDULERRULE_PATH = ./security/schedulerRule
++SECURITY_PACKAGE3RDPARTY_PATH = ./security/package3rdParty
+ SECURITY_CERTIFICATE_PATH = ./security/certificate
+ MONITOR_PATH = ./monitor
+ JS_PATH = ./js
+@@ -70,6 +71,7 @@
+ SOURCES += $(wildcard $(SECURITY_MACFILTER_PATH)/*.c)
+ SOURCES += $(wildcard $(SECURITY_PARENTALCTL_PATH)/*.c)
+ SOURCES += $(wildcard $(SECURITY_SCHEDULERRULE_PATH)/*.c)
++SOURCES += $(wildcard $(SECURITY_PACKAGE3RDPARTY_PATH)/*.c)
+ SOURCES += $(wildcard $(SECURITY_CERTIFICATE_PATH)/*.c)
+ SOURCES += $(wildcard $(MONITOR_PATH)/*.c)
+ SOURCES += $(wildcard $(JS_PATH)/*.c)
+Index: libzcfg_fe_dal-1.0/security/package3rdParty/zcfg_fe_dal_package3rdParty.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ libzcfg_fe_dal-1.0/security/package3rdParty/zcfg_fe_dal_package3rdParty.c	2018-11-20 18:48:32.347770529 +0800
+@@ -0,0 +1,130 @@
++
++#include <json/json.h>
++
++#include "zcfg_common.h"
++#include "zcfg_rdm_oid.h"
++#include "zcfg_rdm_obj.h"
++#include "zcfg_debug.h"
++#include "zcfg_fe_rdm_string.h"
++#include "zcfg_fe_dal_common.h"
++
++#define CWMP_SOAP_MSG_DEBUG (1 << 1)
++
++dal_param_t Package_3rdParty_param[] =
++{
++	//Package3rdParty
++	{"Index",			dalType_int,		0,	0,	NULL,	NULL,	dal_Edit|dal_Delete},
++	{"Name",			dalType_string,		0,	0,	NULL,	NULL,	dal_Add},	
++	{"Version",			dalType_string,		0,	0,	NULL,	NULL,	0},
++	{"Script",			dalType_string,		0,	0,	NULL,	NULL,	0},
++	{"Enable",			dalType_boolean,	0,	0,	NULL,	NULL,	0},
++	{"Data", 			dalType_string, 	0,	0,	NULL,	NULL,	0},
++	{"FixCustID",		dalType_string, 	0,	0,	NULL,	NULL,	0},
++	{"Status",			dalType_string, 	0,	0,	NULL,	NULL,	0},
++	{NULL,				0,					0,	0,	NULL,	NULL,	0}
++};
++
++zcfgRet_t zcfgFeDalPackage3rdPartyGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg){
++
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	objIndex_t objIid;
++	struct json_object *Package3rdPartyObj = NULL;
++	struct json_object *pramJobj = NULL;
++
++	int index = 0;
++	struct json_object *enable = NULL;
++	struct json_object *name = NULL;
++	struct json_object *version = NULL;
++	struct json_object *script = NULL;
++	struct json_object *data = NULL;
++	struct json_object *custID = NULL;
++	struct json_object *status = NULL;
++
++	
++	IID_INIT(objIid);
++	while(zcfgFeObjJsonGetNext(RDM_OID_PACKAGE, &objIid, &Package3rdPartyObj) == ZCFG_SUCCESS){
++		index = objIid.idx[0];
++		
++		name = json_object_object_get(Package3rdPartyObj, "Name");
++		version = json_object_object_get(Package3rdPartyObj, "Version");
++		script = json_object_object_get(Package3rdPartyObj, "Script");
++		enable = json_object_object_get(Package3rdPartyObj, "Enable");
++		data = json_object_object_get(Package3rdPartyObj, "Data");
++		custID = json_object_object_get(Package3rdPartyObj, "FixCustID");
++		status = json_object_object_get(Package3rdPartyObj, "Status");
++		
++		pramJobj = json_object_new_object();
++		json_object_object_add(pramJobj, "Index", json_object_new_int(index));
++		json_object_object_add(pramJobj, "Name", JSON_OBJ_COPY(name));
++		json_object_object_add(pramJobj, "Version", JSON_OBJ_COPY(version));
++		json_object_object_add(pramJobj, "Script", JSON_OBJ_COPY(script));
++		json_object_object_add(pramJobj, "Enable", JSON_OBJ_COPY(enable));
++		json_object_object_add(pramJobj, "Data", JSON_OBJ_COPY(data));
++		json_object_object_add(pramJobj, "FixCustID", JSON_OBJ_COPY(custID));
++		json_object_object_add(pramJobj, "Status", JSON_OBJ_COPY(status));
++		
++		json_object_array_add(Jarray, pramJobj);
++		
++		zcfgFeJsonObjFree(Package3rdPartyObj);
++	}
++	dbg_printf("%s : Jarray=%s\n",__FUNCTION__,json_object_to_json_string(Jarray));
++	return ret;
++}
++
++zcfgRet_t zcfgFeDalPackage3rdPartyEdit(struct json_object *Jobj, char *replyMsg)
++{
++ 	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *Package3rdPartyJobj = NULL;
++	struct json_object *pramJobj = NULL;
++	int objIndex;
++	bool Enable = false;
++
++	objIndex_t objIid={0};
++	objIndex = json_object_get_int(json_object_object_get(Jobj, "Index"));
++	ret = convertIndextoIid(objIndex, &objIid, RDM_OID_PACKAGE, NULL, NULL, replyMsg, json_object_get_string(json_object_object_get(Jobj, "cmdtype")) );
++	if(ret != ZCFG_SUCCESS){
++		printf("Wrong index..\n");
++		return ret;
++	}
++	if((ret = zcfgFeObjJsonGet(RDM_OID_PACKAGE, &objIid, &Package3rdPartyJobj)) != ZCFG_SUCCESS) {
++		return ret;
++	}
++
++	if(json_object_object_get(Jobj, "Enable") != NULL){
++			Enable = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
++			json_object_object_add(Package3rdPartyJobj, "Enable", json_object_new_boolean(Enable));
++	}
++	
++	ret = zcfgFeObjJsonBlockedSet(RDM_OID_PACKAGE, &objIid, Package3rdPartyJobj, NULL);
++	json_object_put(Package3rdPartyJobj);
++	return ret;
++}
++
++zcfgRet_t zcfgFeDalPackage3rdParty(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
++{
++	zcfgRet_t ret = ZCFG_SUCCESS;
++
++	if(!method || !Jobj)
++		return ZCFG_INTERNAL_ERROR;
++
++	if(!strcmp(method, "PUT")) {
++		ret = zcfgFeDalPackage3rdPartyEdit(Jobj, replyMsg);
++	}
++#if 0 // temp
++	else if(!strcmp(method, "POST")) {
++		ret = zcfgFeDalPackage3rdPartyAdd(Jobj, Jarray, replyMsg);
++	}
++	else if(!strcmp(method, "DELETE")) {
++		ret = zcfgFeDalPackage3rdPartyDelete(Jobj, replyMsg);
++	}
++#endif	
++	else if(!strcmp(method, "GET")) {
++		ret = zcfgFeDalPackage3rdPartyGet(Jobj, Jarray, NULL);
++	}
++	else{
++		printf("Unknown method:%s\n", method);
++	}
++
++	return ret;
++}
++
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2018-11-20 18:41:44.825006725 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2018-11-20 18:48:06.698844136 +0800
+@@ -90,6 +90,7 @@
+ extern dal_param_t USB_PRINTSERVER_param[];
+ extern dal_param_t PAREN_CTL_param[];
+ extern dal_param_t SCHEDULE_param[];
++extern dal_param_t Package_3rdParty_param[];
+ extern dal_param_t DEV_SEC_CERT_param[];
+ extern dal_param_t HOME_CONNECTIVYITY_param[];
+ extern dal_param_t MGMT_SRV_param[];
+@@ -182,6 +183,7 @@
+ extern zcfgRet_t zcfgFeDalUsbPrintserver(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalParentCtl(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalSchedule(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
++extern zcfgRet_t zcfgFeDalPackage3rdParty(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalDevSecCert(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalHomeConnectivity(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalMgmtSrv(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+@@ -242,6 +244,9 @@
+ extern void zcfgFeDalShowVoipLine(struct json_object *Jarray);
+ extern void zcfgFeDalShowVoipProfile(struct json_object *Jarray);
+ extern void zcfgFeDalShowSchedule(struct json_object *Jarray);
++#if 0 // temp
++extern void zcfgFeDalShowPackage3rdParty(struct json_object *Jarray);
++#endif
+ extern void zcfgFeDalShowMgmt(struct json_object *Jarray);
+ extern void zcfgFeDalShowUsbMediaserver(struct json_object *Jarray);
+ extern void zcfgFeDalShowWifiWps(struct json_object *Jarray);
+@@ -343,6 +348,7 @@
+ {"print_server",	USB_PRINTSERVER_param,	zcfgFeDalUsbPrintserver,	NULL,				"edit|get", 			"USB_Service"},
+ {"paren_ctl", 		PAREN_CTL_param,	zcfgFeDalParentCtl,		zcfgFeDalShowParentCtl,						"get|add|edit|delete",	"Parental_Control"},//Parental_Control
+ {"scheduler",		SCHEDULE_param, 	zcfgFeDalSchedule,		zcfgFeDalShowSchedule,		"get|add|edit|delete",	"Scheduler_Rule"},
++{"package_3rdParty",Package_3rdParty_param, 	zcfgFeDalPackage3rdParty,	NULL,		"edit|get",	"Package_3rdParty"},
+ {"dev_sec_cert", 	DEV_SEC_CERT_param,	zcfgFeDalDevSecCert, 	NULL,						"get|add|edit|delete", 	""},//Certificates
+ {"one_connect", 	HOME_CONNECTIVYITY_param, zcfgFeDalHomeConnectivity,zcfgFeDalShowHomeConnect, 	"get|edit", 		"Home_Connectivity"},//Home_Connectivity
+ {"mgmt_srv", 		MGMT_SRV_param,	zcfgFeDalMgmtSrv,			zcfgFeDalShowMgmtSrv,		"edit|get",			"Remote_MGMT"},
