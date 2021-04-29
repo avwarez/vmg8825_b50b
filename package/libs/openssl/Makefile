@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openssl
 PKG_BASE:=1.0.2
-PKG_BUGFIX:=n
+PKG_BUGFIX:=u
 PKG_VERSION:=$(PKG_BASE)$(PKG_BUGFIX)
 PKG_RELEASE:=1
 PKG_USE_MIPS16:=0
@@ -25,7 +25,7 @@ PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/libs
 	http://gd.tuwien.ac.at/infosys/security/openssl/source/ \
 	http://www.openssl.org/source/ \
 	http://www.openssl.org/source/old/$(PKG_BASE)/
-PKG_MD5SUM:=13bdc1b1d1ff39b6fd42a255e74676a4
+PKG_HASH:=ecd0c6ffb493dd06707d38b14bb4d8c2288bb7033735606569d8f90f89669d16
 
 PKG_LICENSE:=OpenSSL
 PKG_LICENSE_FILES:=LICENSE

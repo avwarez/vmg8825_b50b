@@ -1,7 +1,7 @@
-Index: openssl-1.0.2n/crypto/armcap.c
+Index: openssl-1.0.2u/crypto/armcap.c
 ===================================================================
---- openssl-1.0.2n.orig/crypto/armcap.c	2017-12-07 21:16:38.000000000 +0800
-+++ openssl-1.0.2n/crypto/armcap.c	2018-01-24 14:37:21.202601904 +0800
+--- openssl-1.0.2u.orig/crypto/armcap.c	2017-12-07 21:16:38.000000000 +0800
++++ openssl-1.0.2u/crypto/armcap.c	2018-01-24 14:37:21.202601904 +0800
 @@ -116,6 +116,18 @@
      sigprocmask(SIG_SETMASK, &ill_act.sa_mask, &oset);
      sigaction(SIGILL, &ill_act, &ill_oact);

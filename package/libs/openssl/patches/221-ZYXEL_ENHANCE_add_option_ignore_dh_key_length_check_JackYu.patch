@@ -1,7 +1,7 @@
-Index: openssl-1.0.2n/ssl/s3_clnt.c
+Index: openssl-1.0.2u/ssl/s3_clnt.c
 ===================================================================
---- openssl-1.0.2n.orig/ssl/s3_clnt.c	2017-12-07 21:16:38.000000000 +0800
-+++ openssl-1.0.2n/ssl/s3_clnt.c	2018-01-18 15:44:48.125038678 +0800
+--- openssl-1.0.2u.orig/ssl/s3_clnt.c	2017-12-07 21:16:38.000000000 +0800
++++ openssl-1.0.2u/ssl/s3_clnt.c	2018-01-18 15:44:48.125038678 +0800
 @@ -3635,12 +3635,13 @@
              dh_size = BN_num_bits(dh_srvr->p);
              DH_free(dh_srvr);
