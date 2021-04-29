@@ -132,15 +132,6 @@ else
 	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(BIN_DIR)/openwrt-$(4)-$(1)-cfe.bin --chip $(3) --board $(2) --blocksize $(SQUASHFS_BLOCKSIZE) --image-version 4143GW2801456 --cfefile $(BIN_DIR)/brcm-cfe/cfe$(BRCM_CHIP).bin --rootfsfile $(KERNEL_BUILD_DIR)/root.$(1) --kernelfile $(KDIR)/vmlinux.lz --include-cfe
 endif
 
-ifeq ($(CONFIG_WIND_ENCRYPTED_IMAGE), y)
-	echo ">>>>>>>>>>>>>>>encrypted the ras.bin"
-	openssl enc -aes-256-cbc -in $(BIN_DIR)/zyxel/ras.bin -out $(BIN_DIR)/zyxel/ras_encrypted.tmp -pass pass:$(shell $(ZYXEL_PRIVATE_PACKAGE)/zyw88/zywkb)
-	wc -c $(BIN_DIR)/zyxel/ras_encrypted.tmp | cut -d " " -f1
-	echo "<encrypted>" > $(BIN_DIR)/zyxel/ras_encrypted_header
-	cat $(BIN_DIR)/zyxel/ras_encrypted_header $(BIN_DIR)/zyxel/ras_encrypted.tmp > $(BIN_DIR)/zyxel/ras_encrypted.bin
-	rm $(BIN_DIR)/zyxel/ras_encrypted_header $(BIN_DIR)/zyxel/ras_encrypted.tmp
-	echo "ZYXEL_PRIVATE_PACKAGE:"$(ZYXEL_PRIVATE_PACKAGE)
-endif
 endef
 
 define Build/Clean
