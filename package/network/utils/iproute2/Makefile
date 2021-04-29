@@ -8,8 +8,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=iproute2
-PKG_VERSION:=2.6.33
-PKG_RELEASE:=100224
+PKG_VERSION:=2.6.34
+PKG_RELEASE:=100519
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 #PKG_SOURCE_URL:=http://kernel.org/pub/linux/utils/net/iproute2/
