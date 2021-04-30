@@ -91,6 +91,8 @@ define Package/syslog-ng/install
 	ln -s ../init.d/syslog-ng.sh $(1)/etc/rc3.d/S46syslog-ng
 	$(CP) ./files/crond.sh $(1)/etc/init.d
 	ln -s ../init.d/crond.sh $(1)/etc/rc3.d/S46crond
+	$(CP) ./files/tun.sh $(1)/etc/init.d
+	ln -s ../init.d/tun.sh $(1)/etc/rc3.d/S99tun
 endef
 
 $(eval $(call BuildPackage,syslog-ng))
