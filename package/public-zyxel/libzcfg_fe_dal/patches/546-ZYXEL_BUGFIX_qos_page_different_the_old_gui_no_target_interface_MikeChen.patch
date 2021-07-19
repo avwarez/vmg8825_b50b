@@ -1,7 +1,7 @@
 Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c
 ===================================================================
---- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosClass.c	2018-05-11 17:50:21.342959179 +0800
-+++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c	2018-05-11 17:52:39.698964064 +0800
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosClass.c	2018-05-11 19:03:52.177105684 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c	2018-05-11 19:06:42.413711047 +0800
 @@ -1044,7 +1044,10 @@
  				json_object_object_add(pramJobj, "Dhcp", json_object_new_string(""));
  			forward = json_object_get_int(json_object_object_get(classObj, "ForwardingPolicy"));

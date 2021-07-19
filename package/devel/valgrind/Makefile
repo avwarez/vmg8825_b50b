@@ -79,6 +79,12 @@ endef
 
 CPU := $(patsubst x86,i386,$(LINUX_KARCH))
 
+#valgrind not support arm64, change the CPU to arm.
+ifeq ($(CPU), arm64)
+CPU := arm
+endif
+
+
 CONFIGURE_VARS += \
 	UNAME_R=$(LINUX_VERSION)
 
@@ -90,7 +96,13 @@ CONFIGURE_ARGS += \
 	--disable-valgrindmi \
 	--disable-tui \
 	--disable-valgrindtk \
-	--without-included-gettext
+	--without-included-gettext \
+	--with-pagesize=4
+
+define Build/InstallDev
+	$(INSTALL_DIR) $(1)/usr/include/valgrind
+	$(CP) -rf $(PKG_INSTALL_DIR)/usr/include/valgrind/* $(1)/usr/include/valgrind
+endef
 
 define Package/valgrind/install	
 	$(INSTALL_DIR) $(1)/usr/bin

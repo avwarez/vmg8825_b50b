@@ -113,6 +113,12 @@ $(call Package/util-linux/Default)
   SUBMENU=Terminal
 endef
 
+define Package/taskset
+$(call Package/util-linux/Default)
+  TITLE:=alternative Linux taskset
+  SUBMENU=Schedutil
+endef
+
 define Package/agetty/description
  agetty opens a tty port, prompts for a login name and invokes the
  /bin/login command
@@ -563,6 +569,12 @@ define Package/wipefs/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/misc-utils/.libs/wipefs $(1)/usr/sbin/
 endef
 
+define Package/taskset/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/schedutils/taskset $(1)/usr/bin/
+endef
+
+
 $(eval $(call BuildPackage,libblkid))
 $(eval $(call BuildPackage,libmount))
 $(eval $(call BuildPackage,libuuid))
@@ -594,3 +606,4 @@ $(eval $(call BuildPackage,uuidgen))
 $(eval $(call BuildPackage,wall))
 $(eval $(call BuildPackage,whereis))
 $(eval $(call BuildPackage,wipefs))
+$(eval $(call BuildPackage,taskset))

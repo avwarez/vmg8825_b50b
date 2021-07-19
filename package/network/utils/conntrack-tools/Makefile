@@ -27,7 +27,7 @@ PKG_INSTALL:=1
 
 TAR_OPTIONS += --exclude='*.rej'
 
-PKG_BUILD_DEPENDS:=librpc
+#PKG_BUILD_DEPENDS:=librpc
 
 include $(INCLUDE_DIR)/package.mk
 

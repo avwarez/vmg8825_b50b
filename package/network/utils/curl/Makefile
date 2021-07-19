@@ -54,7 +54,7 @@ define Package/libcurl
   $(call Package/curl/Default)
   SECTION:=libs
   CATEGORY:=Libraries
-  DEPENDS:=+libopenssl +zlib
+  DEPENDS:=+libopenssl +zlib +libpthread
   TITLE:=A client-side URL transfer library
 endef
 
@@ -63,7 +63,7 @@ TARGET_CFLAGS += $(FPIC)
 CONFIGURE_ARGS += \
 	--enable-shared \
 	--enable-static \
-	--disable-thread \
+	--enable-threaded-resolver\
 	--enable-cookies \
 	--enable-crypto-auth \
 	--enable-nonblocking \
@@ -78,8 +78,17 @@ CONFIGURE_ARGS += \
 	--disable-manual \
 	--disable-sspi \
 	--disable-telnet \
-	--enable-tftp \
-	--enable-verbose \
+	--enable-tftp 
+
+ifeq ($(CONFIG_ZYXEL_AVAST_AGENT_SUPPORT),y)
+CONFIGURE_ARGS += \
+	--enable-verbose 
+else
+CONFIGURE_ARGS += \
+	--disable-verbose 
+endif
+
+CONFIGURE_ARGS += \
 	--with-random="/dev/urandom" \
 	--with-ssl="$(STAGING_DIR)/usr" \
 	--without-ca-bundle \

@@ -1,7 +1,7 @@
 #!/bin/sh
 #[ -f /etc/banner ] && cat /etc/banner
 
-export PATH=/home/bin:/home/scripts:/opt/bin:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/jamvm/bin:/opt/scripts
+export PATH=/home/bin:/home/scripts:/opt/bin:/bin:/sbin:/usr/bin:/usr/sbin:/userfs/bin:/usr/local/jamvm/bin:/opt/scripts
 export LD_LIBRARY_PATH=/lib/public:/lib/private:/usr/lib:/lib:/usr/lib/ebtables:/usr/lib/iptables
 export HOME=$(grep -e "^${USER:-root}:" /etc/passwd | cut -d ":" -f 6)
 export HOME=${HOME:-/root}

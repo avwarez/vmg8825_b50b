@@ -1,7 +1,7 @@
 Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c
 ===================================================================
---- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosClass.c	2018-05-15 15:32:39.142714783 +0800
-+++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c	2018-05-15 15:36:02.736854164 +0800
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosClass.c	2018-05-15 17:11:36.110743478 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c	2018-05-15 17:30:52.222970701 +0800
 @@ -232,7 +232,8 @@
  	int enterprise = 0, number = 0, pronumber = 0;
  	json_object *classObj = NULL;

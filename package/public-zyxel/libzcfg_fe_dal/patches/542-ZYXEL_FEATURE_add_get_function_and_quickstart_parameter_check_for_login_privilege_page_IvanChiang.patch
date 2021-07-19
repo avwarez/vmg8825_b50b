@@ -1,8 +1,8 @@
 Index: libzcfg_fe_dal-1.0/Makefile
 ===================================================================
---- libzcfg_fe_dal-1.0.orig/Makefile	2018-05-04 17:04:26.026147934 +0800
-+++ libzcfg_fe_dal-1.0/Makefile	2018-05-04 16:51:16.997575000 +0800
-@@ -123,6 +123,10 @@
+--- libzcfg_fe_dal-1.0.orig/Makefile	2018-05-04 16:21:47.094135566 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2018-05-04 16:13:21.531975300 +0800
+@@ -126,6 +126,10 @@
  CFLAGS += -DZYXEL_WEB_GUI_SHOW_QOS_CLS_TARGET_INTF
  endif
  
@@ -15,8 +15,8 @@ Index: libzcfg_fe_dal-1.0/Makefile
  CFLAGS += -DZYXEL_REMOTE_ACCESS_PRIVILEGE
 Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_loginprivilege.c
 ===================================================================
---- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_loginprivilege.c	2018-05-04 17:04:26.018147934 +0800
-+++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_loginprivilege.c	2018-05-04 16:52:06.931705100 +0800
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_loginprivilege.c	2018-05-04 16:21:46.938135565 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_loginprivilege.c	2018-05-04 16:12:01.817703000 +0800
 @@ -26,6 +26,7 @@
  zcfgRet_t zcfgFeDal_LoginPrivilege_Edit(struct json_object *Jobj, char *replyMsg){
  	zcfgRet_t ret = ZCFG_SUCCESS;
@@ -147,8 +147,8 @@ Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_loginprivilege.c
  
 Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
 ===================================================================
---- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2018-05-04 17:04:26.266147935 +0800
-+++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2018-05-04 16:51:27.308730100 +0800
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2018-05-04 16:21:47.330135567 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2018-05-04 16:11:01.626449900 +0800
 @@ -346,7 +346,7 @@
  {"one_connect", 	HOME_CONNECTIVYITY_param, zcfgFeDalHomeConnectivity,zcfgFeDalShowHomeConnect, 	"get|edit", 		"Home_Connectivity"},//Home_Connectivity
  {"mgmt_srv", 		MGMT_SRV_param,	zcfgFeDalMgmtSrv,			zcfgFeDalShowMgmtSrv,		"edit|get",			"Remote_MGMT"},

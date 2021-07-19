@@ -62,6 +62,20 @@ endef
 define CheckDependencies
 endef
 
+ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
+ifeq ("$(strip ${BRCM_SDK_VERSION})","502L04")
+TARGET_CFLAGS += -DSUPPORT_502L04
+endif
+endif
+
+ZYLIBS:=-ljson -lzcfg_msg -lzcmd_tool -lzcfg_fe_rdm_access -lzcfg_fe_rdm_struct -lzlog -lzos
+ifneq ($(CONFIG_PACKAGE_libiconv-full),)
+ZYLIBS += -liconv
+endif
+ifneq ($(CONFIG_PACKAGE_libintl-full),)
+ZYLIBS += -lintl
+endif
+
 define Build/Configure
 	$(call Build/Configure/Default, \
 		--disable-dependency-tracking \
@@ -72,7 +86,7 @@ define Build/Configure
 		--enable-glibtest=no \
 		CPPFLAGS="-I$(STAGING_DIR)/usr/include $(TARGET_CPPFLAGS)" \
 		LDFLAGS="-L$(STAGING_DIR)/usr/lib $(TARGET_LDFLAGS)" \
-		LIBS="-ljson -lzcfg_msg -lzcmd_tool -lzcfg_fe_rdm_access -lzcfg_fe_rdm_struct" \
+		LIBS="$(ZYLIBS)" \
 		GLIB_CFLAGS="-I$(STAGING_DIR)/usr/include $(TARGET_CPPFLAGS)" \
 		GLIB_LIBS="$(STAGING_DIR)/usr/lib/libglib-2.0.so" \
 		EVTLOG_CFLAGS="-I$(STAGING_DIR)/usr/include/eventlog $(TARGET_CPPFLAGS)" \
@@ -91,8 +105,6 @@ define Package/syslog-ng/install
 	ln -s ../init.d/syslog-ng.sh $(1)/etc/rc3.d/S46syslog-ng
 	$(CP) ./files/crond.sh $(1)/etc/init.d
 	ln -s ../init.d/crond.sh $(1)/etc/rc3.d/S46crond
-	$(CP) ./files/tun.sh $(1)/etc/init.d
-	ln -s ../init.d/tun.sh $(1)/etc/rc3.d/S99tun
 endef
 
 $(eval $(call BuildPackage,syslog-ng))

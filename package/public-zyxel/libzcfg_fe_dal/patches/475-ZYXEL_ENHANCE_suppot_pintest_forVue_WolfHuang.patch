@@ -6,7 +6,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  #include "zcfg_msg.h"
  #include "zcfg_fe_dal_common.h"
  #include "zcfg_webgui_flag.h"
-+//#include "zlog_api.h"
++#include "zlog_api.h"
  
  #define IP_DIAG_IPPING 0
  #define IP_DIAG_TRACE_RT 1
@@ -86,13 +86,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  zcfgRet_t zcfgFeDalIpDiagIPPingEdit(struct json_object *Jobj){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): Enter.. \n ",__FUNCTION__);
-+	//ZLOG_INFO("Enter.. \n ");
++	ZLOG_INFO("Enter.. \n ");
  	getIpDiagIPPingBasicInfo(Jobj);
  
  	IID_INIT(IpDiagIPPingIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, &diagIPPingJobj)) != ZCFG_SUCCESS) {
 -		printf("%s:(ERROR) Get ip daig ip ping Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get ip daig ip ping Obj fail\n");
++		ZLOG_INFO("(ERROR) Get ip daig ip ping Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -101,7 +101,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  		if((ret = zcfgFeObjWrite(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, ipping, REQUEST_SET_OBJ | ZCFG_PARTIAL_OBJECT_SET, NULL)) != ZCFG_SUCCESS)
  		{
 -			printf("%s:(ERROR) Set ip daig ip ping fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set ip daig ip ping fail\n");
++			ZLOG_INFO("(ERROR) Set ip daig ip ping fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -110,13 +110,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  zcfgRet_t zcfgFeDalIpDiagTraceRTEdit(struct json_object *Jobj){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): Enter.. \n ",__FUNCTION__);
-+	//ZLOG_INFO("Enter.. \n ");
++	ZLOG_INFO("Enter.. \n ");
  	getIpDiagTraceRTBasicInfo(Jobj);
  
  	IID_INIT(IpDiagTraceRTIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_IP_DIAG_TRACE_RT, &IpDiagTraceRTIid, &diagTraceRTobj)) != ZCFG_SUCCESS) {
 -		printf("%s:(ERROR) Get ip daig trace RT Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get ip daig trace RT Obj fail\n");
++		ZLOG_INFO("(ERROR) Get ip daig trace RT Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -125,7 +125,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  		if((ret = zcfgFeObjJsonSet(RDM_OID_IP_DIAG_TRACE_RT, &IpDiagTraceRTIid, diagTraceRTobj, NULL)) != ZCFG_SUCCESS)
  		{
 -			printf("%s:(ERROR) Set ip daig trace RT fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set ip daig trace RT fail\n");
++			ZLOG_INFO("(ERROR) Set ip daig trace RT fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -134,13 +134,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  zcfgRet_t zcfgFeDalDNSDiagNSLookUpEdit(struct json_object *Jobj){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): Enter.. \n ",__FUNCTION__);
-+	//ZLOG_INFO("Enter.. \n ");
++	ZLOG_INFO("Enter.. \n ");
  	getDNSDiagNSLookUpgBasicInfo(Jobj);
  
  	IID_INIT(DNSDiagNSLookUpIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_DNS_DIAG_NS_LOOKUP_DIAG, &DNSDiagNSLookUpIid, &dnsNSLookUpobj)) != ZCFG_SUCCESS) {
 -		printf("%s:(ERROR) Get DNS diag NS Lookup Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get DNS diag NS Lookup Obj fail\n");
++		ZLOG_INFO("(ERROR) Get DNS diag NS Lookup Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -161,7 +161,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  		if((ret = zcfgFeObjJsonSet(RDM_OID_DNS_DIAG_NS_LOOKUP_DIAG, &DNSDiagNSLookUpIid, dnsNSLookUpobj, NULL)) != ZCFG_SUCCESS)
  		{
 -			printf("%s:(ERROR) Set DNS diag NS Lookup fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set DNS diag NS Lookup fail\n");
++			ZLOG_INFO("(ERROR) Set DNS diag NS Lookup fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -170,7 +170,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  zcfgRet_t zcfgFeDalPingTestEdit(struct json_object *Jobj, char *replyMsg){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): input --- %s \n ",__FUNCTION__,json_object_to_json_string(Jobj));
-+	//ZLOG_INFO("input --- %s \n ",json_object_to_json_string(Jobj));
++	ZLOG_INFO("input --- %s \n ",json_object_to_json_string(Jobj));
  
  	initPingTestGlobalObjects();
  	getPingTestType(Jobj);
@@ -178,19 +178,19 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  	if(type == IP_DIAG_IPPING ){
  		if((ret = zcfgFeDalIpDiagIPPingEdit(Jobj)) != ZCFG_SUCCESS){
 -			printf("%s: config I pDiag IP Ping fail\n", __FUNCTION__);
-+			//ZLOG_INFO("config I pDiag IP Ping fail\n");
++			ZLOG_INFO("config I pDiag IP Ping fail\n");
  			goto exit;
  		}
  	}else if(type == IP_DIAG_TRACE_RT){
  		if((ret = zcfgFeDalIpDiagTraceRTEdit(Jobj)) != ZCFG_SUCCESS){
 -			printf("%s: config Ip Diag Trace RT fail\n", __FUNCTION__);
-+			//ZLOG_INFO("config Ip Diag Trace RT fail\n");
++			ZLOG_INFO("config Ip Diag Trace RT fail\n");
  			goto exit;
  		}
  	}else if(type == DNS_DIAG_NS_LOOKUP){
  		if((ret = zcfgFeDalDNSDiagNSLookUpEdit(Jobj)) != ZCFG_SUCCESS){
 -			printf("%s: config DNS Diag NSL ookUp fail\n", __FUNCTION__);
-+			//ZLOG_INFO("config DNS Diag NSL ookUp fail\n");
++			ZLOG_INFO("config DNS Diag NSL ookUp fail\n");
  			goto exit;
  		}
  	}
@@ -200,7 +200,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
  
 +zcfgRet_t zcfgFeDalPingTestGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg){
 +	zcfgRet_t ret = ZCFG_SUCCESS;
-+	 //ZLOG_INFO("input --- %s \n ",json_object_to_json_string(Jobj));
++	 ZLOG_INFO("input --- %s \n ",json_object_to_json_string(Jobj));
 +	struct json_object *paramJobj = NULL;
 +	paramJobj = json_object_new_object();
 +
@@ -209,7 +209,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
 +	if(type == IP_DIAG_IPPING ){
 +		IID_INIT(IpDiagIPPingIid);
 +		if((ret = zcfgFeObjJsonGet(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, &diagIPPingJobj)) != ZCFG_SUCCESS) {
-+			//ZLOG_INFO("(ERROR) Get ip daig ip ping Obj fail\n");
++			ZLOG_INFO("(ERROR) Get ip daig ip ping Obj fail\n");
 +			ret = ZCFG_INTERNAL_ERROR;
 +			goto exit;
 +		}
@@ -217,7 +217,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
 +	}else if(type == IP_DIAG_TRACE_RT){
 +		IID_INIT(IpDiagTraceRTIid);
 +		if((ret = zcfgFeObjJsonGet(RDM_OID_IP_DIAG_TRACE_RT, &IpDiagTraceRTIid, &diagTraceRTobj)) != ZCFG_SUCCESS) {
-+			//ZLOG_INFO("(ERROR) Get ip daig trace RT Obj fail\n");
++			ZLOG_INFO("(ERROR) Get ip daig trace RT Obj fail\n");
 +			ret = ZCFG_INTERNAL_ERROR;
 +			goto exit;
 +		}
@@ -225,7 +225,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_pingtest.c
 +	}else if(type == DNS_DIAG_NS_LOOKUP){
 +		IID_INIT(DNSDiagNSLookUpIid);
 +		if((ret = zcfgFeObjJsonGet(RDM_OID_DNS_DIAG_NS_LOOKUP_DIAG, &DNSDiagNSLookUpIid, &dnsNSLookUpobj)) != ZCFG_SUCCESS) {
-+			//ZLOG_INFO("(ERROR) Get DNS diag NS Lookup Obj fail\n");
++			ZLOG_INFO("(ERROR) Get DNS diag NS Lookup Obj fail\n");
 +			ret = ZCFG_INTERNAL_ERROR;
 +			goto exit;
 +		}

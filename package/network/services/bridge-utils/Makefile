@@ -70,6 +70,17 @@ endif
 ifeq ("$(strip ${BRCM_SDK_VERSION})","416L05")
 ZCFLAGS += -DBRCM_SDK_${BRCM_SDK_VERSION}
 endif
+# __zy_bsp__ >>>
+ZYBSP_BCM_SDK_VER_CHK := $(findstring $(CONFIG_BRCM_SDK_VERSION),"502L04" "502L05" "502L06" "502L07")
+ifneq ($(ZYBSP_BCM_SDK_VER_CHK),)
+ZYBSP_BCM_SDK_VER=502L0X
+CONFIG_BRCM963xx_SDK_VER_502L0X=y
+endif
+ifeq ("$(CONFIG_BRCM963xx_SDK_VER_502L0X)", "y")
+ZCFLAGS += -DBRCM_SDK_${BRCM_SDK_VERSION}
+ZCFLAGS += -I$(KERNEL_BUILD_DIR)
+endif
+# __zy_bsp__ <<<
 endif
 
 ZCFLAGS += -DPLATFORM_$(ZCFG_PLATFORM)
@@ -81,8 +92,20 @@ endif
 
 TARGET_CFLAGS += $(ZCFLAGS)
 
+ifeq ("$(CONFIG_BRCM963xx_SDK_VER_502L0X)", "y")
 CONFIGURE_ARGS += \
-	--with-linux-headers="$(LINUX_DIR)/include" \
+	--with-linux-headers="$(LINUX_DIR)/user_headers/include"
+else ifeq ("$(strip $(CONFIG_$(subst $\",,$(CONFIG_CUSTOM_SDK_PREFIX))_TCSUPPORT_3_18_21_KERNEL))","y")
+CONFIGURE_ARGS += \
+	--with-linux-headers="$(LINUX_DIR)/user_headers/include"
+else ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+CONFIGURE_ARGS += \
+	--with-linux-headers="$(LINUX_DIR)" \
+
+else
+CONFIGURE_ARGS += \
+	--with-linux-headers="$(LINUX_DIR)/include"
+endif
 	
 define Build/Prepare
 $(call Build/Prepare/Default)
@@ -108,5 +131,14 @@ define Package/bridge/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/brctl/brctl $(1)/usr/sbin
 endef
+
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+define Package/bridge/prerm
+#!/bin/sh
+$${IPKG_INSTROOT}/bin/busybox brctl -h 2>&1 | grep -q BusyBox && \
+ln -sf ../../bin/busybox $${IPKG_INSTROOT}/usr/sbin/brctl
+exit 0
+endef
+endif
 
 $(eval $(call BuildPackage,bridge))

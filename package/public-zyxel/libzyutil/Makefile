@@ -28,8 +28,11 @@ include $(INCLUDE_DIR)/package.mk
 export CONFIG_ELISA_CUSTOMIZATION PRODUCT_NAME CONFIG_ZYXEL_RMA_FW_SUPPORT
 export CONFIG_ZYXEL_IPV6_UPLOAD_DIAG_ENABLE
 export CONFIG_WIND_ITALY_CUSTOMIZATION
+ifeq ($(CONFIG_$(shell echo $(CONFIG_CUSTOM_SDK_PREFIX))_ZYXEL_DETECT_PRODUCT_TYPE),y)
+export CONFIG_ZYXEL_DETECT_PRODUCT_TYPE=y
+endif
 
-PKG_BUILD_DEPENDS:=zcfg libjson libopenssl
+PKG_BUILD_DEPENDS:=zcfg libjson libopenssl libzlog libzos libzcfg_msg
 
 define Package/libzyutil
 SECTION:=net
@@ -75,21 +78,61 @@ ifeq ($(CONFIG_BRCM_SDK_VERSION), "416L05")
 EXTRA_CFLAGS += -DNEW_MTD_DRIVER
 endif
 
+ifeq ($(CONFIG_BRCM_SDK_VERSION), "502L04")
+EXTRA_CFLAGS += -DNEW_MTD_DRIVER
+endif
+
+ifeq ($(CONFIG_BRCM_SDK_VERSION), "502L05")
+EXTRA_CFLAGS += -DNEW_MTD_DRIVER
+endif
+
+ifeq ($(CONFIG_BRCM_SDK_VERSION), "502L06")
+EXTRA_CFLAGS += -DNEW_MTD_DRIVER
+endif
+
+ifeq ($(CONFIG_BRCM_SDK_VERSION), "502L07")
+EXTRA_CFLAGS += -DNEW_MTD_DRIVER
+endif
+
 ifneq ($(strip $(TCSUPPORT_BOOTROM_LARGE_SIZE)),)
 EXTRA_CFLAGS += -DBOOTROM_LARGE_SIZE
 endif
 
+ifeq ($(CONFIG_ABOG_CUSTOMIZATION),y)
+EXTRA_CFLAGS += -DABOG_CUSTOMIZATION
+endif
+
+
+ifeq ("$(CONFIG_EXTERNAL_KERNEL_TOOLCHAIN)","")
 EXTRA_CFLAGS += -I$(LINUX_DIR)/user_headers/include
+else
+EXTRA_CFLAGS += -I$(TOOLCHAIN_DIR)/include
+endif
 
 # Zyxel Feature Bits
 ifeq ($(CONFIG_ZYXEL_FEATURE_BITS),y)
 EXTRA_CFLAGS += -DZYXEL_FEATURE_BITS
-EXTRA_CFLAGS += -I$(LINUX_DIR)/user_headers/include
+EXTRA_CFLAGS += -I$(LINUX_DIR)/include/uapi
+endif
+
+ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
+ifeq ($(CONFIG_ZYXEL_VMG8924_B10D_TISCALI_ISOLATE_DMZ),y)
+EXTRA_CFLAGS += -DZYXEL_VMG8924_B10D_TISCALI_ISOLATE_DMZ
+endif
 endif
 
 ifeq ("$(strip ${ZCFG_PLATFORM})","ECONET")
 ifneq ($($(shell echo CONFIG_$(CONFIG_CUSTOM_SDK_PREFIX)_ZYXEL_LAN_WAN_WLAN_SHARE_THE_SAME_MAC)),)
 EXTRA_CFLAGS += -DZYXEL_LAN_WAN_WLAN_SHARE_THE_SAME_MAC
+endif
+ifeq ($(CONFIG_TC_SDK_7_3_245_300),y)
+EXTRA_CFLAGS += -DNEW_MTD_DRIVER
+endif
+ifeq ($(CONFIG_TC_SDK_7_3_257_150),y)
+EXTRA_CFLAGS += -DNEW_MTD_DRIVER
+endif
+ifeq ($(CONFIG_ZYXEL_VMG8825_T50K_TISCALI_ISOLATE_DMZ),y)
+EXTRA_CFLAGS += -DZYXEL_VMG8825_T50K_TISCALI_ISOLATE_DMZ
 endif
 endif
 
@@ -101,12 +144,19 @@ ifeq ($(CONFIG_SAME_FW_FOR_TWO_BOARD),y)
 EXTRA_CFLAGS += -DSAME_FW_FOR_TWO_BOARD
 endif
 
-ifeq ($(CONFIG_ZYXEL_AT_SET_KEY_BRCM),y)
-EXTRA_CFLAGS += -DZYXEL_AT_SET_KEY_BRCM
+ifeq ($(CONFIG_TARGET_ROOTFS_UBIFS),y)
+EXTRA_CFLAGS += -DTARGET_ROOTFS_UBIFS
 endif
 
-ifeq ($(CONFIG_ZYXEL_I2C_WRITE_API),y)
-EXTRA_CFLAGS += -DZYXEL_I2C_WRITE_API
+ifeq ($(CONFIG_ZYXEL_AT_SET_KEY),y)
+EXTRA_CFLAGS += -DZYXEL_AT_SET_KEY
+ifeq ($(CONFIG_ZYXEL_AT_SET_SUPERVISOR_KEY),y)
+EXTRA_CFLAGS += -DZYXEL_AT_SET_SUPERVISOR_KEY
+endif
+endif
+
+ifeq ($(CONFIG_ZYXEL_BOARD_DETECT_BY_GPIO),y)
+EXTRA_CFLAGS += -DZYXEL_BOARD_DETECT_BY_GPIO
 endif
 
 #Sunrise
@@ -128,6 +178,10 @@ define Build/Compile
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		STAGING_DIR_HOST=$(STAGING_DIR_HOST)
 endef
+else ifeq ("$(ZCFG_PLATFORM)","QUALCOMM")
+define Build/Compile
+	$(call Build/Compile/Default, EXTRA_CFLAGS="-DNEW_MTD_DRIVER")
+endef
 endif
 
 
@@ -140,10 +194,13 @@ define Build/InstallDev
 endef
 
 define Package/libzyutil/install
-	$(INSTALL_DIR) $(1)/lib/public
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libzyutil.so $(1)/lib/public
+	$(INSTALL_DIR) $(1)/lib
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/$(PKG_NAME).so $(1)/lib
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libdebug.a $(STAGING_DIR)/usr/lib
-	ln -s /lib/public/libzyutil.so $(1)/lib/libzyutil.so
+#	$(INSTALL_DIR) $(1)/lib/public
+#	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libzyutil.so $(1)/lib/public
+#	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libdebug.a $(STAGING_DIR)/usr/lib
+#	ln -s /lib/public/libzyutil.so $(1)/lib/libzyutil.so
 endef
 
 $(eval $(call BuildPackage,libzyutil))

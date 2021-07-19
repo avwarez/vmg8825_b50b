@@ -37,7 +37,7 @@ endef
 
 define Package/ppp
 $(call Package/ppp/Default)
-  DEPENDS:=+libjson +libzcfg_msg +kmod-ppp
+ DEPENDS:=+libjson +libzcfg_msg +kmod-ppp +libzlog +libzos +libcrypto +libopenssl
   TITLE:=PPP daemon
   VARIANT:=default
 endef
@@ -116,7 +116,7 @@ $(call Build/Configure/Default,, \
 )
 endef
 
-TARGET_LDFLAGS += -ljson -lzcfg_msg
+TARGET_LDFLAGS += -ljson -lzcfg_msg -lzos -lzlog
 #TARGET_CFLAGS += -I$(LINUX_DIR) -DCONFIG_MIPS_BRCM -DCONFIG_BCM_KF_ATM_BACKEND
 
 ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
@@ -134,6 +134,10 @@ ifeq ($(CONFIG_ZYXEL_USA_PRODUCT),y)
 TARGET_CFLAGS += -DUSA_PRODUCT
 endif
 
+ifeq ($(CONFIG_ZYXEL_FAKE_IP_169_254_X_X),y)
+TARGET_CFLAGS += -DZYXEL_FAKE_IP_169_254_X_X
+endif
+
 ifeq ($(CONFIG_KERNEL_ZYXEL_PPTP_SUPPORT),y)
 TARGET_CFLAGS += -DCONFIG_PPTP_SUPPORT
 endif
@@ -148,6 +152,10 @@ endif
 
 ifeq ($(CONFIG_XPON_SUPPORT),y)
 TARGET_CFLAGS += -DXPON_SUPPORT
+endif
+
+ifeq ($(CONFIG_ABOG_CUSTOMIZATION),y)
+TARGET_CFLAGS += -DABOG_CUSTOMIZATION
 endif
 
 export CONFIG_ZyXEL_WEB_REDIRECT CONFIG_ZyXEL_PPP_LCP_ECHO

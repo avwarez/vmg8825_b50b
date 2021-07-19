@@ -16,8 +16,6 @@ PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/libs
 #PKG_SOURCE_URL:= \
 #	http://www.netfilter.org/projects/libmnl/files \
 #	ftp://ftp.netfilter.org/pub/libmnl
-#PKG_MD5SUM:=7d95fc3bea3365bc03c48e484224f65f
-#PKG_HASH:=171f89699f286a5854b72b91d06e8f8e3683064c5901fb09d954a9ab6f551f81
 PKG_MD5SUM:=7d95fc3bea3365bc03c48e484224f65f
 
 PKG_MAINTAINER:=Jo-Philipp Wich <jow@openwrt.org>
@@ -62,6 +60,16 @@ endef
 CONFIGURE_ARGS+= \
 	--enable-shared \
 	--enable-static \
+
+ifeq ($(CONFIG_KERNEL_ZYXEL_EXT_MARK),y)
+CFLAGS += -DZYXEL_EXT_MARK -DCONFIG_ZYXEL_EXT_MARK -DSBG_SKB_MARK -DCONFIG_SBG_SKB_MARK
+
+define Build/Compile
+        $(MAKE) -C $(PKG_BUILD_DIR) \
+        $(TARGET_CONFIGURE_OPTS) \
+        CFLAGS="$(CFLAGS)"
+endef
+endif
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include

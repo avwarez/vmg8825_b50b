@@ -1,71 +1,34 @@
-if PACKAGE_libopenssl || TARGET_ipq_ipq807x
+if PACKAGE_libopenssl
 
-config OPENSSL_WITH_EC
-	bool
-	default y
-	prompt "Enable elliptic curve support"
+comment "Build Options"
 
-config OPENSSL_WITH_EC2M
-        bool
-        depends on OPENSSL_WITH_EC
-        prompt "Enable ec2m support"
+choice
+	prompt "Openssl Version"
+	default OPENSSL_VERSION_1_1_1b if TARGET_brcm963xx && !BRCM963xx_SDK_VER_416L02A && !BRCM963xx_SDK_VER_416L05 && !BRCM963xx_SDK_VER_502L04
+	default OPENSSL_VERSION_1_0_2n
+	help
+		Select OpenSSL version.
 
-config OPENSSL_WITH_SSL3
-	bool
-	default y if !TARGET_ipq_ipq807x
-	prompt "Enable sslv3 support"
+	config OPENSSL_VERSION_1_0_2n
+		depends on PACKAGE_libopenssl
+		bool "Openssl 1.0.2n"
 
-config OPENSSL_ENGINE_DIGEST
-	bool
-	depends on OPENSSL_ENGINE_CRYPTO
-	prompt "Digests acceleration support"
+	config OPENSSL_VERSION_1_1_1b
+		depends on PACKAGE_libopenssl
+		bool "Openssl 1.1.1b"
+endchoice
 
-if !TARGET_ipq_ipq807x
-config OPENSSL_WITH_DEPRECATED
-	bool
-	default y if !TARGET_ipq_ipq807x
-	prompt "Include deprecated APIs"
+config OPENSSL_VERSION
+	string
+	default "1.0.2n"       if OPENSSL_VERSION_1_0_2n
+	default "1.1.1b"       if OPENSSL_VERSION_1_1_1b
 
-config OPENSSL_WITH_DTLS
-	bool
-	default n
-	prompt "Enable DTLS support"
+if OPENSSL_VERSION_1_0_2n
+source "package/libs/openssl/Config-1.0.2n.in"
+endif
 
-config OPENSSL_WITH_COMPRESSION
-	bool
-	default n
-	prompt "Enable compression support"
-
-config OPENSSL_WITH_NPN
-	bool
-	default y if !TARGET_ipq_ipq807x
-	prompt "Enable NPN support"
-
-config OPENSSL_WITH_PSK
-	bool
-	default y if !TARGET_ipq_ipq807x
-	prompt "Enable PSK support"
-
-config OPENSSL_WITH_SRP
-	bool
-	default y if !TARGET_ipq_ipq807x
-	prompt "Enable SRP support"
-
-
-config OPENSSL_HARDWARE_SUPPORT
-	bool
-	default n if TARGET_ipq_ipq807x
-	prompt "Enable hardware support"
-
-config OPENSSL_OPTIMIZE_SPEED
-	bool
-	default n
-	prompt "Enable optimization for speed instead of size"
+if OPENSSL_VERSION_1_1_1b
+source "package/libs/openssl/Config-1.1.1b.in"
 endif
 
 endif
-
-config OPENSSL_ENGINE_CRYPTO
-	bool
-	select OPENSSL_HARDWARE_SUPPORT
-	prompt "Crypto acceleration support" if PACKAGE_libopenssl || TARGET_ipq_ipq807x

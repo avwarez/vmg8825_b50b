@@ -59,6 +59,7 @@ clean: FORCE
 dirclean: clean
 	rm -rf $(STAGING_DIR) $(STAGING_DIR_HOST) $(STAGING_DIR_TOOLCHAIN) $(TOOLCHAIN_DIR) $(BUILD_DIR_HOST) $(BUILD_DIR_TOOLCHAIN)
 	rm -rf $(TMP_DIR)
+	rm -rf $(TOPDIR)/staging_dir/external_kernel_toolchain
 
 ifndef DUMP_TARGET_DB
 $(BUILD_DIR)/.prepared: Makefile

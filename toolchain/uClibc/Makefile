@@ -33,11 +33,16 @@ define Host/Install
 		  done \
 		done \
 	)
-	#rm -f \
+ifeq ($(ZCFG_PLATFORM),QUALCOMM)
+	rm -f \
 		$(TOOLCHAIN_DIR)/lib/libresolv*.so* \
 		$(TOOLCHAIN_DIR)/lib/libnsl*.so*
+endif
 	#Broadcom SDK 4.16L.04 need libresolv, don`t remove it!
+	#Econet platform need libnsl*.so*
+ifneq ($(ZCFG_PLATFORM),ECONET)
 	rm -f $(TOOLCHAIN_DIR)/lib/libnsl*.so*
+endif
   ifeq ($(PKG_VERSION),0.9.29)
 	@( echo "BROADCOM SPECIFIC BUILD ELEMENT: REMOVING __THROW FROM __NTH ininclude/bits/socket.h"; \
 	   cp ./vendor/0.9.29/socket.h.brcm $(TOOLCHAIN_DIR)/include/bits/socket.h; \

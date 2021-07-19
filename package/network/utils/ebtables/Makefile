@@ -5,6 +5,7 @@
 # See /LICENSE for more information.
 #
 
+FORCE_USE_EXTERNAL_KERNAL_TOOLCHAIN=y
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
@@ -14,6 +15,8 @@ ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
 PKG_VERSION:=2.0.10-4
 else ifeq ("$(strip ${ZCFG_PLATFORM})","ECONET")
 PKG_VERSION:=2.0.8-2
+else ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+PKG_VERSION:=2.0.10-4
 endif
 
 #PRODUCT_NAME:=$(word 1, $(subst -,_,$(call qstrip, $(CONFIG_MRD_PRODUCT_NAME))))
@@ -60,6 +63,18 @@ endef
 MAKE_VARS += EXT_LIBSI="$(LIBGCC_S)"
 
 export BUILD_DIR
+export CONFIG_KERNEL_BRIDGE_EBT_NFQUEUE
+
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+CFLAGS="$(TARGET_CFLAGS)"
+
+export CFLAGS
+
+MAKE_FLAGS += \
+	LIBDIR="/usr/lib/ebtables" \
+	EBT_EXT_FUNC="ip ip6 standard vlan mark_m mark time ftos skiplog AUTOMAP policer zextmark_m zextmark"
+else
+export CONFIG_TC_SDK_VERSION
 
 #CFLAGS="$(TARGET_CFLAGS)"
 
@@ -70,11 +85,17 @@ ifneq ($(strip $(TCSUPPORT_CODE_SHRINK)),)
 ECONET_CFLAGS += -Os
 endif
 
+ifneq ($(strip $(TCSUPPORT_CT_PON)),)
+export TCSUPPORT_CT_PORTSLIMIT=1
+ECONET_CFLAGS += -DTCSUPPORT_CT_PORTSLIMIT
+endif
+
 MAKE_FLAGS += \
 	ECONET_CFLAGS="$(ECONET_CFLAGS)" \
 	LIBDIR="/usr/lib/ebtables" \
-	EBT_EXT_FUNC="ip ip6 standard vlan mark_m mark time ftos skiplog AUTOMAP policer"
+	EBT_EXT_FUNC="ip ip6 standard vlan mark_m mark time ftos skiplog AUTOMAP policer zextmark_m zextmark blog"
 
+endif
 define Package/ebtables/install
 	$(INSTALL_DIR) $(1)/etc
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/ethertypes $(1)/etc/

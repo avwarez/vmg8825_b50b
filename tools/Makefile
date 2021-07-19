@@ -39,6 +39,12 @@ tools-y += tofrodos
 tools-y += econet/trx
 endif
 
+tools-y += coan
+
+ifneq (,$(CONFIG_TARGET_ramips))
+tools-y += ramips/trx
+endif
+
 
 ## Move below action to package/private/zyxel/zcfg
 #tools-y += zcfg-data-model
@@ -52,16 +58,16 @@ endif
 
 # builddir dependencies
 $(curdir)/bison/compile := $(curdir)/flex/install
-$(curdir)/flex/compile := $(curdir)/m4/install
+$(curdir)/flex/compile := $(curdir)/libtool/install
 $(curdir)/pkg-config/compile := $(curdir)/sed/install
-$(curdir)/libtool/compile := $(curdir)/sed/install
+$(curdir)/libtool/compile := $(curdir)/sed/install $(curdir)/m4/install $(curdir)/autoconf/install $(curdir)/automake/install $(curdir)/missing-macros/install
 $(curdir)/squashfs/compile := $(curdir)/lzma-old/install
 $(curdir)/squashfs4/compile := $(curdir)/xz/install
 $(curdir)/quilt/compile := $(curdir)/sed/install $(curdir)/autoconf/install
 $(curdir)/dtc/compile := $(curdir)/bison/install
-$(curdir)/autoconf/compile := $(curdir)/m4/install $(curdir)/libtool/install
+$(curdir)/autoconf/compile := $(curdir)/m4/install
 $(curdir)/automake/compile := $(curdir)/m4/install $(curdir)/autoconf/install $(curdir)/pkg-config/install $(curdir)/xz/install
-$(curdir)/gmp/compile := $(curdir)/automake/install
+$(curdir)/gmp/compile := $(curdir)/libtool/install
 $(curdir)/mpc/compile := $(curdir)/mpfr/install $(curdir)/gmp/install
 $(curdir)/mpfr/compile := $(curdir)/gmp/install
 $(curdir)/ppl/compile := $(curdir)/gmp/install
@@ -69,16 +75,15 @@ $(curdir)/cloog/compile := $(curdir)/ppl/install
 $(curdir)/mtd-utils/compile := $(curdir)/e2fsprogs/install $(curdir)/xz/install
 $(curdir)/mkimage/compile := $(curdir)/sed/install
 $(curdir)/qemu/compile := $(curdir)/e2fsprogs/install
-$(curdir)/upslug2/compile := $(curdir)/automake/install
-$(curdir)/mm-macros/compile := $(curdir)/automake/install
-$(curdir)/xorg-macros/compile := $(curdir)/automake/install
-$(curdir)/xfce-macros/compile := $(curdir)/automake/install
-$(curdir)/missing-macros/compile := $(curdir)/automake/install
-$(curdir)/e2fsprogs/compile := $(curdir)/automake/install
-$(curdir)/libelf/compile := $(curdir)/automake/install
+$(curdir)/upslug2/compile := $(curdir)/libtool/install
+$(curdir)/mm-macros/compile := $(curdir)/libtool/install
+$(curdir)/xorg-macros/compile := $(curdir)/libtool/install
+$(curdir)/xfce-macros/compile := $(curdir)/libtool/install
+$(curdir)/missing-macros/compile := $(curdir)/autoconf/install
+$(curdir)/e2fsprogs/compile := $(curdir)/libtool/install
+$(curdir)/libelf/compile := $(curdir)/libtool/install
 $(curdir)/sdcc/compile := $(curdir)/bison/install
 $(curdir)/b43-tools/compile := $(curdir)/bison/install
-$(curdir)/libjson-c-host/compile := $(curdir)/automake/install
 
 ifneq ($(CONFIG_CCACHE),)
 $(foreach tool, $(tools-y), $(eval $(curdir)/$(tool)/compile += $(curdir)/ccache/install))

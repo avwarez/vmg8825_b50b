@@ -5,7 +5,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/useraccount/zcfg_fe_dal_user_account.c
 @@ -20,6 +20,8 @@
  dal_param_t USER_ACCOUNT_param[] =  //RDM_OID_ZY_LOG_CFG_GP_ACCOUNT
  {
- 	{"Username",			dalType_string,  1, 	16,		NULL,	NULL,	dal_Add|dal_Edit|dal_Delete},
+ 	{"Username",			dalType_string,  1, 	32,		NULL,	NULL,	dal_Add|dal_Edit|dal_Delete},
 +    {"FirstIndex",			dalType_int,	 1, 	3,		NULL,	NULL,	dalcmd_Forbid}, // group index 
 +    {"SecondIndex", 		dalType_int,	 1, 	4,		NULL,	NULL,	dalcmd_Forbid}, // account index
  	{"Enabled", 			dalType_boolean, 0, 	0,		NULL,	NULL,	0}, //default true

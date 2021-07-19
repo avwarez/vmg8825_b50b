@@ -143,6 +143,13 @@ BEGIN
 END
 
 BEGIN
+  eid         = EID_WLSSK
+  name        = wlssk
+  path        = /bin/wlssk
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_LAUNCH_ON_BOOT
+END
+
+BEGIN
   eid         = EID_WLNVRAM
   name        = WLNVRAM
   path        = /bin/nvram
@@ -249,7 +256,7 @@ END
 BEGIN
   eid         = EID_SAMBA
   name        = smbd
-  runArgs     = -D
+  runArgs     = -DF
   flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
   cpuGroupName = normal/default
 END
@@ -268,8 +275,8 @@ END
 
 BEGIN
   eid         = EID_L2TPD
-  name        = l2tpd
-  path        = /bin/openl2tpd
+  name        = openl2tpd
+  flags       = EIF_MESSAGING_CAPABLE
 END
 
 BEGIN
@@ -328,13 +335,9 @@ END
 BEGIN
   eid         = EID_EPON_APP
   name        = eponapp
-  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE
-END
-
-BEGIN
-  eid         = EID_CELLULAR_APP
-  name        = cellularapp
-  flags       = EIF_MDM|EIF_LAUNCH_ON_BOOT|EIF_MESSAGING_CAPABLE
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_SET_SCHED
+  schedPolicy = SCHED_RR
+  schedPriority = BCM_RTPRIO_DATA_CONTROL
 END
 
 BEGIN
@@ -369,7 +372,53 @@ BEGIN
 END
 
 BEGIN
+  eid         = EID_PMD
+  name        = pmd
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_MULTIPLE_THREADS|EIF_DESKTOP_LINUX_CAPABLE
+END
+
+BEGIN
+  eid         = EID_FIREWALLD
+  name        = firewalld
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_MULTIPLE_THREADS
+END
+
+BEGIN
+  eid         = EID_CWMPD
+  accessBit   = NDA_ACCESS_TR69C /* 0x0001 */
+  name        = cwmpd
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_MULTIPLE_THREADS
+END
+
+BEGIN
+  eid         = EID_DAD
+  accessBit   = NDA_ACCESS_HTTPD /* 0x0004 */
+  name        = dad
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_MULTIPLE_THREADS
+END
+
+BEGIN
+  eid         = EID_DMAD
+  accessBit   = NDA_ACCESS_TR69C /* 0x0001 */
+  name        = dmad
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_MULTIPLE_THREADS
+END
+
+BEGIN
   eid         = EID_WANCONF
   name        = wanconf
   flags       = EIF_MESSAGING_CAPABLE
+END
+
+BEGIN
+  eid         = EID_NTPD
+  name        = ntpd
+  path        = /usr/sbin/ntpd
+  flags       = EIF_MDM|EIF_MESSAGING_CAPABLE
+END
+
+BEGIN
+  eid         = EID_LXC_MONITOR
+  name        = lxc-monitor
+  flags       = EIF_MESSAGING_CAPABLE|EIF_DESKTOP_LINUX_CAPABLE
 END

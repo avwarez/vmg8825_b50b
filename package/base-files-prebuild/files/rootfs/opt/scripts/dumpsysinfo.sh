@@ -1,10 +1,17 @@
+#!/bin/sh
 #
 #  Copyright 2011-2012, Broadcom Corporation
 #
 
-#!/bin/sh
-
 echo "======Version Info======"
+
+echo "######image version######"
+cat /etc/image_version
+
+if [ -e /etc/patch.version ]; then
+    echo "######patch version######"
+    cat /etc/patch.version
+fi
 
 echo "######kernel version######"
 cat /proc/version
@@ -22,6 +29,25 @@ if [ -e /bin/wlctl ]; then
     /bin/wlctl -i wl0 rxchain_pwrsave_enable
     /bin/wlctl -i wl1 rxchain_pwrsave_enable
 
+    if [ -e /bin/WlGetDriverCfg.sh ]; then
+       echo "######WLAN WlGetDriverCfg - wl0 2.4GHz NIC ######"
+       /bin/WlGetDriverCfg.sh wl0 2 nic
+       echo "######WLAN WlGetDriverCfg - wl1 2.4GHz NIC ######"
+       /bin/WlGetDriverCfg.sh wl1 2 nic
+       echo "######WLAN WlGetDriverCfg - wl0 5GHz NIC ######"
+       /bin/WlGetDriverCfg.sh wl0 5 nic
+       echo "######WLAN WlGetDriverCfg - wl1 5GHz NIC ######"
+       /bin/WlGetDriverCfg.sh wl1 5 nic
+       echo "######WLAN WlGetDriverCfg - wl0 2.4GHz DHD ######"
+       /bin/WlGetDriverCfg.sh wl0 2 dhd
+       echo "######WLAN WlGetDriverCfg - wl1 2.4GHz DHD ######"
+       /bin/WlGetDriverCfg.sh wl1 2 dhd
+       echo "######WLAN WlGetDriverCfg - wl0 5GHz DHD ######"
+       /bin/WlGetDriverCfg.sh wl0 5 dhd
+       echo "######WLAN WlGetDriverCfg - wl1 5GHz DHD ######"
+       /bin/WlGetDriverCfg.sh wl1 5 dhd
+    fi
+
 fi
 
 if [ -e /bin/xdslctl ]; then
@@ -29,7 +55,7 @@ if [ -e /bin/xdslctl ]; then
     /bin/xdslctl --version
 fi
 
-if [ -e /bin/vodsl ]; then
+if [ -e /bin/voice ]; then
     echo "######DSP version######"
     cat /proc/voice/dsp_version
 fi
@@ -82,11 +108,19 @@ ps
 
 echo
 echo
+
 echo "======Networking Info======"
 
 #Networking Information
 echo "######ifconfig -a######"
 ifconfig -a
+
+echo
+echo
+#virtual interface info
+echo "###### dump all vlanctl rules ######"
+sleep 1
+vlanctl --rule-dump-all
 
 echo "######brctl show######"
 brctl show
@@ -100,14 +134,14 @@ route -n
 #echo "######/proc/net/udp######"
 #cat /proc/net/udp
 
-echo "###### iptables -t nat -L ######"
-iptables -t nat -L
+echo "###### iptables -w -t nat -L ######"
+iptables -w -t nat -L
 
-echo "###### iptables -t filter -L ######"
-iptables -t filter -L
+echo "###### iptables -w -t filter -L ######"
+iptables -w -t filter -L
 
-echo "###### iptables -t mangle -L ######"
-iptables -t mangle -L
+echo "###### iptables -w -t mangle -L ######"
+iptables -w -t mangle -L
 
 net_info_list="/proc/net/arp
                /proc/sys/net/core/netdev_budget
@@ -204,13 +238,13 @@ do
 done
 
 
-if [ -e /bin/racoon ]; then
+if [ -e /sbin/ipsec ]; then
 echo
 echo
 echo "======IPSec Info======"
-ipsec_info_list="/var/psk.txt
-                 /var/racoon.conf
-                 /var/setkey.conf"
+ipsec_info_list="/var/ipsec/ipsec.conf
+                 /var/ipsec/ipsec.secrets
+                 /var/ipsec/setkey.sh"
 
 # busybox msh does not support passing lists to functions
 # so must repeat the function here
@@ -245,14 +279,14 @@ if [ -e /bin/fap ]; then
     /bin/fap print
 fi
 
-if [ -e /bin/cmf ]; then
-    echo "###### cmf status ######"
-    /bin/cmf status
-
-    if cmf parser --fcb -1 >/dev/null 2>/dev/null; then
-       echo "###### cmf parser fcb -1 ######"
-       cmf parser --fcb -1
-    fi
+# Archer
+if [ -e /bin/archerctl ]; then
+    echo "###### archerctl status ######"
+    archerctl status
+    echo "###### archerctl stats ######"
+    archerctl stats
+    echo "###### archerctl sysport_tm stats ######"
+    archerctl sysport_tm stats
 fi
 
 if [ -e /bin/ethswctl ]; then

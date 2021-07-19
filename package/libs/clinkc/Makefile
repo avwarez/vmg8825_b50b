@@ -12,8 +12,6 @@ PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
 
 include $(INCLUDE_DIR)/package.mk
 
-ENABLE_CROSS_SITE_DEBUG:=n
-
 define Package/clinkc
  SECTION:=libs
  CATEGORY:=Libraries
@@ -23,8 +21,8 @@ endef
 
 ZHTTPD_CFLAGS:=
 
-ifeq ($(ENABLE_CROSS_SITE_DEBUG),y)
-	ZHTTPD_CFLAGS += -DZYXEL_CROSS_SITE_DEBUG
+ifeq ($(CONFIG_PACKAGE_webgui_vue),y)
+	ZHTTPD_CFLAGS += -DPACKAGE_webgui_vue
 endif
 ifeq ($(CONFIG_ZyXEL_Online_Firmware_Upgrade),y)
     ZHTTPD_CFLAGS += -DZyXEL_Online_Firmware_Upgrade
@@ -50,9 +48,11 @@ ifeq ($(CONFIG_ZYXEL_USA_PRODUCT),y)
 	ZHTTPD_CFLAGS += -DUSA_PRODUCT
 endif
 ifeq ($(CONFIG_SMALL_RAM),y)
-    ZHTTPD_CFLAGS += -DSMALL_RAM
+    ZHTTPD_CFLAGS += -DSMALL_RAM -DZYPRJ_VMG1312
 endif
-
+ifeq ($(CONFIG_ZYXEL_CMS2_ENHANCEMENT),y)
+    ZHTTPD_CFLAGS += -DZYXEL_CMS2_ENHANCEMENT 
+endif
 ifeq ($(CONFIG_ZCFG_VMG1312_B10D_Generic),y)
     ZHTTPD_CFLAGS += -DZYPRJ_VMG1312
 endif
@@ -62,7 +62,18 @@ endif
 ifeq ($(CONFIG_ZCFG_VMG1312_B10D_Turkey),y)
     ZHTTPD_CFLAGS += -DZYPRJ_VMG1312
 endif
+
+ifeq ($(CONFIG_ZYXEL_GRE),y)
+    ZHTTPD_CFLAGS += -DUPGRADE_FW_RM_WIFI_MODULE
+endif
+
 ifeq ($(CONFIG_ZCFG_VMG1312_B10D_Tsf),y)
+    ZHTTPD_CFLAGS += -DUPGRADE_FW_RM_WIFI_MODULE
+endif
+ifeq ($(CONFIG_ZCFG_VMG8924_B10D_Generic),y)
+    ZHTTPD_CFLAGS += -DUPGRADE_FW_RM_WIFI_MODULE
+endif
+ifeq ($(CONFIG_ZCFG_VMG8924_B10D_Tiscali),y)
     ZHTTPD_CFLAGS += -DUPGRADE_FW_RM_WIFI_MODULE
 endif
 ifeq ($(CONFIG_CBT_CUSTOMIZATION),y)
@@ -98,6 +109,8 @@ define Build/Compile
                 -I$(BUILD_DIR)/openssl-1.0.1c/include/ \
 		-I$(BUILD_DIR)/expat-1.95.8/lib/ \
 		-I$(BUILD_DIR)/libuuid/ \
+		-I$(STAGING_DIR)/usr/include \
+		-L$(STAGING_DIR)/usr/lib \
 		-fPIC \
 		$(ZHTTPD_CFLAGS)" 
 endef

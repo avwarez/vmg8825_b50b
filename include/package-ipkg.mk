@@ -50,6 +50,7 @@ define FixupDependencies
 endef
 
 ifneq ($(PKG_NAME),toolchain)
+ifneq ($(PKG_NAME),external-kernel-toolchain)
   define CheckDependencies
 	@( \
 		rm -f $(PKG_INFO_DIR)/$(1).missing; \
@@ -67,6 +68,7 @@ ifneq ($(PKG_NAME),toolchain)
 		fi; \
 	)
   endef
+endif
 endif
 
 ifeq ($(DUMP),)

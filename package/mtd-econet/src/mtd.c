@@ -41,11 +41,22 @@
 #include <string.h>
 #include <linux/reboot.h>
 #include <linux/types.h>
+#include <sys/file.h>
+#include <signal.h>
 
 #include <linux/version.h>
 #include "trx/trx.h"
 #ifdef TCSUPPORT_MTD_ENCHANCEMENT
 #include "tc_partition.h"
+#endif
+
+// Zyxel don`t need this
+#if 0 //def TCSUPPORT_PRODUCTIONLINE
+#include "prolinecmd.h"
+#endif
+
+#ifdef TCSUPPORT_MT7570
+#include "global_inc/modules/xpon_phy_global/mt7570.h"
 #endif
 
 #if KERNEL_VERSION(2,6,0) <= LINUX_VERSION_CODE
@@ -72,6 +83,10 @@
 
 #define SYSTYPE_UNKNOWN     0
 #define SYSTYPE_BROADCOM    1
+
+/* add for MTD bob cmd */
+#define MTD_BOB_DEFAULT_FILE "/tmp/7570_bob.conf"
+#define MTD_BOB_DEVICE  "reservearea"
 
 #ifndef TRENDCHIP
 /* to be continued */
@@ -402,6 +417,24 @@ mtd_erase(const char *mtd)
 
 }
 
+/* file lock for multi-thread */
+void mtd_flock(int fd, const char *mtd)
+{
+	if(flock(fd, LOCK_EX) != 0) {
+		fprintf(stderr, "Could not lock mtd %s\n", mtd);
+		close(fd);
+		exit(1);
+	}
+}
+
+/* file unlock for multi-thread */
+void mtd_funlock(int fd, const char *mtd)
+{
+	if(flock(fd, LOCK_UN) != 0) {
+		fprintf(stderr, "Could not unlock mtd %s\n", mtd);
+	}
+}
+
 #if defined(TCSUPPORT_START_TRAP) || defined(TCSUPPORT_SYSLOG_ENHANCE)
 #define		SIGNAL_PATH		"/var/tmp/signal_reboot"
 static int quit_signal(void)
@@ -433,16 +466,109 @@ static int quit_signal(void)
 #endif
 
 
+#if defined(TCSUPPORT_CT)
+#define CWMP_UPGRADE_ROMFILE_FILE_NAME "/tmp/tc_cwmp_upgrade_romfile.conf"
+int mtd_write2(int imagefd, const char *mtd){
+	int fd, result, r; //COV, CID 186792
+	size_t w, e;
+	struct mtd_info_user mtdInfo;
+	struct erase_info_user mtdEraseInfo;
+	fd = mtd_open(mtd, O_RDWR | O_SYNC);
+	if(fd < 0) {
+		fprintf(stderr, "Could not open mtd device: %s\n", mtd);
+		exit(1);
+	}
+
+	mtd_flock(fd, mtd);
+
+	if(ioctl(fd, MEMGETINFO, &mtdInfo)) {
+		fprintf(stderr, "Could not get MTD device info from %s\n", mtd);
+		mtd_funlock(fd, mtd);
+		close(fd);
+		exit(1);
+	}
+
+	r = w = e = 0;
+	for (;;) {
+		r = 0;
+		r +=read(imagefd, buf, BUFSIZE);
+		w += r;
+
+		/* EOF */
+		if (r <= 0) break;
+
+		/* need to erase the next block before writing data to it */
+		while (w > e) {
+			mtdEraseInfo.start = e;
+			mtdEraseInfo.length = mtdInfo.erasesize;
+			/* erase the chunk */
+			if (ioctl (fd,MEMERASE,&mtdEraseInfo) < 0) {
+				fprintf(stderr, "Erasing mtd failed: %s\n", mtd);
+				mtd_funlock(fd, mtd);
+				close(fd);
+				exit(1);
+			}
+			e += mtdInfo.erasesize;
+		}
+
+		if ((result = write(fd, buf, r)) < (ssize_t)r) {
+			if (result < 0) {
+				fprintf(stderr, "Error writing image.\n");
+			} else {
+				fprintf(stderr, "Insufficient space.\n");
+			}
+			mtd_funlock(fd, mtd);
+			close(fd);
+			exit(1);
+		}
+	}
+
+	mtd_funlock(fd, mtd);
+	close(fd);
+
+	return 0;
+}
+
+int mtd_write_upgraderomfile(const char *mtd){
+	int tr069_romfile_fd; //COV, CID 186794
+
+	if(strcmp(mtd,"tclinux")!= 0){
+		
+		fprintf(stderr, "not Error writing tclinux,mtd=%s.\n",mtd);
+		return 0;
+	}
+	
+	tr069_romfile_fd = open(CWMP_UPGRADE_ROMFILE_FILE_NAME,O_RDONLY); //COV, CID 186794
+	if(tr069_romfile_fd < 0){
+		return 0;
+		
+	}
+	else
+	{
+		mtd_write2(tr069_romfile_fd,"romfile");
+		close(tr069_romfile_fd);
+	}	
+
+#if defined(TCSUPPORT_CT_E8B_ADSL) && defined(TCSUPPORT_CPU_MT7505)
+	return 1;
+#else
+	return 0;
+#endif
+}
+#endif
 
 int
 mtd_write(int imagefd, const char *mtd, int quiet, int do_erase)
 {
-	int fd, result;
-	size_t r, w, e;
+	int fd, result, r; //COV, CID 148971
+	size_t w, e;
 	struct mtd_info_user mtdInfo;
 	struct erase_info_user mtdEraseInfo;
 #if defined(TCSUPPORT_START_TRAP) || defined(TCSUPPORT_SYSLOG_ENHANCE)
 	int count = 0;
+#endif
+#if defined(TCSUPPORT_CT)
+	int flag = 0;
 #endif
 
 	fd = mtd_open(mtd, O_RDWR | O_SYNC);
@@ -451,8 +577,11 @@ mtd_write(int imagefd, const char *mtd, int quiet, int do_erase)
 		exit(1);
 	}
 
+	mtd_flock(fd, mtd);
+
 	if(ioctl(fd, MEMGETINFO, &mtdInfo)) {
 		fprintf(stderr, "Could not get MTD device info from %s\n", mtd);
+		mtd_funlock(fd, mtd);
 		close(fd);
 		exit(1);
 	}
@@ -485,6 +614,8 @@ mtd_write(int imagefd, const char *mtd, int quiet, int do_erase)
 			/* erase the chunk */
 			if (ioctl (fd,MEMERASE,&mtdEraseInfo) < 0) {
 				fprintf(stderr, "Erasing mtd failed: %s\n", mtd);
+				mtd_funlock(fd, mtd);
+				close(fd);
 				exit(1);
 			}
 			e += mtdInfo.erasesize;
@@ -496,11 +627,12 @@ mtd_write(int imagefd, const char *mtd, int quiet, int do_erase)
 		if ((result = write(fd, buf, r)) < (ssize_t)r) {
 			if (result < 0) {
 				fprintf(stderr, "Error writing image.\n");
-				exit(1);
 			} else {
 				fprintf(stderr, "Insufficient space.\n");
-				exit(1);
 			}
+			mtd_funlock(fd, mtd);
+			close(fd);
+			exit(1);
 		}
 
 		buflen = 0;
@@ -514,9 +646,13 @@ mtd_write(int imagefd, const char *mtd, int quiet, int do_erase)
 	if (!quiet)
 		fprintf(stderr, "\b\b\b\b");
 
+	mtd_funlock(fd, mtd);
 	close(fd);
 		
-#if !defined(TCSUPPORT_CT_PON) 
+#if defined(TCSUPPORT_CT)
+	flag = 	mtd_write_upgraderomfile(mtd);
+	if(reboot_flag || flag)
+#else
 	if(reboot_flag)
 #endif
 	{	
@@ -568,6 +704,8 @@ int writeflash(int imagefd, const char *device,unsigned long tcoffset, unsigned 
 		fprintf(stderr, "Could not open mtd device: %s\n", device);
 		exit(1);
 	}
+
+	mtd_flock(fd, device);
 
 	//get mtd information
 	if(ioctl(fd, MEMGETINFO, &mtdInfo)) 
@@ -695,22 +833,24 @@ int writeflash(int imagefd, const char *device,unsigned long tcoffset, unsigned 
 	
 	if(sector)
 		free(sector);
+	mtd_funlock(fd, device);
 	close(fd);
 	return 0;
 
 writeflasherror:
 	if(sector)
 		free(sector);
+	mtd_funlock(fd, device);
 	close(fd);
 	exit(1);		
 }
 
 int readflash(int imagefd, const char *device,unsigned long tcoffset,unsigned long tclen)
 {
-	int fd;
+	int fd, count; //COV, CID 149001
 	struct mtd_info_user mtdInfo;
 	char tcbuf[256] = {0};
-	unsigned long read_conut = 0,write_count = 0,count = 0;
+	unsigned long read_conut = 0,write_count = 0; 
 
 	fd = mtd_open(device, O_RDWR | O_SYNC);
 	if(fd < 0) 
@@ -725,6 +865,9 @@ int readflash(int imagefd, const char *device,unsigned long tcoffset,unsigned lo
 		fprintf(stderr, "Could not get MTD device info from %s\n", device);
 		close(fd);
 		exit(1);
+	}
+	if(tclen == 0 && tcoffset == 0) {
+		tclen = mtdInfo.size;
 	}
 
 	//let's do some sanity checks
@@ -831,6 +974,76 @@ erasesectorerror:
 
 #endif
 
+void executeWifiDownOp(int mode)
+{
+	FILE *fp = NULL;
+	char buf[65] = {0};
+	char APOn[4] = {0};
+	char BssidNum[4] = {0};
+	char WDSSwitch[4] = {0};
+	char tmp[32] = {0};
+	int i;
+	char wifipatch[32];
+	char wificmd[32];
+	char wifiwdscmd[32];
+	if(mode)
+	{
+		strcpy(wifipatch,"/etc/Wireless/WLAN_APOn_AC");
+		strcpy(wificmd,"ifconfig rai%d down");
+		strcpy(wifiwdscmd,"ifconfig wdsi%d down");
+	}
+	else
+	{
+		strcpy(wifipatch,"/etc/Wireless/WLAN_APOn");
+		strcpy(wificmd,"ifconfig ra%d down");
+		strcpy(wifiwdscmd,"ifconfig wds%d down");
+	}
+	
+	fp = fopen(wifipatch, "r");
+	if(!fp){
+		printf("\ncan't open %s",wifipatch);
+		for (i=0; i<8; i++) {
+			sprintf(tmp, wificmd,i);
+			system(tmp);
+		}
+#ifdef TCSUPPORT_WLAN_WDS
+		for (i=0; i<4; i++) {
+			sprintf(tmp, wifiwdscmd,i);
+			system(tmp);
+		}
+#endif
+	}
+	else{
+		while(fgets(buf, 64, fp) != NULL){
+			if(strstr(buf, "APOn=") != NULL)
+				sscanf(buf, "APOn=%s", APOn);
+			else if(strstr(buf, "Bssid_num=") != NULL)
+				sscanf(buf, "Bssid_num=%s", BssidNum);
+			#ifdef TCSUPPORT_WLAN_WDS
+			else if(strstr(buf, "WdsEnable=") != NULL)
+				sscanf(buf, "WdsEnable=%s", WDSSwitch);
+			#endif
+			memset(buf,0,sizeof(buf));
+		}
+		fclose(fp);
+		
+		if (!strcmp(APOn,"1")){
+			#ifdef TCSUPPORT_WLAN_WDS
+			if (!strcmp(WDSSwitch,"1")){
+				for (i=0; i<4; i++) {
+				sprintf(tmp, wifiwdscmd,i);
+				system(tmp);
+				}
+			}
+			#endif
+			for (i=0; i<atoi(BssidNum); i++) {
+				sprintf(tmp, wificmd,i);
+				system(tmp);
+			}		
+		}
+	}
+}
+
 void
 usage(void)
 {
@@ -849,6 +1062,10 @@ usage(void)
 "        readflash  <imagefile> <n> <offset> <device> read n bytes from offset of <device> to <imagefile>\n"
 "        erasesector <offset> <device> erase one sector from offset of <device>\n"
 #endif
+#ifdef TCSUPPORT_MT7570
+"        bob get <imagefile> | - ( used to get bob info form flash)\n"
+"        bob save <imagefile> | - ( used to save bob info into flash)\n"
+#endif
 	"Following options are available:\n"
 	"        -q                      quiet mode (once: no [w] on writing,\n"
 	"                                           twice: no status messages)\n"
@@ -866,6 +1083,7 @@ main(int argc, char **argv)
 	int ch, i, boot, imagefd = -1, force, quiet, unlocked;
 	char *erase[MAX_ARGS], *device;
 	const char *imagefile = NULL;
+	sigset_t mask;
 	enum {
 		CMD_ERASE,
 		CMD_WRITE,
@@ -873,6 +1091,10 @@ main(int argc, char **argv)
 		CMD_READ,
 		CMD_ERASESECTOR,
 	#endif
+#ifdef TCSUPPORT_MT7570
+        CMD_BOB_GET,
+        CMD_BOB_SET,
+#endif
 		CMD_UNLOCK
 	} cmd;
 #ifdef TRENDCHIP
@@ -890,6 +1112,16 @@ main(int argc, char **argv)
 	force = 0;
 	buflen = 0;
 	quiet = 0;
+
+	/* To block all signal */
+	if(sigfillset(&mask) != 0) {
+		printf("init and set signal flag fail\n");
+		return -1;
+	}
+	if(sigprocmask(SIG_SETMASK, &mask, NULL) != 0) {
+		printf("set signal mask fail\n");
+		return -1;
+	}
 
 	while ((ch = getopt(argc, argv, "Ffrqe:")) != -1)
 		switch (ch) {
@@ -912,7 +1144,8 @@ main(int argc, char **argv)
 					i++;
 
 				erase[i++] = optarg;
-				erase[i] = NULL;
+				if (i < MAX_ARGS)
+					erase[i] = NULL; //COV, CID 69053
 				break;
 
 			case '?':
@@ -994,11 +1227,14 @@ main(int argc, char **argv)
 		if (!force)  if (!image_check(imagefd, device)) {
 			if ((quiet < 2) || !force)
 				fprintf(stderr, "TRX check failed!\n");
-			if (!force)
+			if (!force){
+				fclose(imagefd);
 				exit(1);
+		}
 		}
 		if (!mtd_check(device)) {
 			fprintf(stderr, "Can't open device for writing!\n");
+			fclose(imagefd);
 			exit(1);
 		}
 #ifdef TCSUPPORT_MTD_ENCHANCEMENT
@@ -1029,6 +1265,7 @@ main(int argc, char **argv)
 			if (!mtd_check(device)) 
 			{
 				fprintf(stderr, "Can't open device for writing!\n");
+				fclose(imagefd);
 				exit(1);
 			}
 		}
@@ -1037,7 +1274,7 @@ main(int argc, char **argv)
 #ifdef TCSUPPORT_MTD_ENCHANCEMENT
 	else if((strcmp(argv[0], "readflash") == 0))
 	{
-		if(argc == 5)
+		if(argc == 5 || argc == 3)
 		{
 			cmd = CMD_READ;
 			imagefile = argv[1];
@@ -1046,9 +1283,15 @@ main(int argc, char **argv)
 				fprintf(stderr, "Couldn't open image file: %s!\n", imagefile);
 				exit(1);
 			}
+			if(argc == 5) {
 			tclen = atoi(argv[2]);
 			tcoffset = atoi(argv[3]);
 			device = argv[4];
+			} else {
+				tclen = 0;
+				tcoffset = 0;
+				device = argv[2];
+			}
 			if (quiet < 2)
 				fprintf(stderr, "mtd[readflash]:device=%s tclen=%d tcoffset=%d\n",device, tclen, tcoffset);
 		}
@@ -1064,6 +1307,71 @@ main(int argc, char **argv)
 			cmd = CMD_ERASESECTOR;
 			tcoffset = atoi(argv[1]);
 			device = argv[2];
+		}
+		else
+		{
+			usage();//in this function ,call exit(1),so here not call exit again
+		}
+	}
+#endif
+#ifdef TCSUPPORT_MT7570
+	else if((strcmp(argv[0], "bob") == 0))
+	{
+		device = MTD_BOB_DEVICE;
+		tcoffset = BOB_RA_OFFSET;
+		tclen = BOB_RA_SIZE;
+
+		if((strcmp(argv[1], "save") == 0))
+		{
+			/* this function use to set bob to flash */
+			cmd = CMD_BOB_SET;
+			if(argc == 3){
+				imagefile = argv[2];
+			}
+			else if (argc == 2) {
+				imagefile = MTD_BOB_DEFAULT_FILE;
+			}
+			else {
+				usage();//in this function ,call exit(1),so here not call exit again
+			}
+			if ((imagefd = open(imagefile, O_RDONLY)) < 0)
+			{
+				fprintf(stderr, "Couldn't open image file: %s!\n", imagefile);
+				//close(imagefd);
+				exit(1);
+			}
+			if (!mtd_check(device))
+			{
+				fprintf(stderr, "Can't open device for writing!\n");
+				close(imagefd);
+				exit(1);
+			}
+			fprintf(stderr, "OPEN file %s fd = %d!\n",imagefile,imagefd);
+			if(!bob_check(imagefd))
+			{
+				fprintf(stderr, "BOB file is error\n");
+				close(imagefd);
+				exit(1);
+			}
+		}
+		else if((strcmp(argv[1], "get") == 0))
+		{
+			/* this function use to get bob info to an designated file */
+			cmd = CMD_BOB_GET;
+			if(argc == 3){
+				imagefile = argv[2];
+			}
+			else if (argc == 2) {
+				imagefile = MTD_BOB_DEFAULT_FILE;
+			}
+			else {
+				usage();//in this function ,call exit(1),so here not call exit again
+			}
+			if ((imagefd = open(imagefile, O_RDWR | O_CREAT | O_TRUNC)) < 0)
+			{
+				fprintf(stderr, "Couldn't open image file: %s!\n", imagefile);
+				exit(1);
+			}
 		}
 		else
 		{
@@ -1125,6 +1433,12 @@ main(int argc, char **argv)
 					system("killall -9 cfg_manager");
 					system("killall -9 pppd");
 					system("killall -9 br2684ctl");
+#ifdef TCSUPPORT_WLAN
+					executeWifiDownOp(0);
+#endif
+#ifdef TCSUPPORT_WLAN_AC
+					executeWifiDownOp(1);
+#endif
 				}
 				mtd_write(imagefd, device, quiet, (unlocked == 0));
 			}
@@ -1148,6 +1462,39 @@ main(int argc, char **argv)
 			erasesector(device,tcoffset,quiet);
 			break;
 #endif
+#ifdef TCSUPPORT_MT7570
+		case CMD_BOB_GET:
+			fprintf(stderr, "Doing bob get function , get bob info to %s \n",imagefile);
+			readflash(imagefd, device,tcoffset, tclen);
+
+			lseek(imagefd,0,SEEK_SET);
+			if(!bob_check(imagefd))
+			{
+				fprintf(stderr, "BOB file is error, use old mode \n");
+				readflash(imagefd, device,BOB_RA_OFFSET_OLD_MODE, tclen);
+
+				lseek(imagefd,0,SEEK_SET);
+				if(!bob_check(imagefd)){
+					fprintf(stderr, "OLD mode still error use current value \n");
+					readflash(imagefd, device,tcoffset, tclen);
+				}
+			}
+
+			break;
+		case CMD_BOB_SET:
+			fprintf(stderr, "Doing bob set function set %s bob info to flash \n",imagefile);
+			#ifdef TCSUPPORT_MTD_ENCHANCEMENT
+				writeflash(imagefd,device ,tcoffset, tclen,quiet);
+				fprintf(stderr, "writeflash(%d, %s,%d, %d,%d); \n",imagefd,device ,tcoffset, tclen,quiet);
+			#else
+				mtd_write(imagefd, device, quiet, (unlocked == 0));
+				fprintf(stderr, "mtd_write(%d, %s,%d, %d); \n",imagefd,device ,quiet,(unlocked == 0));
+			#endif
+			fprintf(stderr, "Doing bob save function save bob info from %s \n",imagefile);
+
+			break;
+#endif
+
 		default:
 			if (quiet < 2)
 				fprintf(stderr, "unknown cmd type!\n");

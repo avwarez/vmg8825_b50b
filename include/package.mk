@@ -164,6 +164,7 @@ define Build/DefaultTargets
 	$(SUBMAKE) -j1 clean-staging
 	rm -rf $(TMP_DIR)/stage-$(PKG_NAME)
 	mkdir -p $(TMP_DIR)/stage-$(PKG_NAME)/host $(STAGING_DIR)/packages $(STAGING_DIR_HOST)/packages
+	mkdir -p $(STAGING_DIR)/stamp
 	$(foreach hook,$(Hooks/InstallDev/Pre),\
 		$(call $(hook),$(TMP_DIR)/stage-$(PKG_NAME),$(TMP_DIR)/stage-$(PKG_NAME)/host)$(sep)\
 	)

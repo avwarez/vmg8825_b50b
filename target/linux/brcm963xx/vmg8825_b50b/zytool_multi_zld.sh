@@ -20,10 +20,10 @@ ZLD_BIN=$2/zld.bin
 # Internal variable
 # Declare projects those want to use the same ras.bin :
 # (here should be declared case by case depends on project requirement)
-board_id_list=("VMG8825-B50C")
-product_name_list=("VMG8825-B50C")
-voice_board_id_list=("LE9642_ZSI_BB")
-mrd_feature_bits_list=("ffffffff")
+board_id_list=("VMG8825-B60B" "VMG8825-B50C" "VMG8825-B60C" "AM3100-B0")
+product_name_list=("VMG8825-B60B" "VMG8825-B50C" "VMG8825-B60C" "AM3100-B0")
+voice_board_id_list=("LE9642_ZSI_BB" "LE9642_ZSI_BB" "LE9642_ZSI_BB" "NOSLIC")
+mrd_feature_bits_list=("0103030200000000" "0103030100000000" "0103030200000000" "0000000000000000")
 
 # Main
 count1=${#board_id_list[*]}

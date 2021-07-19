@@ -8,22 +8,29 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=busybox
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+PKG_VERSION:=1.25.1
+PKG_RELEASE:=2
+PKG_FLAGS:=essential
+
+#PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_V`ERSION).tar.bz2
+else
 PKG_VERSION:=1_20_1
 PKG_RELEASE:=5
 PKG_FLAGS:=essential
 
 #PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-#PKG_SOURCE_URL:=http://www.busybox.net/downloads \
-		http://distfiles.gentoo.org/distfiles/
-#PKG_MD5SUM:=9c0cae5a0379228e7b55e5b29528df8e
+endif
 PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/utils/busybox
 #PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/misc
 
 PKG_BUILD_DEPENDS:=BUSYBOX_CONFIG_FEATURE_HAVE_RPC:librpc
-PKG_BUILD_DEPENDS+=PACKAGE_zcmd:zcfg PACKAGE_zcmd:libzcfg_msg PACKAGE_zcmd:libjson PACKAGE_zcmd:libzcfg_fe_rdm_access PACKAGE_zcmd:libzcmd_tool PACKAGE_zcmd:libzcfg_fe_rdm_struct
+PKG_BUILD_DEPENDS+=PACKAGE_zcmd:zcfg PACKAGE_zcmd:libzcfg_msg PACKAGE_zcmd:libjson PACKAGE_zcmd:libzcfg_fe_rdm_access PACKAGE_zcmd:libzcmd_tool PACKAGE_zcmd:libzcfg_fe_rdm_struct PACKAGE_zcmd:libzyutil
 PKG_BUILD_PARALLEL:=1
-
+PATCH_DIR:=patches-$(PKG_VERSION)
+FILES_DIR:=files-$(PKG_VERSION)
 PKG_LICENSE:=GPLv2 BSD-4c
 PKG_LICENSE_FILES:=LICENSE archival/libarchive/bz/LICENSE
 
@@ -75,6 +82,7 @@ define Package/busybox/config
 	select PACKAGE_libzcfg_fe_rdm_struct if PACKAGE_zcfg
 	select PACKAGE_libzcfg_msg if PACKAGE_zcfg
 	select PACKAGE_libjson if PACKAGE_zcfg
+	select PACKAGE_libzyutil if PACKAGE_zcfg
 endef
 #Disable Dependencies Check
 define CheckDependencies
@@ -124,11 +132,15 @@ endif
 
 ifeq ($(CONFIG_PACKAGE_zcmd),y)
 TARGET_CFLAGS += -DZCFG_SUPPORT
-LDLIBS += json zcfg_msg zcfg_fe_rdm_access zcmd_tool zcfg_fe_rdm_struct
+LDLIBS += json zcfg_msg zcfg_fe_rdm_access zcmd_tool zcfg_fe_rdm_struct zos zlog zyutil crypto
 endif
 
 ifeq ($(TCSUPPORT_WAN_GPON),y)
 TARGET_CFLAGS += -DTCSUPPORT_WAN_GPON
+endif
+
+ifeq ($(TCSUPPORT_3_18_21_KERNEL),y)
+TARGET_CFLAGS += -DTCSUPPORT_3_18_21_KERNEL
 endif
 
 ifneq ($(strip ${ZCFG_PLATFORM}),)
@@ -159,15 +171,40 @@ ifeq ($(CONFIG_ZYXEL_REMOTE_ACCESS_PRIVILEGE),y)
 TARGET_CFLAGS += -DZYXEL_REMOTE_ACCESS_PRIVILEGE
 endif
 
+ifeq ($(CONFIG_ZYXEL_REMOTE_ACCOUNT_ACCESS_PRIVILEGE),y)
+TARGET_CFLAGS += -DZYXEL_REMOTE_ACCOUNT_ACCESS_PRIVILEGE
+endif
+
 ifeq ($(CONFIG_ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT),y)
 TARGET_CFLAGS += -DZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT
 endif
+
+ifeq ($(CONFIG_ZYXEL_CLI_IDLE_TIMEOUT),y)
+TARGET_CFLAGS += -DZYXEL_CLI_IDLE_TIMEOUT
+endif
+
+ifeq ($(CONFIG_ABOG_CUSTOMIZATION),y)
+TARGET_CFLAGS += -DABOG_CUSTOMIZATION
+endif
+
+ifeq ($(CONFIG_$(shell echo $(CONFIG_CUSTOM_SDK_PREFIX))_TCSUPPORT_BTN_CHECK),y)
+TARGET_CFLAGS += -DTCSUPPORT_BTN_CHECK
+endif
+
+ifeq ($(CONFIG_$(shell echo $(CONFIG_CUSTOM_SDK_PREFIX))_ZYXEL_DIAGNOSTIC_SPEEDTEST),y)
+TARGET_CFLAGS += -DZYXEL_DIAGNOSTIC_SPEEDTEST
+endif
+
+								   
+								   
+	 
 
 define Build/Compile
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
 		CC="$(TARGET_CC)" \
 		CROSS_COMPILE="$(TARGET_CROSS)" \
 		KBUILD_HAVE_NLS=no \
+		EXTRA_LDFLAGS="$(TARGET_LDFLAGS)"\
 		EXTRA_CFLAGS="$(TARGET_CFLAGS)" \
 		ARCH="$(ARCH)" \
 		SKIP_STRIP=y \
@@ -179,6 +216,7 @@ define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR) \
 		CC="$(TARGET_CC)" \
 		CROSS_COMPILE="$(TARGET_CROSS)" \
+		EXTRA_LDFLAGS="$(TARGET_LDFLAGS)"\
 		EXTRA_CFLAGS="$(TARGET_CFLAGS)" \
 		ARCH="$(ARCH)" \
 		CONFIG_PREFIX="$(PKG_INSTALL_DIR)" \
@@ -190,12 +228,26 @@ endef
 define Package/busybox/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(INSTALL_BIN) ./$(FILES_DIR)/cron $(1)/etc/init.d/cron
+	$(INSTALL_BIN) ./$(FILES_DIR)/telnet $(1)/etc/init.d/telnet
+	$(INSTALL_BIN) ./$(FILES_DIR)/sysntpd $(1)/etc/init.d/sysntpd
+	$(INSTALL_BIN) ./$(FILES_DIR)/ntpd-hotplug $(1)/usr/sbin/ntpd-hotplug
+	$(INSTALL_BIN) ./$(FILES_DIR)/inetd $(1)/etc/init.d/inetd
+	-rm -rf $(1)/lib64
+ifneq ($(CONFIG_BUSYBOX_CONFIG_FEATURE_USE_INITTAB),)
+	mkdir -p $(1)/etc/init.d
+	$(CP) ./$(FILES_DIR)/etc/inittab $(1)/etc/inittab
+	$(CP) ./$(FILES_DIR)/etc/init.d/rcS $(1)/etc/init.d/rcS
+endif
+else
 	for tmp in $(init-y); do \
-		$(INSTALL_BIN) ./files/$$$$tmp $(1)/etc/init.d/$$$$tmp; \
+		$(INSTALL_BIN) ./$(FILES_DIR)/$$$$tmp $(1)/etc/init.d/$$$$tmp; \
 	done
 	-rm -rf $(1)/lib64
 ifdef CONFIG_BUSYBOX_CONFIG_PING
 	chmod 4777 $(1)/bin/ping
+endif
 endif
 endef
 

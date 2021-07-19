@@ -18,9 +18,10 @@
 #
 
 BEGIN
-  eid         = EID_TR69C        /*      1 */
+  eid         = EID_TR69C        /*      1, TR69C instance 1 */
   accessBit   = NDA_ACCESS_TR69C /* 0x0001 */
   name        = tr69c
+  runArgs     = "-I 1"
   flags = EIF_MDM|EIF_SERVER|EIF_SERVER_TCP|EIF_LAUNCH_ON_BOOT|EIF_MESSAGING_CAPABLE|EIF_DESKTOP_LINUX_CAPABLE|EIF_IPV6
   backLog     = 1
   port        = TR69C_CONN_REQ_PORT
@@ -48,6 +49,7 @@ BEGIN
   eid         = EID_SNMPD        /*      4 */
   accessBit   = NDA_ACCESS_SNMPD /* 0x0008 */
   name        = snmpd
+  runArgs     = -v1
   flags       = EIF_MDM|EIF_MESSAGING_CAPABLE
   port        = SNMPD_PORT
 END
@@ -126,4 +128,13 @@ BEGIN
   name        = avail15
 END
 
+BEGIN
+  eid         = EID_TR69C_2        /*      16, TR69C instance 2 */
+  accessBit   = NDA_ACCESS_TR69C /* 0x0001 */
+  name        = tr69c_2
+  runArgs     = "-I 2"
+  flags = EIF_MDM|EIF_SERVER|EIF_SERVER_TCP|EIF_LAUNCH_ON_BOOT|EIF_MESSAGING_CAPABLE|EIF_DESKTOP_LINUX_CAPABLE|EIF_IPV6
+  backLog     = 1
+  port        = TR69C_2_CONN_REQ_PORT
+END
 

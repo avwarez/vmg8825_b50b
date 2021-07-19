@@ -149,7 +149,7 @@ menu "Target Images"
 	config TARGET_ROOTFS_JFFS2_IN_NAND
 		bool "store in NAND"
 		default n
-		depends TARGET_ROOTFS_JFFS2
+		depends on TARGET_ROOTFS_JFFS2
 		help
 		  The jffs2 rootf filesystem will be strored in NAND flash.
 		  So the clearnmarker node should be omitted when creating image.
@@ -158,16 +158,56 @@ menu "Target Images"
 	config TARGET_ROOTFS_SQUASHFS
 		bool "squashfs"
 		default y if USES_SQUASHFS
-		depends on !TARGET_ROOTFS_INITRAMFS
 		help
 		  Build a squashfs-lzma root filesystem
+
+		config TARGET_SQUASHFS_BLOCK_SIZE
+				int "Block size (in KiB)"
+				depends on TARGET_ROOTFS_SQUASHFS
+				default 64 if LOW_MEMORY_FOOTPRINT
+				default 256
 
 	config TARGET_ROOTFS_UBIFS
 		bool "ubifs"
 		default y if USES_UBIFS
-		depends on !TARGET_ROOTFS_INITRAMFS && USES_UBIFS
+		depends on !TARGET_ROOTFS_INITRAMFS
 		help
 		  Build a ubifs root filesystem
+
+        menuconfig TARGET_ROOTFS_UBIFS
+		bool "ubifs"
+		default y if USES_UBIFS
+                depends on USES_UBIFS
+		help
+                  Build a UBIFS root filesystem.
+
+                choice
+                        prompt "compression"
+                        default TARGET_UBIFS_COMPRESSION_ZLIB
+                        depends on TARGET_ROOTFS_UBIFS
+                        help
+                          Select compression type
+
+                        config TARGET_UBIFS_COMPRESSION_NONE
+                                bool "none"
+
+                        config TARGET_UBIFS_COMPRESSION_LZO
+                                bool "lzo"
+
+                        config TARGET_UBIFS_COMPRESSION_ZLIB
+                                bool "zlib"
+                endchoice
+
+                config TARGET_UBIFS_FREE_SPACE_FIXUP
+                        bool "free space fixup" if TARGET_ROOTFS_UBIFS
+                        default y
+                        help
+                          The filesystem free space has to be fixed up on first mount.
+
+                config TARGET_UBIFS_JOURNAL_SIZE
+                        string
+                        prompt "journal size" if TARGET_ROOTFS_UBIFS
+                        default ""
 
 	comment "Image Options"
 
@@ -201,6 +241,11 @@ menu "Global build settings"
 	config ALL
 		bool "Select all packages by default"
 		default n
+if TARGET_ipq_ipq807x
+	config SIGNED_PACKAGES
+		bool "Cryptographically signed package lists"
+		default y if TARGET_ipq_ipq807x
+endif
 
 	comment "General build options"
 
@@ -253,6 +298,50 @@ menu "Global build settings"
 		help
 			This collects debugging symbols from the kernel and all compiled modules.
 			Useful for release builds, so that kernel issues can be debugged offline later.
+if TARGET_ipq_ipq807x
+        comment "Hardening build options"
+
+        config PKG_CHECK_FORMAT_SECURITY
+                bool
+                prompt "Enable gcc format-security"
+                default n
+                help
+                  Add -Wformat -Werror=format-security to the CFLAGS.  You can disable
+                  this per package by adding PKG_CHECK_FORMAT_SECURITY:=0 in the package
+                  Makefile.
+
+        choice
+                prompt "User space Stack-Smashing Protection"
+                default PKG_CC_STACKPROTECTOR_NONE
+                help
+                  Enable GCC Stack Smashing Protection (SSP) for userspace applications
+                config PKG_CC_STACKPROTECTOR_NONE
+                        bool "None"
+                config PKG_CC_STACKPROTECTOR_REGULAR
+                        bool "Regular"
+                        select SSP_SUPPORT
+                        depends on KERNEL_CC_STACKPROTECTOR_REGULAR
+                config PKG_CC_STACKPROTECTOR_STRONG
+                        bool "Strong"
+                        select SSP_SUPPORT
+                        depends on GCC_VERSION_4_9_LINARO
+                        depends on KERNEL_CC_STACKPROTECTOR_STRONG
+        endchoice
+
+        choice
+                prompt "Kernel space Stack-Smashing Protection"
+                default KERNEL_CC_STACKPROTECTOR_NONE
+                help
+                  Enable GCC Stack-Smashing Protection (SSP) for the kernel
+                config KERNEL_CC_STACKPROTECTOR_NONE
+                        bool "None"
+                config KERNEL_CC_STACKPROTECTOR_REGULAR
+                        bool "Regular"
+                config KERNEL_CC_STACKPROTECTOR_STRONG
+                        depends on GCC_VERSION_4_9_LINARO
+                        bool "Strong"
+        endchoice
+endif
 
 	comment "Kernel build options"
 
@@ -353,6 +442,15 @@ menu "Global build settings"
 		help
 		  This will compile your kernel and modules with debug information.
 
+if TARGET_ipq_ipq807x
+	config KERNEL_DEBUG_INFO_REDUCED
+		bool "Compile the kernel with reduced debugging information"
+		default y if TARGET_ipq807x
+		depends on KERNEL_DEBUG_KERNEL
+		help
+		  This will compile your kernel and modules with reduced debug information.
+endif
+
 	config KERNEL_DEBUG_LL_UART_NONE
 		bool
 		default n
@@ -403,6 +501,12 @@ menu "Global build settings"
 		select KERNEL_DEBUG_KERNEL
 		default n
 
+if TARGET_ipq_ipq807x
+	config KERNEL_PRINTK
+		bool "Enable support for printk"
+		default y if TARGET_ipq_ipq807x
+endif
+
 	config KERNEL_PRINTK_TIME
 		bool "Enable printk timestamps"
 		default y
@@ -422,139 +526,298 @@ menu "Global build settings"
 	#
 	# CGROUP support symbols
 	#
+    
+    config KERNEL_CGROUPS
+        bool "Enable kernel cgroups"
+        default n
 
-	config KERNEL_FREEZER
-		bool
-		default y if KERNEL_CGROUP_FREEZER
-		depends on KERNEL_CGROUPS
+    if KERNEL_CGROUPS
+        
+        config KERNEL_CGROUP_DEBUG
+            bool "Example debug cgroup subsystem"
+            default n
+            help
+                This option enables a simple cgroup subsystem that
+                exports useful debugging information about the cgroups
+                framework.
 
-	config KERNEL_CGROUP_FREEZER
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_FREEZER
+            bool
+            default y if KERNEL_CGROUP_FREEZER
 
-	config KERNEL_CGROUP_DEVICE
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_CGROUP_FREEZER
+            bool "Freezer cgroup subsystem"
+            default y
+            help
+                Provides a way to freeze and unfreeze all tasks in a
+                cgroup.
 
-	config KERNEL_CPUSETS
-		bool
-		default y if KERNEL_CGROUP_CPUACCT
-		depends on KERNEL_CGROUPS
+        config KERNEL_CGROUP_DEVICE
+            bool "Device controller for cgroups"
+            default y
+            help
+                Provides a cgroup implementing whitelists for devices which
+                a process in the cgroup can mknod or open.
 
-	config KERNEL_PROC_PID_CPUSET
-		bool
-		default y if KERNEL_CGROUP_CPUACCT
-		depends on KERNEL_CGROUPS
+        config KERNEL_CGROUP_PIDS
+            bool "PIDs cgroup subsystem"
+            default y
+            help
+                Provides enforcement of process number limits in the scope of a
+                cgroup.
 
-	config KERNEL_CGROUP_CPUACCT
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_CPUSETS
+            bool "Cpuset support"
+            default n
+            help
+                This option will let you create and manage CPUSETs which
+                allow dynamically partitioning a system into sets of CPUs and
+                Memory Nodes and assigning tasks to run only within those sets.
+                This is primarily useful on large SMP or NUMA systems.
 
-	config KERNEL_RESOURCE_COUNTERS
-		bool
-		default y if KERNEL_CGROUP_MEM_RES_CTLR
-		depends on KERNEL_CGROUPS
+        config KERNEL_PROC_PID_CPUSET
+            bool "Include legacy /proc/<pid>/cpuset file"
+            default n
+            depends on KERNEL_CPUSETS
 
-	config KERNEL_CGROUP_MEM_RES_CTLR
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_CGROUP_CPUACCT
+            bool "Simple CPU accounting cgroup subsystem"
+            default n
+            help
+                Provides a simple Resource Controller for monitoring the
+                total CPU consumed by the tasks in a cgroup.
 
-	config KERNEL_CGROUP_MEM_RES_CTLR_SWAP
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_RESOURCE_COUNTERS
+            bool "Resource counters"
+            default n
+            help
+                This option enables controller independent resource accounting
+                infrastructure that works with cgroups.
 
-	config KERNEL_CGROUP_MEM_RES_CTLR_SWAP_ENABLED
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_MM_OWNER
+            bool
+            default y if KERNEL_MEMCG
 
-	config KERNEL_CGROUP_MEM_RES_CTLR_KMEM
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_MEMCG
+            bool "Memory Resource Controller for Control Groups"
+            default n
+            depends on KERNEL_RESOURCE_COUNTERS || !LINUX_3_18
+            help
+                Provides a memory resource controller that manages both anonymous
+                memory and page cache. (See Documentation/cgroups/memory.txt)
 
-	config KERNEL_CGROUP_PERF
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_MEMCG_SWAP
+            bool "Memory Resource Controller Swap Extension"
+            default n
+            depends on KERNEL_MEMCG
+            help
+                Add swap management feature to memory resource controller. When you
+                enable this, you can limit mem+swap usage per cgroup.
 
-	config KERNEL_CFS_BANDWIDTH
-		bool
-		default y if KERNEL_FAIR_GROUP_SCHED
-		depends on KERNEL_CGROUP_SCHED
+        config KERNEL_MEMCG_SWAP_ENABLED
+            bool "Memory Resource Controller Swap Extension enabled by default"
+            default n
+            depends on KERNEL_MEMCG_SWAP
+            help
+                Memory Resource Controller Swap Extension comes with its price in
+                a bigger memory consumption. General purpose distribution kernels
+                which want to enable the feature but keep it disabled by default
+                and let the user enable it by swapaccount boot command line
+                parameter should have this option unselected.
 
-	config KERNEL_FAIR_GROUP_SCHED
-		bool
-		default y if KERNEL_CGROUP_SCHED
-		depends on KERNEL_CGROUP_SCHED
+        config KERNEL_MEMCG_SWAP_ENABLED
+            bool "Memory Resource Controller Swap Extension enabled by default"
+            default n
+            depends on KERNEL_MEMCG_SWAP
+            help
+                Memory Resource Controller Swap Extension comes with its price in
+                a bigger memory consumption. General purpose distribution kernels
+                which want to enable the feature but keep it disabled by default
+                and let the user enable it by swapaccount boot command line
+                parameter should have this option unselected.
 
-	config KERNEL_RT_GROUP_SCHED
-		bool
-		default y if KERNEL_CGROUP_SCHED
-		depends on KERNEL_CGROUP_SCHED
+        config KERNEL_MEMCG_KMEM
+            bool "Memory Resource Controller Kernel Memory accounting (EXPERIMENTAL)"
+            default n
+            depends on KERNEL_MEMCG
+            help
+                The Kernel Memory extension for Memory Resource Controller can limit
+                the amount of memory used by kernel objects in the system. Those are
+                fundamentally different from the entities handled by the standard
+                Memory Controller, which are page-based, and can be swapped. Users of
+                the kmem extension can use it to guarantee that no group of processes
+                will ever exhaust kernel resources alone.
 
-	config KERNEL_CGROUP_SCHED
-		bool
-		depends on KERNEL_CGROUPS
+        config KERNEL_CGROUP_PERF
+            bool "Enable perf_event per-cpu per-container group (cgroup) monitoring"
+            default n
+            depends on KERNEL_PERF_EVENTS
+            help
+                This option extends the per-cpu mode to restrict monitoring to
+                threads which belong to the cgroup specified and run on the
+                designated cpu.
 
-	config KERNEL_NET_CLS_CGROUP
-		bool
-		depends on KERNEL_CGROUPS
+        menuconfig KERNEL_CGROUP_SCHED
+            bool "Group CPU scheduler"
+            default n
+            help
+                This feature lets CPU scheduler recognize task groups and control CPU
+                bandwidth allocation to such task groups. It uses cgroups to group
+                tasks.
 
-	config KERNEL_NETPRIO_CGROUP
-		bool
-		depends on KERNEL_CGROUPS
+            if KERNEL_CGROUP_SCHED
+                
+                config KERNEL_FAIR_GROUP_SCHED
+                    bool "Group scheduling for SCHED_OTHER"
+                    default n
 
-	config KERNEL_BLK_CGROUP
-		bool
-		depends on KERNEL_CGROUPS
+                config KERNEL_CFS_BANDWIDTH
+                    bool "CPU bandwidth provisioning for FAIR_GROUP_SCHED"
+                    default n
+                    depends on KERNEL_FAIR_GROUP_SCHED
+                    help
+                        This option allows users to define CPU bandwidth rates (limits) for
+                        tasks running within the fair group scheduler.  Groups with no limit
+                        set are considered to be unconstrained and will run with no
+                        restriction.
+                        See tip/Documentation/scheduler/sched-bwc.txt for more information.
+                
+                config KERNEL_RT_GROUP_SCHED
+                    bool "Group scheduling for SCHED_RR/FIFO"
+                    default n
+                    help
+                        This feature lets you explicitly allocate real CPU bandwidth
+                        to task groups. If enabled, it will also make it impossible to
+                        schedule realtime tasks for non-root users until you allocate
+                        realtime bandwidth for them.
 
-	config KERNEL_DEBUG_BLK_CGROUP
-		bool
-		default n if KERNEL_CGROUPS
-		depends on KERNEL_CGROUPS
+            endif
 
-	config KERNEL_CGROUPS
-		bool "Enable kernel cgroups"
-		default n
-		select KERNEL_CGROUP_FREEZER
-		select KERNEL_CGROUP_DEVICE
-		select KERNEL_CGROUP_CPUACCT
-		select KERNEL_CGROUP_MEM_RES_CTLR
-		select KERNEL_CGROUP_MEM_RES_CTLR_SWAP
-		select KERNEL_CGROUP_MEM_RES_CTLR_SWAP_ENABLED
-		select KERNEL_CGROUP_MEM_RES_CTLR_KMEM
-		select KERNEL_CGROUP_PERF
-		select KERNEL_CGROUP_SCHED
-		select KERNEL_NET_CLS_CGROUP
-		select KERNEL_NETPRIO_CGROUP
-		select KERNEL_BLK_CGROUP
+        config KERNEL_BLK_CGROUP
+            bool "Block IO controller"
+            default y
+            help
+                Generic block IO controller cgroup interface. This is the common
+                cgroup interface which should be used by various IO controlling
+                policies.
+
+        if KERNEL_BLK_CGROUP
+
+            config KERNEL_CFQ_GROUP_IOSCHED
+                bool "Proportional weight of disk bandwidth in CFQ"
+
+            config KERNEL_BLK_DEV_THROTTLING
+                bool "Enable throttling policy"
+                default y if TARGET_brcm2708
+
+            config KERNEL_BLK_DEV_THROTTLING_LOW
+                bool "Block throttling .low limit interface support (EXPERIMENTAL)"
+                depends on KERNEL_BLK_DEV_THROTTLING
+        
+        endif
+    
+        config KERNEL_DEBUG_BLK_CGROUP
+            bool "Enable Block IO controller debugging"
+            default n
+            depends on KERNEL_BLK_CGROUP
+            help
+                Enable some debugging help. Currently it exports additional stat
+                files in a cgroup which can be useful for debugging.
+
+        config KERNEL_NET_CLS_CGROUP
+            bool "Control Group Classifier"
+            default n
+
+        config KERNEL_CGROUP_NET_PRIO
+            bool "Network priority cgroup"
+            default n
+    
+    endif
+
 
 	#
 	# Namespace support symbols
 	#
 
-	config KERNEL_UTS_NS
-		bool
-		depends on KERNEL_NAMESPACES
+    config KERNEL_NAMESPACES
+        bool "Enable kernel namespaces"
+        default n
 
-	config KERNEL_IPC_NS
-		bool
-		depends on KERNEL_NAMESPACES
+    if KERNEL_NAMESPACES
+        
+        config KERNEL_UTS_NS
+            bool "UTS namespace"
+            default y
+            help
+                In this namespace, tasks see different info provided
+                with the uname() system call.
 
-	config KERNEL_USER_NS
-		bool
-		depends on KERNEL_NAMESPACES
+        config KERNEL_IPC_NS
+            bool "IPC namespace"
+            default y
+            help
+                In this namespace, tasks work with IPC ids which correspond to
+                different IPC objects in different namespaces.
 
-	config KERNEL_PID_NS
-		bool
-		depends on KERNEL_NAMESPACES
+        config KERNEL_USER_NS
+            bool "User namespace (EXPERIMENTAL)"
+            default y
+            help
+                This allows containers, i.e. vservers, to use user namespaces
+                to provide different user info for different servers.
 
-	config KERNEL_NET_NS
-		bool
-		depends on KERNEL_NAMESPACES
+        config KERNEL_PID_NS
+            bool "PID Namespaces"
+            default y
+            help
+                Support process id namespaces. This allows having multiple
+                processes with the same pid as long as they are in different
+                pid namespaces. This is a building block of containers.
 
-	config KERNEL_DEVPTS_MULTIPLE_INSTANCES
-		bool
-		depends on KERNEL_NAMESPACES
+        config KERNEL_NET_NS
+            bool "Network namespace"
+            default y
+            help
+                Allow user space to create what appear to be multiple instances
+                of the network stack.
 
+    endif
+    
+
+    #
+    # LXC related symbols
+    #
+    
+    config KERNEL_LXC_MISC
+        bool "Enable miscellaneous LXC related options"
+        default n
+
+    if KERNEL_LXC_MISC
+
+        config KERNEL_DEVPTS_MULTIPLE_INSTANCES
+            bool "Support multiple instances of devpts"
+            default y
+            help
+                Enable support for multiple instances of devpts filesystem.
+                If you want to have isolated PTY namespaces (eg: in containers),
+                say Y here. Otherwise, say N. If enabled, each mount of devpts
+                filesystem with the '-o newinstance' option will create an
+                independent PTY namespace.
+
+        config KERNEL_POSIX_MQUEUE
+            bool "POSIX Message Queues"
+            default y
+            help
+                POSIX variant of message queues is a part of IPC. In POSIX message
+                queues every message has a priority which decides about succession
+                of receiving it by a process. If you want to compile and run
+                programs written e.g. for Solaris with use of its POSIX message
+                queues (functions mq_*) say Y here.
+
+    endif
+    
+
+if TARGET_ipq_ipq807x
 	config KERNEL_NAMESPACES
 		bool "Enable kernel namespaces"
 		default n
@@ -563,8 +826,19 @@ menu "Global build settings"
 		select KERNEL_USER_NS
 		select KERNEL_PID_NS
 		select KERNEL_NET_NS
-		select KERNEL_DEVPTS_MULTIPLE_INSTANCES
-
+		select KERNEL_DEVPTS_MULTIPLE_INSTANCES if !TARGET_ipq_ipq807x
+endif
+if !TARGET_ipq_ipq807x
+	config KERNEL_NAMESPACES
+		bool "Enable kernel namespaces"
+		default n
+		select KERNEL_UTS_NS
+		select KERNEL_IPC_NS
+		select KERNEL_USER_NS
+		select KERNEL_PID_NS
+		select KERNEL_NET_NS
+		select KERNEL_DEVPTS_MULTIPLE_INSTANCES 
+endif
 	config KERNEL_I2C_SX9310
 		bool "Support for I2C SEMTECH SX9310"
 		default n
@@ -644,7 +918,7 @@ menu "Global build settings"
 	choice
 		prompt "Binary stripping method"
 		default USE_STRIP   if EXTERNAL_TOOLCHAIN
-		default USE_STRIP   if USE_GLIBC || USE_EGLIBC || USE_MUSL
+		default USE_STRIP   if USE_GLIBC || USE_MUSL
 		default USE_SSTRIP
 		help
 		  Select the binary stripping method you wish to use.
@@ -664,7 +938,6 @@ menu "Global build settings"
 			bool "sstrip"
 			depends on !DEBUG
 			depends on !USE_GLIBC
-			depends on !USE_EGLIBC
 			help
 			  This will install binaries stripped using sstrip
 	endchoice
@@ -696,7 +969,7 @@ menu "Global build settings"
 	if INSTALL_LIBSTDCPP
 		choice
 			prompt "Preferred standard C++ library"
-			default USE_LIBSTDCXX if USE_EGLIBC
+			default USE_LIBSTDCXX if USE_GLIBC
 			default USE_UCLIBCXX
 			help
 			  Select the preferred standard C++ library for all packages that support this.
@@ -961,8 +1234,8 @@ menu "ZyXEL Voice (ZyIMS VoIP)"
 		default n
 
 	config BUILD_ZYXEL_VOICE_SIP_HEARTBEAT_MECHANISM
-                bool "Support SIP Heartbeat Mechanism to periodically send SIP OPTIONS to SIP server for Keep-alive."
-                default n
+		bool "Support SIP Heartbeat Mechanism to periodically send SIP OPTIONS to SIP server for Keep-alive."
+		default n
 
 	config BUILD_ZYXEL_VOICE_RFC3611_RTCP_XR
 		bool "Support RFC-3611 RTCP eXtended Reports (XR)."
@@ -986,7 +1259,28 @@ menu "ZyXEL Voice (ZyIMS VoIP)"
 		    thus, if the 'BUILD_ZYXEL_VOICE_CONFIG_TR069_FAXT38_ENABLE_MAPPING_TO_FAXMODE' somewhere in the below is NOT enabled,
 		    it can also control by itself.
 
+	config BUILD_ZYXEL_VOICE_USING_DSP_AND_PHONE_API_FROM_SINGLE_PROCESS
+		bool "Support to Use/Access the platform's DSP and Phone API through ONLY the MM module's Process."
+		default n
+		help
+		    For some platforms, it's required to MUST utilize the DSP and Phone API through a Single Process
+		    to ensure the function should be Normal (i.e. Identical all the time).
+		    This is because some of the (global) operation parameters are stored in these DSP and Phone APIs' userspace parts, and
+		    accessing/utilizing these APIs from DIFFerent Processes MAY use DIFFerent values of such kind of operation parameters
+		    to trigger the functions to (consequently) have DIFFerent operation behaviors/results.
+
+
 	#-------------------------------------------------------------------------------------------------------------------------------------------
+	config BUILD_ZYXEL_PHONE_FXS_SUPPORT
+		bool "Support FXS Phone."
+		default y
+
+	config BUILD_ZYXEL_PHONE_FXS_CH_NUM
+		int "Max FXS phone port number (1-2)."
+		range 1 2
+		default 2
+		depends on BUILD_ZYXEL_PHONE_FXS_SUPPORT
+
 	config BUILD_ZYXEL_PHONE_FXO_SUPPORT
 		bool "Support FXO Phone."
 		default n
@@ -1312,6 +1606,9 @@ menu "ZyXEL Userspace Features"
 			bool "encrypt whole romfile"
 			default n
 
+		config ZYXEL_MULTI_ROM_FILE
+			bool "For co-fw project,FW runtime select rom file"
+			default n
 	endmenu
 	
 	menu "Cellular WWAN"
@@ -1420,12 +1717,84 @@ menu "ZyXEL Userspace Features"
 			
 	endmenu
 
+	menu "Wlan SSID Priority & IPTV SSID WPS PBC"
+
+		config ZYXEL_SSID_PRIORITY
+			bool "support SSID traffic priority feature (toad and toast for Brcm)"
+			default n
+
+		config ZYXEL_IPTV_SSID_PRIORITY_WPS_PBC
+			bool "enable WPS PBC on IPTV SSID, usually 5G guest wifi"
+			default n
+
+		config ZYXEL_WPS_IPTV_GUEST_WIFI_NUM
+			int "define which guest wifi to run WPS IPTV"
+			default 3
+
+	endmenu
+
 	menu "OneSSID"
 	
 		config ZYXEL_ONESSID
 			bool "support ZyXEL One SSID"
 			default n
 
+		config ZYXEL_MESH_WITHOUT_ONESSID
+			bool "US one SSID do not force enabled with Mesh Enable"
+			default n
+
+	endmenu
+
+	menu "Add Preset and Backhaul SSID"
+		config ZYXEL_Add_Preset_Backhaul
+			bool "Add Preset and Backhaul SSID"
+			default n
+
+	endmenu
+
+	menu "EasyMesh"
+
+		config ZYXEL_EASYMESH
+			bool "support ZyXEL Easy Mesh"
+			default n
+			select ZYXEL_ONESSID if !ZYXEL_OPAL_EXTENDER
+			select ZYXEL_Add_Preset_Backhaul
+			select BRCMSDK502L05_ZYXEL_EASYMESH if BRCM963xx_SDK_VER_502L05
+			select BRCMSDK502L07_ZYXEL_EASYMESH if BRCM963xx_SDK_VER_502L07
+			select PACKAGE_zyMAPSteer if ZY_WIFI_CHIP_BRCM
+			select PACKAGE_zyMAPLog
+
+			config ZYXEL_EASYMESH_ROM_CONVERT
+				bool "rom convert for EASYMESH"
+				default n
+				depends on ZYXEL_EASYMESH
+				
+	endmenu
+
+	menu "OpalExtender"
+		config ZYXEL_OPAL_EXTENDER
+			bool "Support Zyxel Extender in Bridge Mode"
+			select PACKAGE_eth_backhaul_monitor
+			select ZyXEL_WEB_GUI_HIDE_ETHWAN
+			select ZyXEL_WEB_GUI_HIDE_DSL
+			select ZyXEL_WEB_GUI_HIDE_OAM
+			select ZyXEL_WEB_GUI_HIDE_802_1x
+			select ZyXEL_WEB_GUI_HIDE_CFM
+			select ZyXEL_WEB_GUI_HIDE_VLAN_GROUP
+			select ZyXEL_WEB_GUI_HIDE_STB_VENDOR_ID
+			select ZYXEL_WEB_GUI_HIDE_FIREWALL
+			select ZyXEL_WEB_GUI_HIDE_IGMP_MLD
+			deselect ZYXEL_WWAN
+			deselect ZyXEL_WEB_GUI_SHOW_PON
+			deselect ZyXEL_WEB_GUI_SHOW_WWAN
+			deselect ZyXEL_WEB_GUI_SHOW_IGMP_MLD_SNOOPING
+			deselect ZYXEL_NAT_LOG
+			deselect ZYXEL_DNS_TRAFFIC_ROUTE
+			deselect ZYXEL_VLAN_GROUP
+			deselect PACKAGE_zupnp
+			select BRCMSDK502L07_ZYXEL_OPAL_EXTENDER if BRCM963xx_SDK_VER_502L07
+			select BRCMSDK502L07_ZYXEL_OPAL_EXTENDER_USA if BRCM963xx_SDK_VER_502L07 && ZYXEL_USA_PRODUCT
+			default n
 	endmenu
 
 	menu "BSA"
@@ -1486,6 +1855,7 @@ menu "ZyXEL Userspace Features"
 			select PACKAGE_qrpe
 			select PACKAGE_netprobe
 			select ZYXEL_ONESSID
+			select ZYXEL_Add_Preset_Backhaul
 
 			config ZYXEL_SONIQ_ROM_CONVERT
 				bool "rom convert for SONiQ"
@@ -1499,11 +1869,27 @@ menu "ZyXEL Userspace Features"
 		config ZYXEL_ONECONNECT
 			bool "Enable/Disable ZyXEL One Connect"
 			default n
-			select PACKAGE_zy1905
+			select ZYXEL_HOSTPOLLING
+			select PACKAGE_zy1905 if !TC_SDK_7_3_245_300 || !ZYXEL_EASYMESH
 			select PACKAGE_netprobe
 			select PACKAGE_nbtscan
 			select PACKAGE_SpeedTest
 			select PACKAGE_curl
+
+			choice
+				prompt "Zyxel One Connect Version"
+				default ZYXEL_ONECONNECT_VER_30 if ZYXEL_EASYMESH
+				default ZYXEL_ONECONNECT_VER_24
+
+				config ZYXEL_ONECONNECT_VER_24
+					bool "oneconnect version 2.4"
+					depends on ZYXEL_ONECONNECT
+
+				config ZYXEL_ONECONNECT_VER_30
+					bool "oneconnect version 3.0 for new Multy Pro 2.0"
+					depends on ZYXEL_ONECONNECT
+					depends on ZYXEL_EASYMESH
+			endchoice
 
 			config ZYXEL_ONECONNECT_EU
 				bool "One Connect for EU"
@@ -1516,7 +1902,7 @@ menu "ZyXEL Userspace Features"
 				select PACKAGE_l2command
 				select PACKAGE_plc-utils
 				depends on ZYXEL_ONECONNECT
-				
+
 			config ZYXEL_APP_AGENT
 				bool "support iDevice/Android ZyXEL APP"
 				default n
@@ -1525,6 +1911,27 @@ menu "ZyXEL Userspace Features"
 				depends on ZYXEL_ONECONNECT
 				select PACKAGE_zyschedule
 				select ZYXEL_POWER_MANAGEMENT
+
+			choice
+				prompt "Zyxel App Agent Version"
+				default ZYXEL_APP_AGENT_VER_24 if ZYXEL_ONECONNECT_VER_24
+				default ZYXEL_APP_AGENT_VER_30 if ZYXEL_ONECONNECT_VER_30
+
+				config ZYXEL_APP_AGENT_VER_24
+					bool "APP agent version 2.4"
+					depends on ZYXEL_APP_AGENT
+					depends on ZYXEL_ONECONNECT
+
+				config ZYXEL_APP_AGENT_VER_30
+					bool "APP agent version 3.0 for new Multy Pro 2.0"
+					depends on ZYXEL_APP_AGENT
+					depends on ZYXEL_ONECONNECT
+			endchoice
+
+			config ZYXEL_APP_USERNAME_LOGIN
+				bool "support username to login to the app"
+				default n
+				depends on ZYXEL_APP_AGENT
 				
 			config ZYXEL_P0F
 				bool "p0f (OS fingerprinting tool)"
@@ -1543,8 +1950,43 @@ menu "ZyXEL Userspace Features"
 				default n
 				select PACKAGE_zyAPSteering
 				depends on ZYXEL_ONECONNECT
-			
-	endmenu	
+
+			choice
+				prompt "Zyxel Netprobe Version"
+				default ZYXEL_NETPROBE_VER_24 if ZYXEL_ONECONNECT_VER_24
+				default ZYXEL_NETPROBE_VER_30 if ZYXEL_ONECONNECT_VER_30
+
+				config ZYXEL_NETPROBE_VER_24
+					bool "netprobe version 2.4"
+					depends on PACKAGE_netprobe
+
+				config ZYXEL_NETPROBE_VER_30
+					bool "netprobe version 3.0 for new Multy Pro 2.0"
+					depends on PACKAGE_netprobe
+			endchoice
+
+			choice
+				prompt "Zyxel 1905 Version"
+				default ZYXEL_ZY1905_VER_24 if ZYXEL_ONECONNECT_VER_24
+				default ZYXEL_ZY1905_VER_30 if ZYXEL_ONECONNECT_VER_30
+
+				config ZYXEL_ZY1905_VER_24
+					bool "zy1905 version 2.4"
+					depends on PACKAGE_zy1905
+
+				config ZYXEL_ZY1905_VER_30
+					bool "zy1905 version 3.0 for new Multy Pro 2.0"
+					depends on PACKAGE_zy1905
+			endchoice
+
+			config ZYXEL_ONECONNECT_PARENTCTL_OPTION
+				bool "An option to manage whether to remove grayed-out of parental control UI page"
+				default n
+				depends on ZYXEL_ONECONNECT
+	endmenu
+	config ZYXEL_AVAST_AGENT_SUPPORT
+                bool "tr98/DAL supported for Avast security"
+                default n	
 	
 	config ZYXEL_CONFIG_IGNORE_OWNER_CHECK
 		bool "Ignore config owner account check when restoring"
@@ -1565,17 +2007,21 @@ menu "ZyXEL Userspace Features"
 	config ZYXEL_FIREWALL_INDEPENDENT
 		bool "Enable IPv4/IPv6 Firewall seperately"
 		default n
-		
-	config ZYXEL_USB_SET_MANUALLY
-		bool "Usb can be set by user manually"
-		default n
 	
     config ZYXEL_USB_MANAGERMENT
 		bool "Usb account management"
 		default n
 		
+	config ZYXEL_MOUNT_NOEXEC
+		bool "USB partition be mounted as non-executable"
+		default n
+		
 	config ZYXEL_ACCOUNT_MANAGEMENT
 		bool "Account management"
+		default n
+		
+	config ZYXEL_ACESS_INTERNET_WHITE_LIST
+		bool "this is for DeviceCtrl, if it opens, parental control of app-agen would be white list "
 		default n
 
 	config ZYXEL_USA_PRODUCT
@@ -1614,6 +2060,10 @@ menu "ZyXEL Userspace Features"
 		int "SSID suffix length"
 		default 4
 	
+    config GUEST_SSID_NO_ADD_SUFFIX
+        bool "Guest SSID doesn't add guest suffix"
+        default n
+    
 	config ZYXEL_PASSPHRASE
 		bool "Passphrases are particularly applicable to systems that use the passphrase as an encryption key"
 		default n
@@ -1623,17 +2073,26 @@ menu "ZyXEL Userspace Features"
 		default n
 		select PACKAGE_zwol
 		
-	config ZYXEL_ENABLE_DISABLE_RADIO_BY_MAIN_SSID
-		bool "Enable/Disable WLAN Radio by main SSID"
-		default y
+	config ZYXEL_RADIO_MAIN_SSID_INDEPENDENT
+		bool "Support wireless Radio is independent of main SSID"
+		default n
 		
 	config ZY_WIFI_ONESSID_SECURITY_SYNC
                 bool "One SSID security sync for Dual Band"
                 default n
+
 	config ZY_WIFI_24G_SUPPORT_11AC
 		bool "2.4G chip can support 11ac(vht feature), MCS 8 & 9"
 		default n
 	
+	config ZYXEL_WIFI_24G_SUPPORT_11GN
+		bool "Support feature can use 802.11g/n Mixed"
+		default n
+	
+	config ZY_WIFI_5G_SUPPORT_1024QAM
+		bool "Support 5G chip support 1024-QAM"
+		default n
+		
 	config WAN_AUTO_DETECT
 		bool "wan auto dectct, Ethernet priority is higher than DSL"
 		default y
@@ -1649,6 +2108,11 @@ menu "ZyXEL Userspace Features"
 	config ZYXEL_HASH_ACCOUNT_PASSWORD_BY_SHA512
 		bool "Use SHA512 algorithm to hash Account Password"
 		default n
+
+    config ZYXEL_HASH_ACCOUNT_PASSWORD_BY_SHA512_START_VER
+		int "Hash Account Password by SHA512 feature start version"
+		default 0
+		depends on ZYXEL_HASH_ACCOUNT_PASSWORD_BY_SHA512
 
 	config ZYXEL_RANDOM_SUPERVISOR_PASSWORD
 		bool "Random root/supervisor password"
@@ -1674,7 +2138,7 @@ menu "ZyXEL Userspace Features"
 
 	config ZYXEL_RANDOM_ADMIN_PASSWORD_NEW_ALGORITHM_START_YEAR
 		int "Random admin account password start year"
-		default 2018
+		default 2100
 		depends on ZYXEL_RANDOM_ADMIN_PASSWORD
 
 	config ZYXEL_RANDOM_ADMIN_PASSWORD_NEW_ALGORITHM_START_WEEK
@@ -1692,17 +2156,33 @@ menu "ZyXEL Userspace Features"
 		default 48
 		depends on ZYXEL_RANDOM_SUPERVISOR_PASSWORD
 
-	config ZYXEL_AT_SET_KEY_BRCM
-        	bool "AT SET KEY"
-	        default n
-
-        config ZYXEL_I2C_WRITE_API
-                bool "i2c write API support"
-                default n
-
+	config ZYXEL_VMG8825_B60C_DDR533MHZ_YEAR_OBM
+		string "VMG8825-B60C with this SN pattern should check board id"
+		default "S19XX"
+		
 	config ZYXEL_INDEPENDENT_WPS_METHODS
 		bool "Enable/Disable three WPS methods independently"
 		default y
+
+	config WPS_WIFID_MSG
+		bool "WPS WIFID MSG"
+		default n
+
+	config ZYXEL_SUPERVISOR_LEVEL_HTTPD_LOGIN_DENY
+		bool "Deny SUPERVISOR level account login via GUI"
+		default n
+
+	config ZYXEL_SUPERVISOR_LEVEL_LOGIN_DENY
+		bool "Deny SUPERVISOR level account login to linux via console, telnet, ssh, ftp, etc..."
+		default n
+
+	config ZYXEL_ADMIN_LEVEL_LOGIN_DENY
+		bool "Deny ADMIN level account login to linux via console, telnet, ssh, ftp, etc..."
+		default n
+
+	config ZYXEL_USER_LEVEL_LOGIN_DENY
+		bool "Deny USER level account login to linux via console, telnet, ssh, ftp, etc... DON'T enable this flag and ZYXEL_USER_LEVEL_CONSOLE_LOGIN_DENY at same time"
+		default n
 
 	config ZYXEL_USER_LEVEL_CONSOLE_LOGIN_DENY
 		bool "Deny user level account login from console"
@@ -1715,7 +2195,12 @@ menu "ZyXEL Userspace Features"
 	config ZyXEL_WEB_REDIRECT
 		bool "Zyxel web redirect"
 		default n
-	
+
+	config ZyXEL_PCP_WEB_REDIRECT
+		bool "Zyxel Parent control web redirect"
+		default n
+		select ZyXEL_WEB_REDIRECT
+
 	config ZYXEL_LANDING_PAGE_FEATURE
 		bool "Zyxel landing page"
 		default n
@@ -1723,7 +2208,11 @@ menu "ZyXEL Userspace Features"
 	config ZyXEL_PPP_LCP_ECHO
 		bool "Enable/Disable Zyxel PPP LCP ECHO and Connection Retry by tr069"
 		default n	
-		
+
+	config ZYXEL_PPP_UTILIZE_FILE_PARAM
+		bool "Enable/Disable utilizing param file passing on starting pppd"
+		default y
+
 	config ZyXEL_DHCP_OPTION125
 		bool "Enable/Disable Zyxel DHCP option125"
 		default n
@@ -1731,13 +2220,21 @@ menu "ZyXEL Userspace Features"
 	config ZyXEL_DHCP_OPTION42
 		bool "Enable/Disable Zyxel DHCP option42"
 		default n
+
+	config ZYXEL_DHCPV6_OPTION64
+		bool "Enable/Disable Zyxel DHCPv6 option64"
+		default n	
 		
 	config ZYXEL_FWUPGRADE_DHCP_SUB_OPTION43
 		bool "Enable/Disable Zyxel DHCP sub option43 Firmware Upgrade"
 	default n
 
 	config ZYXEL_WAN_MAC
-		bool "Enable/Disable WAN MAC address assignment for Ethernet WAN"
+		bool "Enable/Disable WAN MAC address assignment by user defined"
+		default n
+
+	config ZYXEL_FIX_WAN_MAC
+		bool "Enable/Diasble Fixed WAN MAC address sequence arrangement"
 		default n
 
 	config ZYXEL_INTFGUP_ACCEPT_BIND_ONLY_WAN
@@ -1756,10 +2253,19 @@ menu "ZyXEL Userspace Features"
 		bool "Zyxel Save System Log to Flash"
 		default n
 		
+	config ZYXEL_SEND_ALL_TPYE_EMAIL_LOG
+		bool "Zyxel Send All Type Email Log"
+		default n
+		
     config ZyXEL_Online_Firmware_Upgrade
 		bool "ZyXEL Online Firmware Upgrade"
 		default n		
 
+		
+    config ZYXEL_SP_DOMAIN_TIMER
+		bool "ZyXEL SP Domain Timer"
+		default n
+		
 	config SMALL_RAM
 		bool "Small RAM configuration"
 		default n
@@ -1768,10 +2274,22 @@ menu "ZyXEL Userspace Features"
 		bool "Support WiFi WDS"
 		default n
 		
-	config ZYXEL_WIFI_SUPPORT_WPA_MIX_MODE
-		bool "Support WiFi Security Mode WPA/WPA2-PSK"
+	config ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+		bool "Support WiFi Security Mode WEP/WPA/WPA-MIXED"
 		default n
-		
+
+	config ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE
+		bool "Support WiFi Security Mode WPAPSK"
+		default n
+
+	config ZYXEL_SUPPORT_WL_WPA2_EAP
+		bool "Support WiFi Security Mode WPA2-Enterprise"
+		default n
+
+	config ZYXEL_SUPPORT_8021X
+		bool "Support WiFi Security Mode WPA/WPA2 EAP"
+		default n
+
 	config ZYXEL_WIFI_SUPPORT_CHANNEL_SCAN
 		bool "Support WiFi channel scan"
 		default y
@@ -1780,9 +2298,25 @@ menu "ZyXEL Userspace Features"
 		bool "Support WiFi/WPS hardware button can be disabled by configuration"
 		default y
 
+	config ZYXEL_ACS_WPS_ACTIVATION
+		bool "Support ACS could start WPS activation"
+		default n
+
+	config ZYXEL_REVERSE_PORT
+		bool "Support Reverse LanPort"
+		default n
+
+	config ZYXEL_IPSEC_VPN
+		bool "Support IPSec VPN"
+		default n
+
 	config SEND_PADT_BEFORE_DISCOVERY
 		bool "Send PADT before PPPoE discovery procedure"
 		default y
+
+	config PPPOE_PASS_THROUGH_WAN_MAC
+		bool "use WAN MAC when PPPoE PassThrough"
+		default n
 
         config ZYXEL_SUPPORT_TR098_BRCM_BONDING_LINE
                 bool "The xDSL Bonding status support in the TR098"
@@ -1792,9 +2326,24 @@ menu "ZyXEL Userspace Features"
                 bool "Utilize rdm log settings to config debug options"
                 default n
 
+        config ZLOG_USE_DEBUG
+                bool "Utilize zlog setting to config debug options"
+                default n
+                select PACKAGE_syslog-ng
+
         config CORE_DUMP_ZCMD
                 bool "Save the zcmd core dump log to /var/log/core_zcmd"
                 default n
+
+
+        config UPNP_SSDP_LIMIT
+                bool "Handle 1 SSDP packet at 1 second for zUPnP"
+                default n
+
+        config ZYXEL_BLOCK_PACKETS_FROM_CPE_IN_BRIDGE
+                bool "Block packet from CPE in bridge mode"
+                default n
+
 
 	menu "VDSL profile extra support"
 	config ZYXEL_VDSL_Support_30A
@@ -1813,16 +2362,36 @@ menu "ZyXEL Userspace Features"
  		bool "TR98 Lan Ip Alias Objects"
  		default n
 	
-	config ZYXEL_DSL_SUPPORT_ANNEX_B
-        bool "Support DSL Annex B"
-        default n
-
+	config ZYXEL_SECOND_LAN_IP_ALIAS
+ 		bool "Second Lan Ip Alias Objects"
+ 		default n
+		
  	config ZYXEL_SUPPORT_TR98_LOGIN_ACCOUNT
  		bool "Support TR98 Login Account Objects"
  		default n
 
+ 	config ZYXEL_WEB_GUI_HIDE_CARD
+ 		bool "Support GUI hide Cards"
+ 		default n
+
+ 	config ZYXEL_CONTROl_EEE
+ 		bool "Enable/Disable Energy-Efficient-Ethernet on all Ethernet-ports"
+ 		default n
+
+ 	config ZYXEL_BLACK_LIST_CHARACTERS_FOR_WIFI_PASSPHRASE
+ 		bool "Support parameter of black-list characters for auto-generated WiFi Passphrase"
+ 		default n
+
+ 	config ZYXEL_TR69_INFORM_PARAMETER
+ 		bool "Support tr69 inform parameter"
+ 		default n
+
 	config ZYXEL_LAN_L3_Isolation
 		bool "Isolate L3 unicast packet between different LAN subnet"
+		default n
+
+	config ZYXEL_SUPPORT_DMZ_MANAGEMENT
+		bool "Support DMZ Management "
 		default n
 
 	config INTERNET_LED_DEPEND_ON_DEFAULT_GW
@@ -1873,6 +2442,18 @@ menu "ZyXEL Userspace Features"
 		bool "Support ipv6 ULA prefix on TR98 table"
 		default n
 
+	config ZYXEL_DHCPV6C_OPTION
+		bool "Support dhcpv6 client options on TR98 table"
+		default n
+	
+	config ZYXEL_DHCP_DISCOVER_EXPONENTIAL
+                bool "Support dhcp discover packet exponential interval with base 2"
+                default n
+	
+	config ZYXEL_GRE
+		bool "Support gre tunnel"
+		default n
+
 	config ZYXEL_WEB_GUI_SHOW_PWR_MGMT
 		bool "Zyxel Web Gui show Power Management related pages"
 		default n
@@ -1881,13 +2462,21 @@ menu "ZyXEL Userspace Features"
 	config ZYXEL_FW_ID_CHECK_FW_UPGRADE
 		bool "InActive the FW ID check by default. Or switch via the command of sys fwidcheck."
 		default n
-	
-        config ZYXEL_FW_ID_CHECK_PREVENT_DOWNGRADE
-                bool "Implement mechanisms to prevent the installation of a previous firmware version(downgrade)"
-                default n
-                depends on ZYXEL_FW_ID_CHECK_FW_UPGRADE
+		
+	config ZYXEL_NO_UPGRADE_SAME_FW
+		bool "Don't upgrade FW that FW version same with current using"
+		default n
+		depends on ZYXEL_FW_ID_CHECK_FW_UPGRADE
 
-	
+	config ZYXEL_FW_ID_CHECK_PREVENT_DOWNGRADE
+		bool "Implement mechanisms to prevent the installation of a previous firmware version(downgrade)"
+		default n
+		depends on ZYXEL_FW_ID_CHECK_FW_UPGRADE
+
+	config ZYXEL_FW_SIGNATURE_SUPPORT
+		bool "Implement mechanisms to upgrade FW with digital signature check"
+		default n
+
 	config ZYXEL_MODEL_ID_CHECK_FW_UPGRADE
 		bool "Active the Model ID check by default. Or switch via the command of sys modelcheck."
 		default n
@@ -1896,12 +2485,32 @@ menu "ZyXEL Userspace Features"
 		bool "Reboot command for none root user."
 		default n
 
+	config ZYXEL_ZYCLI_HIDE_EDIT_INTF
+		bool "Hide editintf option for user."
+		default n
+
 	config ZYXEL_ZYCLI_RESET_DEFAULT_REBOOT
 		bool "Reset to default command with option. After reset to default, reboot device or not."
 		default n
 
+	config ZYXEL_ZYCLI_ROUTE
+		bool "route command for none root user."
+		default n
+		
+	config ZYXEL_ZYCLI_ARP
+		bool "arp command for none root user."
+		default n
+
 	config ZYXEL_ENABLE_STP
 		bool "Enable STP when brige interface create"
+		default n
+	
+	config ZYXEL_ZYCLI_SUPERVISOR_IPTABLES
+		bool "Support iptables cmd with supervisor in zycli"
+		default n
+
+	config ZYXEL_ZYCLI_SUPERVISOR_TCPDUMP
+		bool "Support tcpdump cmd with supervisor in zycli"
 		default n
 
 	config ZYXEL_BLOCK_239_255_255_250
@@ -1912,6 +2521,10 @@ menu "ZyXEL Userspace Features"
         bool "Support Device.DeviceInfo.ProcessStatus.Process.i."
         default y
 
+	config ZYXEL_PROCNUMBEROFENTRIES_INCLUDE_KTHREADS
+        bool "ProcessNumberOfEntries include KThreads or not"
+        default n
+
 	config ZYXEL_TR069_EXCLUDE_NONMGMTWAN_IP_CHANGE_IN_1BOOT
 		bool "TR069 1 BOOT + 4 VAULE CHANGE enent don't include those notifications for non TR069 used WAN"
 		default n
@@ -1919,7 +2532,15 @@ menu "ZyXEL Userspace Features"
 	config ZYXEL_SKIP_LOG
 		bool "Support feature not to accelerate dedicated traffic."
 		default n
+
+	config ZYXEL_IPV6_IANA_IAPD
+		bool "Support IPv6 IA_NA and IA_PD Option"
+		default n		
 		
+	config ZYXEL_IPV6_MAP
+		bool "Support IPv6 MAP-E/MAP-T"
+		default n
+
 	config ZYXEL_WIFI_SingleSKU
 		bool "Support WiFi Change SingleSKU"
 		default n
@@ -1975,6 +2596,24 @@ menu "ZyXEL Userspace Features"
 	config ZYXEL_REMOTE_ACCESS_PRIVILEGE
                 bool "The function is meant to manage the remote accounts (more than one) as separated from local Lan/Wlan accounts."
                 default n
+
+    config ZYXEL_REMOTE_ACCESS_PRIVILEGE_ROM_CONVERT
+        bool "Convert Account Remote Access Privilege as default"
+        default n
+        depends on ZYXEL_REMOTE_ACCESS_PRIVILEGE
+				
+	config ZYXEL_REMOTE_ACCOUNT_ACCESS_PRIVILEGE
+                bool "The function is meant to manage the remote Protocol (more than one) for each user account."
+                default n
+				
+	config ZYXEL_REMOMGMT_SEPARATE_LAN_WLAN_PRIVILEGE
+               bool "Separate LAN/WLAN as different column on REMOMGMT"
+			   default n
+			   
+    config ZYXEL_CUSTOMIZATION_LOGO
+		bool "Customization logo in GUI"
+           default n
+			   
 	config ZYXEL_SIP_ALG_REMOVE_CONNTRACK_WHEN_INSERT_REMOVE
 		bool "Fix the issue that disabling and enabling SIP alg will make the SIP phone has wrong behavior."
 		default y
@@ -1984,28 +2623,101 @@ menu "ZyXEL Userspace Features"
                 bool "With Wi-Fi, you can only connect to REMOMGMT using HTTPS."
                 default n
 
+        config ZYXEL_FLOW_CONTROl_RGMII5_QTN
+                bool "Enable the BRCM flow control for CPU port5 with 5G QTN. The CSP:4183012"
+                default n
+
 	config ZYXEL_ADMIN_GUI_BASIC_VIEW
                 bool "Add Basic View in GUI for admin group level."
                 default n
+                
+	config ZYXEL_CLI_IDLE_TIMEOUT
+		bool "Support CLI idle timeout mechanism"
+		default n
 
       config ZYXEL_SFP_LINKUP_DELAYTIMES
                 bool "Add SFP inteface Linkup delaytimes."
                 default n
-
-	config ZYXEL_SIP_DELAYTIMES
-                bool "Add Sip Linkupdelaytimes."
-                default n 
-
-        config ZYXEL_NAT_PORTFORWARD_SOURCE_IP_SUBNETMASK
-                bool "Port forwarding support A external specific subnet."
+      config ZYXEL_SIP_DELAYTIMES
+                bool "Add Sip Linkup delaytimes."
                 default n
+
+	config ZYXEL_TR69_DATA_USAGE
+		bool "LAN and WAN Tx and Rx Mbps monitor."
+		default n
+
+	config ZYXEL_TR143_DIAG_ENHANCEMENT
+		bool "TR143 UpLoad/DownLoad Diagnostics throughtput enhancement."
+		default n
+
+	config ZYXEL_HTTPDIAG_SPECIFIED_INTERFACE
+		bool "httpdiag specified interface"
+		default n
+
+	config ZYXEL_TR69_SUPPLEMENTAL_ACS
+		bool "Supplemental ACS."
+		default n
+
+	config ZYXEL_WIFI_LOG_AUTH_FAIL
+		bool "sys log will record wifi auth failure"
+		default n
+
+	config ZYXEL_FAKE_IP_169_254_X_X
+		bool "Set a fake IP 169.254.X.X/16 to WAN interface if it doesn't get IP"
+		default n
+
+	config ZYXEL_G729_AND_LOGIN_PRIVILEGE_CONVERT
+		bool "Add enough empty codec list object and double check Login Privilege configure."
+		default n
+
+	config ZYXEL_HIDE_USB_PAGE_IN_GUI
+		bool "Disable page USB Service in GUI and disable File Sharing Services."
+		default n
+
+	config ZYXEL_HIDE_URL_KEYWORD
+		bool "Hide URL Keyword in Parental Control page of GUI."
+		default n
+
+	config ZYXEL_AUTO_REMOVE_INTFGUP_CRIT_OPT60_WIFI_INTF
+		bool "Auto remove Interface Group criteria DHCP option 60 interface when no opt60 client.(Note: this feature only work on SSID 1~8 interfaces"
+		default n
+
+	config ZYXEL_DISABLE_PMF_ROM_CONVERT
+		bool "Rom comvert PMF to disable."
+		default n
+
+	config ZYXEL_ECONET_CALA_DATA_RE_WRITE_TO_FLASH
+		bool "Prevent no calibration data in falsh, FW re-write calibration data to flash,only for ECONET WIFI solution."
+		default n
+
+	config ZYXEL_TR69_RELAUNCH
+		bool "TR69 relaunch mechanism."
+		default n
+
+	config ZYXEL_SUPPORT_SPEEDTEST_BY_PKTGEN
+		bool "Support speedtest by kernel module Pktgen."
+		default n
+
+	config ZYXEL_PMF_SET_MANUALLY
+		bool "WiFi PMF can be set manually instead of automatically enable by WPA mode"
+		default n
 
         config ZYXEL_BANDWIDTH_IMPROVEMENT
 		bool "Support Bandwidth Improvement by (3G/4G)Mobile Backup. "
 		select PACKAGE_kmod-zybwm
 		default n
-		
 
+    config ZXYEL_TCP_PURE_ACK_FILTER
+        bool "TCP pure ack prioritization"
+        default n
+
+	config ZYXEL_ROMCONVERT_GUI_VOIP_SHOW_IOP_FLAGS_IGNORE_CHECK_CONTACT_URL_IN_REGISTER_200OK
+		bool "Convert VoIP GUI to show out IOP flag for ignore to check the Contact URL in the SIP REGISTER's 200 OK"
+		default n
+
+	config ZYXEL_CHANNEL_SKIP_LIST_ROM_CONVERT
+		bool "Convert WiFi Auto/Manual Channel Skip List as default"
+		default n
 endmenu
 
 menu "ZyXEL Kernel Features"
@@ -2017,10 +2729,188 @@ menu "ZyXEL Kernel Features"
 	config KERNEL_ZYXEL_PPTP_SUPPORT
 		bool "Support PPTP VPN"
 		default n
+		
+    config KERNEL_ZYXEL_RS_TRY_5_TIMES
+	    bool "Enable/Disable Zyxel Restart pppoe process if RS TRY 5 TIMES / Restart dhcp6c if DHCPv6 client don't get option 64"
+	    default n
+		
+	config KERNEL_ZYXEL_EOGRE_SUPPORT
+		bool "Support EoGRE Tunnel"
+		default n
+		
+	config KERNEL_ZYXEL_SUPPORT_USB_FALL_BACK_2_0
+		bool "Usb can be set by user manually"
+		default n
+	
+	config KERNEL_PRINTK_CONSOLE_DBG_LEVEL
+		int "kernel debug level"
+		range 0 7
+		default 7
+		help
+			Support kernel dbg level(0~7) configuration.
+
+	config KERNEL_NETFILTER_XT_CONNMARK
+		tristate 'ctmark target and match support'
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+
+	config KERNEL_NETFILTER_XT_TARGET_CONNMARK
+		tristate 'ctmark target and match support'
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+
+	config KERNEL_NETFILTER_XT_MATCH_CONNMARK
+		tristate 'ctmark target and match support'
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+
+	config KERNEL_ZYXEL_EXT_MARK_DEBUG
+		tristate 'EXTMARK compiler debug'
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+
+	config KERNEL_ZYXEL_EXT_MARK
+		bool "Support Extension Mark"
+		select KERNEL_NETFILTER_XT_CONNZEXTMARK
+		select KERNEL_NETFILTER_XT_MATCH_CONNZEXTMARK
+		select KERNEL_NETFILTER_XT_TARGET_CONNZEXTMARK
+		select KERNEL_ZLD_SKB_ZLD_CB
+		select KERNEL_SBG_SKB_MARK
+		select KERNEL_NETFILTER_XT_ZEXTMARK
+		select KERNEL_NETFILTER_XT_MATCH_ZEXTMARK
+		select KERNEL_NETFILTER_XT_TARGET_ZEXTMARK
+		select KERNEL_BRIDGE_EBT_ZEXTMARK
+		select KERNEL_BRIDGE_EBT_ZEXTMARK_T
+		select KERNEL_NETFILTER_XT_CONNMARK
+		select KERNEL_NETFILTER_XT_MATCH_CONNMARK
+		select KERNEL_NETFILTER_XT_TARGET_CONNMARK
+		default y if TARGET_brcm963xx && !BRCM963xx_SDK_VER_416L02A && !BRCM963xx_SDK_VER_416L05 && !BRCM963xx_SDK_VER_502L04
+
+	config KERNEL_NETFILTER_XT_CONNZEXTMARK
+		tristate 'ctmark target and match support'
+		default m if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		This option adds the "ZEXTCONNMARK" target and "zextconnmark" match.
+		Netfilter allows you to store a mark value per connection (a.k.a.
+		ctmark), similarly to the packet mark (nfmark). Using this
+		target and match, you can set and match on this mark.
+
+config KERNEL_NETFILTER_XT_MATCH_CONNZEXTMARK
+		tristate 'ctmark target and match support'
+		default m if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		This option adds the "ZEXTCONNMARK" target and "zextconnmark" match.
+		Netfilter allows you to store a mark value per connection (a.k.a.
+		ctmark), similarly to the packet mark (nfmark). Using this
+		target and match, you can set and match on this mark.
+		
+config KERNEL_NETFILTER_XT_TARGET_CONNZEXTMARK
+		tristate 'ctmark target and match support'
+		default m if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		This option adds the "ZEXTCONNMARK" target and "zextconnmark" match.
+		Netfilter allows you to store a mark value per connection (a.k.a.
+		ctmark), similarly to the packet mark (nfmark). Using this
+		target and match, you can set and match on this mark.
+
+	config KERNEL_ZLD_SKB_ZLD_CB
+		bool 'Enable ZLD_SKB_ZLD_CB on Kernel'
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		  ZEXT private mark in skb
+
+		  To compile it, choose Y here.  If unsure, say N.
+
+	config KERNEL_SBG_SKB_MARK
+		bool '"zextmark" match support'
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		  ZEXT private mark in skb
+		  To compile it, choose Y here.  If unsure, say N.
+
+	config KERNEL_NETFILTER_XT_ZEXTMARK
+		tristate '"zextmark" match support'
+		depends on KERNEL_ZYXEL_EXT_MARK
+		default m if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		  ZEXT private mark in skb
+		  To compile it as a module, choose M here.  If unsure, say N.
+
+	config KERNEL_NETFILTER_XT_MATCH_ZEXTMARK
+		tristate '"zextmark" match support'
+		depends on KERNEL_ZYXEL_EXT_MARK
+		default m if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		  ZEXT private mark in skb
+		  To compile it as a module, choose M here.  If unsure, say N.
+
+	config KERNEL_NETFILTER_XT_TARGET_ZEXTMARK
+		tristate '"zextmark" match support'
+		depends on KERNEL_ZYXEL_EXT_MARK
+		default m if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		---help---
+		  ZEXT private mark in skb
+
+		  To compile it as a module, choose M here.  If unsure, say N.
+		  
+	config KERNEL_BRIDGE_EBT_ZEXTMARK
+		tristate "ebt: zextmark filter support"
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		help
+		  This option adds the zextmark match, which allows matching frames based on
+		  the 'nfmark' value in the frame. This can be set by the zextmark target.
+		  This value is the same as the one used in the iptables zextmark match and
+		  target.
+
+		  To compile it as a module, choose M here.  If unsure, say N.
+
+	config KERNEL_BRIDGE_EBT_ZEXTMARK_T
+		tristate "ebt: zextmark target support"
+		default y if  KERNEL_ZYXEL_EXT_MARK
+		default n if !KERNEL_ZYXEL_EXT_MARK
+		help
+		  This option adds the zextmark target, which allows marking frames by
+		  setting the 'nfmark' value in the frame.
+		  This value is the same as the one used in the iptables zextmark match and
+		  target.
+
+		  To compile it as a module, choose M here.  If unsure, say N.
+    
+    config KERNEL_BRIDGE_EBT_NFQUEUE
+        tristate "ebt: nfqueue target support"
+        default n
+        help
+          This option adds the nfqueue target on ebtables.
+
+          To compile it as a module, choose M here.  If unsure, say N.
+		  
+    config KERNEL_ZYXEL_ALLOW_BR_GROUP_FWD
+        bool "Allow forwarding control protocols like STP and LLDP"
+        default n
+
+    config KERNEL_ZYXEL_KF_IVI
+           bool "KERNEL_ZYXEL_KF_IVI"
+           default n
+
+    config KERNEL_ZYXEL_IVI
+           tristate "Support for MAP-T MAP-E"
+           default n
 
 endmenu
 
 menu "ZyXEL WEB GUI"
+	config ZyXEL_HTTP_CGI_ENC
+		bool "Zyxel encrypted JSON data for CGI's response on GUI 1.1"
+		default n
 
 	config ZyXEL_WEB_GUI_HIDE_802_1x
 		bool "Zyxel Web Gui hide 802.1x related pages and options"
@@ -2050,6 +2940,10 @@ menu "ZyXEL WEB GUI"
 		bool "Zyxel Web Gui hide OAM related pages and options"
 		default n
 
+	config ZYXEL_WEB_GUI_HIDE_FIREWALL
+		bool "Zyxel Web Gui hide firewall pages"
+		default n
+
 	config ZyXEL_WEB_GUI_SHOW_WWAN
 		bool "Zyxel Web Gui show WWAN backup related pages and options"
 		default n
@@ -2057,15 +2951,23 @@ menu "ZyXEL WEB GUI"
 	config ZyXEL_WEB_GUI_SHOW_PON
 		bool "Zyxel Web Gui show PON related pages and options"
 		default n
-	
+
+	config ZyXEL_WEB_GUI_SHOW_ONU_SETUP
+		bool "Zyxel Web Gui show ONU setup related pages and options"
+		default n
+
 	config ZyXEL_WEB_GUI_SHOW_CCWAN
 		bool "Zyxel Web Gui show con-current WAN related pages and options"
 		default n
-	
+
+	config ZyXEL_WEB_GUI_SHOW_XDSL_PROFILE
+		bool "Zyxel Web Gui show xDSL profile on xDSL Statistics pages"
+		default n
+
 	config ZyXEL_WEB_GUI_SHOW_GPON_STATUS
 		bool "Zyxel Web Gui show GPON status pages"
 		default n
-		
+
 	config ZYXEL_WEB_GUI_SHOW_SKIP_CHANGE_PASSWD
 		bool "Change password page show skip button"
 		default n
@@ -2107,14 +3009,30 @@ menu "ZyXEL WEB GUI"
 		bool "Show QoS Monitor"
 		default n
 
+	config ZYXEL_WEB_GUI_ETH_UNI
+		bool "Zyxel Web Gui Ethernet UNI page"
+		default n
+	
 	config ZYXEL_WEB_GUI_ECONET_QoS_STYLE
 		bool "Zyxel Web Gui Set and hide QoS Queue page objects for ECONET project"
+		default n
+
+	config ZYXEL_WEB_GUI_TRAFFIC_STATUS_FOR_ECONET
+		bool "Zyxel Web Gui Traffic Status for ECONET project"
+		default n
+		
+    config ZYXEL_WEB_GUI_SHOW_ZYEE
+		bool "Zyxel Web Gui to show ZYEE related pages"
 		default n
 
 	config ZYXEL_SUPPORT_PPPOE_MTU_1500
 		bool "Support PPPoE MTU to 1500"
 		default n
-
+		
+	config ZYXEL_LED_SWITCH_ACTIVE
+		bool "Led switch control"
+		default n
+		
 	config ZYXEL_WEB_GUI_WLAN_HIDE_RATE_LIMIT
 		bool "Zyxel Web Gui hide Wireless Max. Upstream/Download Bandwidth"
 		default n
@@ -2143,6 +3061,10 @@ menu "ZyXEL WEB GUI"
 		bool "Allow show save password dialogue of browser while login"
 		default n
 
+	config ZYXEL_WEB_GUI_SHOW_MAC_ADDR_TABLE
+		bool "Enable show mac address table list"
+		default n
+
 	config ZYXEL_WEB_GUI_WEP_ENABLE
 		bool "Enable WiFi WEP security setting in Web Gui"
 		default n
@@ -2150,6 +3072,10 @@ menu "ZyXEL WEB GUI"
 	config ZYXEL_WEB_GUI_INDEX_SHOW_STATUS
 		bool "Show status on index"
 		default n
+
+	config ZYXEL_WEB_GUI_WIFI_SHOW_FLAG
+		hex "WIFI compile flag on Web Gui"
+		default 0x0
 
 	config ZyXEL_WEB_GUI_MGMT_SET_BIND_INTF_BY_SERVICE
 		bool "Zyxel Web Gui Set Remote MGMT Interface Binding By Each Service"
@@ -2161,6 +3087,14 @@ menu "ZyXEL WEB GUI"
         config ZYXEL_WEB_WIRELESS_NEW_VERSION_ONE
                 bool "Show new style of wireless page that was copied from CBT aim at original wireless page instead."
                 default n
+				
+        config ZYXEL_WEB_NETWORK_MAP_NEW_STYLE
+                bool "Show new style of networkMap page that was copied from CBT aim at original networkMap page instead."
+                default n
+
+        config ZYXEL_POWERMONITOR_ENABLE
+		bool "Zyxel Web Gui show Power Status"
+		default n
 
         config ZYXEL_GUIVUE_CONNECTIVITY_CARDPAGE_DETAIL_INFO
                 bool "Zyxel Web Gui VUE show detail information on connectivity of cardpage"
@@ -2177,6 +3111,61 @@ menu "ZyXEL WEB GUI"
         config ZYXEL_GUIVUE_SHOW_ALLWIFI_CHANNEL
                 bool "NEW Behavior for SHOW all wifi channel in wifi general page of GUI_vue."
                 default n
+	config ZYXEL_WEB_GUI_TR69_SINGLE_WAN
+		bool "TR-069 Client page use single wan."
+		default n
+
+	config ZYXEL_SFP_POWER_MGMT
+		bool "Zyxel Web GUI show SFP Power Management"
+		depends on ZYXEL_SFP_MODULE_SUPPORT
+		default n
+
+    config ZYXEL_WIFI_KEY_REMINDER
+        bool "Zyxel Web GUI wifi default key reminder"
+        default n
+
+endmenu
+
+menu "Home Cyber Security"
+	config ZYXEL_URL_FILTER_FSECURE
+		bool "Support F-Secure URL white/black list"
+		depends on ZYXEL_URL_FILTER
+		depends on ZYXEL_HOME_CYBER_SECURITY_FSECURE
+		default y
+		help
+			Support F-Secure URL white/black list.
+
+	config ZYXEL_HOME_CYBER_SECURITY_FSECURE
+		bool "Support F-Secure Home Cyber Security"
+		select PACKAGE_librest-c
+		select PACKAGE_zylicense
+		select ZYXEL_URL_FILTER_FSECURE
+		select PACKAGE_fsecure-sdk
+		default n
+		help
+			Support F-Secure Home Cyber Security.
+
+	config ZYXEL_SKIP_IPV6_DNS_ROMCONV_FSECURE
+		bool "Skip IPv6 DNS rom convert for ISP to proxy"
+		depends on ZYXEL_HOME_CYBER_SECURITY_FSECURE
+		default n
+		help
+			Auto romconvert for br0's IPv6 DNS server setting from ISP to proxy
+endmenu
+
+menu "Manufacture feature "
+
+		config APPS_VOIP_AUTO_TEST
+			bool "Support VOIP Auto Test"
+	    	default n
+
+		config MINI_BOOT
+			bool "Support mini boot"
+	    	default n
+
+	config ZYXEL_WEB_GUI_SPEED_TEST
+		bool "Run speed test via GUI"
+		default n
 
 endmenu
 
@@ -2346,6 +3335,13 @@ menu "Customization"
 		default n
 		
 	endmenu
+	
+	menu "OSK"
+		config ABUE_CUSTOMIZATION
+		bool "ABUE Customization"
+		default n
+	
+	endmenu
 
 	menu "Codetel"
 		config CODETEL_CUSTOMIZATION
@@ -2353,7 +3349,13 @@ menu "Customization"
 		default n
 
 	endmenu
-	
+
+	menu "Claro"
+		config CLARO_CUSTOMIZATION
+		bool "Claro Customization"
+		default n
+	endmenu
+
 	menu "Puerto Rico"
 		config PUERTO_RICO_CUSTOMIZATION
 		bool "Puerto Rico Customization"
@@ -2381,11 +3383,6 @@ menu "Customization"
 		bool "Wind Italy Customization, don't delete host before DHCP lease expired"
 		default n
 		
-		config WIND_ENCRYPTED_IMAGE
-		bool "Wind Italy Customization, encrypted ras.bin"
-		default n
-		
-		
 	endmenu	
 
 	menu "Solarus"
@@ -2399,9 +3396,19 @@ menu "Customization"
 		config CBT_CUSTOMIZATION
 		bool "CBT Customization"
 		default n
+		
+		config CBT_PUBLIC_LAN
+		bool "New style for CBT public lan"
+		default n
 
 	endmenu
 	
+	menu "EPB"
+		config EPB_CUSTOMIZATION
+		bool "EPB Customization"
+		default n
+	endmenu
+
 	menu "Oi"
 		config OI_CUSTOMIZATION
 		bool "Oi Customization"
@@ -2422,6 +3429,13 @@ menu "Customization"
 		bool "Tiscali Customization"
 		default n
 
+		config ZYXEL_VMG8924_B10D_TISCALI_ISOLATE_DMZ
+		bool "Tiscali VMG8924_B10D Isolate DMZ"
+		default n
+
+		config ZYXEL_VMG8825_T50K_TISCALI_ISOLATE_DMZ
+		bool "Tiscali VMG8825_T50K Isolate DMZ"
+		default n
 	endmenu
 	
    menu "TSF"
@@ -2463,7 +3477,7 @@ menu "Customization"
 		default n
 
 	endmenu
-	
+
 	menu "ISKON"
 		config USE_OLD_VOIP_PREFIX
 		bool "Use old TR98 VOIP parameter prefix X_ZyXEL_COM_"
@@ -2480,16 +3494,77 @@ menu "Customization"
                 config ISKON_CUSTOMIZATION_Motorola_VIP1003
                 bool "For Iskon Motorola_VIP1003 LAN bridge switching issue"
                 default n
-
 	endmenu
 
         menu "Hawaiian Telcom"
                 config HAWAIIAN_TELCOM 
                 bool "Hawaiian Telcom(HT)"
                 default n
-
         endmenu
 
+	menu "Altibox"
+		config ALTIBOX_CUSTOMIZATION
+		bool "Altibox customization"
+		default n
+	endmenu
+
+	menu "TIM"
+		config TIM_Y2015_CUSTOMIZATION
+		bool "TIM_Y2015_CUSTOMIZATION"
+		default n
+
+		config ABOG_CUSTOMIZATION
+		bool "ABOG customization"
+		default n
+
+		config TIM_CUSTOMIZATION
+		bool "Mobile / TIM (Telecom Italia) Customization"
+		default n
+		default y  if (TIM_Y2015_CUSTOMIZATION || ABOG_CUSTOMIZATION)
+	endmenu
+
+    menu "T-Mobile NL"
+        config ABPY_CUSTOMIZATION
+        bool "ABPY customization"
+        default n
+    endmenu
+
+	menu "TT"
+		config ZYXEL_TT_CUSTOMIZATION
+		bool "Enable TT CUSTOMIZATION feature"
+		default n
+	endmenu
+
+	menu "Cetin"
+		config ABQA_CUSTOMIZATION
+                bool "Cetin customization"
+                default n
+
+		config BRIDGE_VLAN_COUNTER
+                bool "RX TX counter per Vlan in Bridge Mode"
+                default n
+	endmenu
+	
+	menu "OTN"
+        config ABVG_CUSTOMIZATION
+        bool "OTN customization"
+        default n
+    endmenu
+    
+    menu "WIND Greece"
+        config WIND_GREECE_GUI_CUSTOMIZATION
+        bool "WIND Greece GUI customization"
+        default n
+
+        config WIND_GREECE_CUSTOMIZATION
+        bool "WIND_Greece customization"
+        default n
+
+        config WIND_Greece_DHCPv6_Client_NTP_Option
+        bool "WIND Greece DHCPv6 Client NTP Option"
+        default n
+
+    endmenu
 
 endmenu
 

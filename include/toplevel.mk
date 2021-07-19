@@ -19,7 +19,7 @@ else
   REVISION:=$(shell $(TOPDIR)/scripts/getver.sh)
 endif
 
-HOSTCC ?= gcc
+HOSTCC ?= $(CC)
 OPENWRTVERSION:=$(RELEASE)$(if $(REVISION), ($(REVISION)))
 export RELEASE
 export REVISION
@@ -92,7 +92,9 @@ config-clean: FORCE
 
 defconfig: scripts/config/conf prepare-tmpinfo FORCE
 	touch .config
-	$< -D .config Config.in
+	echo "=== $< -D .config Config.in >& defconfig.log"
+	$< -D .config Config.in >& defconfig.log
+	grep "ERROR:" defconfig.log | true
 
 oldconfig: scripts/config/conf prepare-tmpinfo FORCE
 	$< -$(if $(CONFDEFAULT),$(CONFDEFAULT),o) Config.in
@@ -179,6 +181,78 @@ prereq:: prepare-tmpinfo .config
 
 help:
 	cat README
+
+production:
+	@echo "***** Build SMT file image *****"
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "en75xx" ]; then \
+		if ! [ -e $(TOPDIR)/scripts/private/econet/genNANDimg/NANDimg_gen ]; then \
+			make -C scripts/private/econet/genNANDimg; \
+		fi; \
+		$(TOPDIR)/scripts/private/econet/genNANDimg/genNANDimg.sh $P; \
+	fi
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "brcm963xx" ]; then \
+		echo "CONFIG_TARGET_BOARD == brcm963xx"; \
+		if ! [ -e $(TOPDIR)/scripts/private/broadcom/genNANDimg/NANDimg_gen ]; then \
+			make -C scripts/private/broadcom/genNANDimg; \
+		fi; \
+		$(TOPDIR)/scripts/private/broadcom/genNANDimg/genNANDimg.sh $P; \
+	fi
+
+production_clean:
+	@echo "***** clean generate SMT utility *****"
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "en75xx" ]; then \
+		make -C scripts/private/econet/genNANDimg clean; \
+	fi
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "brcm963xx" ]; then \
+		make -C scripts/private/broadcom/genNANDimg clean; \
+	fi
+
+minifw: minifw_prebuild minifw_build
+	@echo "******* To build mini FW finish ************"
+
+minifw_clean:
+	@echo "******* To do minifw_clean ************"
+	./buildramfs.sh $P clean
+
+minifw_prebuild:
+	@echo "******* To do minifw_prebuild ************"
+	# make P=$PROFILE world V=s
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "en75xx" ]; then \
+		$(TOPDIR)/scripts/private/econet/miniboot/buildramfs.sh $P prebuild; \
+	else \
+		echo "Unknown platform !!"; \
+		exit 1; \
+	fi
+
+minifw_build:
+	@echo "******* To do minifw_build ************"
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "en75xx" ]; then \
+		$(TOPDIR)/scripts/private/econet/miniboot/buildramfs.sh $P build; \
+	else \
+		echo "Unknown platform !!"; \
+		exit 1; \
+	fi
+
+#cp -rf $(TOPDIR)/target/linux/en75xx/$(shell echo $(P)|tr A-Z a-z | awk -F"_" '{print $$1}' | sed "s/-/_/g")/*EEPROM* $(TOPDIR)/build_dir/target*/root-en75xx/usr/etc/; \
+#mv $(TOPDIR)/build_dir/target*/root-en75xx/usr/etc/`ls $(TOPDIR)/build_dir/target*/root-en75xx/usr/etc/ | grep EEPROM` $(TOPDIR)/build_dir/target*/root-en75xx/usr/etc/RT30xxEEPROM.bin; \
+
+eeprom_update:
+	@echo "******* To update EEPROM from HWRD provide for MFG ************"
+	@if [ `grep CONFIG_TARGET_BOARD .config | awk -F"=" '{print $$2}' | sed "s/\"//g"` == "en75xx" ]; then \
+		if [ "$(shell echo $(P)|tr A-Z a-z | awk -F"_" '{print $$1}' | sed "s/-/_/g")" == "vmg8825_t50k" ]; then \
+			echo "Project name = vmg8825_t50k"; \
+		elif [ "$(shell echo $(P)|tr A-Z a-z | awk -F"_" '{print $$1}' | sed "s/-/_/g")" == "vmg8623_t50b" ]; then \
+			echo "Project name = vmg8623_t50b"; \
+		elif [ "$(shell echo $(P)|tr A-Z a-z | awk -F"_" '{print $$1}' | sed "s/-/_/g")" == "vmg3927_t50k" ]; then \
+			echo "Project name = vmg3927_t50k"; \
+		else \
+			echo "Unknown project name !!"; \
+			echo "Currently only support project : vmg8825_t50k, vmg8623_t50b"; \
+			exit 1; \
+		fi; \
+		$(TOPDIR)/scripts/private/econet/genNANDimg/preConfig.sh $(P); \
+		$(_SINGLE)$(NO_TRACE_MAKE) -C target/linux install; \
+	fi
 
 docs docs/compile: FORCE
 	@$(_SINGLE)$(SUBMAKE) -C docs compile

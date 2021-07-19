@@ -272,6 +272,7 @@ BEGIN
   cpuGroupName = rt/data
 END
 
+# bcmsw_rx will be bound to the same core as thatof Xtm for now.
 BEGIN
   eid          = 4432
   name         = bcmsw_rx
@@ -311,6 +312,38 @@ BEGIN
   cpuGroupName = rt/data
 END
 
+# pdc_rx is bound to the same core as bcmsw_rx as this gives
+# the best throughput performance when blog is enabled, which is
+# the default.
+BEGIN
+  eid          = 4436
+  name         = pdc_rx
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4437
+  name         = spu_rx
+  flags        = EIF_SET_SCHED|EIF_SET_CPUMASK|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuMask      = 0x1
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4438
+  name         = bcm_archer_us
+  flags        = EIF_SET_SCHED|EIF_SET_CPUMASK|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_NORMAL
+  schedPriority= 0
+  cpuMask      = ARCHER_CPUMASK
+  cpuGroupName = rt/data
+END
+
 # wlan processing threads
 # wl0 is typically the built in wifi, used for data
 BEGIN
@@ -326,4 +359,69 @@ BEGIN
   name         = wl1-kthrd
   flags        = EIF_SET_CGROUPS
   cpuGroupName = rt/wifi-video
+END
+
+# Xtm will be bound to the same core as thatof bcmsw_rx for now.
+BEGIN
+  eid          = 4442
+  name         = bcmxtm_rx
+  flags        = EIF_SET_SCHED|EIF_SET_CPUMASK|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuMask      = 0x1
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4443
+  name         = bcm_dhd_rxpost
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4444
+  name         = recycle_sysb
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4445
+  name         = feed_sysb
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4446
+  name         = fc_task
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_RR
+  schedPriority= BCM_RTPRIO_DATA
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4447
+  name         = bcmsw_recycle
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_FIFO
+  schedPriority= BCM_RTPRIO_HIGH
+  cpuGroupName = rt/data
+END
+
+BEGIN
+  eid          = 4448
+  name         = bcmxtm_recycle
+  flags        = EIF_SET_SCHED|EIF_SET_CGROUPS
+  schedPolicy  = SCHED_FIFO
+  schedPriority= BCM_RTPRIO_HIGH
+  cpuGroupName = rt/data
 END

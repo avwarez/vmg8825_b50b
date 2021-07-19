@@ -1,8 +1,8 @@
 Index: libzcfg_fe_tr98-1.0/lanDev.c
 ===================================================================
---- libzcfg_fe_tr98-1.0.orig/lanDev.c	2018-01-29 16:03:45.154177012 +0800
-+++ libzcfg_fe_tr98-1.0/lanDev.c	2018-01-29 16:05:04.376038774 +0800
-@@ -4388,6 +4388,13 @@
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2018-01-29 16:07:42.922177012 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2018-01-29 16:07:43.026177012 +0800
+@@ -4467,6 +4467,13 @@
  				freeflag = 1;
  			}
  		}
@@ -18,8 +18,8 @@ Index: libzcfg_fe_tr98-1.0/lanDev.c
  			paramValue = json_object_new_string("true");
 Index: libzcfg_fe_tr98-1.0/lanDev_parameter.h
 ===================================================================
---- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2018-01-29 16:03:44.914177012 +0800
-+++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2018-01-29 16:04:17.109394717 +0800
+--- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2018-01-29 16:07:42.886177012 +0800
++++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2018-01-29 16:07:43.026177012 +0800
 @@ -239,9 +239,7 @@
  	{ "Status", PARAMETER_ATTR_READONLY, 10, json_type_string},
  	{ "Name", PARAMETER_ATTR_READONLY, 17, json_type_string},

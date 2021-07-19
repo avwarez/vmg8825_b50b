@@ -51,6 +51,10 @@ endif
 ifeq ($(CONFIG_ZYXEL_SUPPORT_SW_LAN_AGGREGATE_LED),y)
 export ZYXEL_SUPPORT_SW_LAN_AGGREGATE_LED=y
 endif
+# VMG8825-B50B WIND, support 256MB and 512MB flash
+ifeq ($(CONFIG_ZYXEL_SUPPORT_BOTH_256_512_FLASH),y)
+export ZYXEL_SUPPORT_BOTH_256_512_FLASH=y
+endif
 
 #__ZyXEL__, for ZyXEL hardware depend misc.
 ifeq ($(CONFIG_ZYXEL_QTN_WIFI_5G_SUPPORT),y)
@@ -84,12 +88,14 @@ endif
 ifeq ($(CONFIG_ZYXEL_FEM_DETECT),y)
 export ZYXEL_FEM_DETECT=y
 endif
-
+##  Detect board by GPIO
+ifeq ($(CONFIG_ZYXEL_BOARD_DETECT_BY_GPIO),y)
+export ZYXEL_BOARD_DETECT_BY_GPIO=y
+endif
 ##  USB3.0 or USB2.0 can be set by user manually
 ifeq ($(CONFIG_ZYXEL_USB_SET_MANUALLY),y)
 export ZYXEL_USB_SET_MANUALLY=y
 endif
-
 #----------- End of configuration
 
 BOARDNAME:=$(BCM_BOARD_NAME)

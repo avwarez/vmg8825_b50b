@@ -41,8 +41,8 @@ TARGET_BOOTLOADER_DIR=brcm-cfe
 endif
 
 define restore_prebuild_bootloader
-	mkdir -p $(TOPDIR)/bin/$(BOARD)/$(TARGET_BOOTLOADER_DIR)
-	$(CP) $(PREBUILD_BOOTLOADER_DIR)/* $(TOPDIR)/bin/$(BOARD)/$(TARGET_BOOTLOADER_DIR)/
+	mkdir -p $(BIN_DIR)/$(TARGET_BOOTLOADER_DIR)
+	$(CP) $(PREBUILD_BOOTLOADER_DIR)/* $(BIN_DIR)/$(TARGET_BOOTLOADER_DIR)/
 endef
 
 
@@ -56,8 +56,9 @@ define restore_prebuild_host_tools
 endef
 
 define restore_prebuild_staging_usr_include
-	$(INSTALL_DIR) $(STAGING_DIR)/usr/include
-	$(CP) $(PREBUILD_STAGING_DIR_USR_INC)/* $(STAGING_DIR)/usr/include/
+	$(INSTALL_DIR) $(STAGING_DIR)/usr
+	$(CP) $(PREBUILD_STAGING_DIR_USR)/* $(STAGING_DIR)/usr/
+
 endef
 
 ifneq ($(wildcard $(PREBUILD_STAGING_DIR_HOST)),)

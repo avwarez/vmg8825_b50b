@@ -1,7 +1,14 @@
 #!/bin/sh
 
 export PATH=/home/bin:/home/scripts:/opt/bin:/bin:/sbin:/usr/bin:/usr/sbin
+#export LD_LIBRARY_PATH=/lib/public:/lib/private:/usr/lib:/lib
+
+SUPPORT_LIB64=`ls / | grep lib64`
+if [ "$SUPPORT_LIB64" == "lib64" ] ;then
+export LD_LIBRARY_PATH=/lib/public:/lib/private:/usr/lib:/lib:/lib64/gpl:/lib64
+else
 export LD_LIBRARY_PATH=/lib/public:/lib/private:/usr/lib:/lib
+fi
 
 case "$1" in
 	start)

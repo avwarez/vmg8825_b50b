@@ -51,7 +51,6 @@ endef
 
 # XXX: add --disable-werror to prevent build failure with arm
 CONFIGURE_ARGS+= \
-	--with-system-readline \
 	--without-expat \
 	--disable-werror
 

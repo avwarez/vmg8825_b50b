@@ -1,8 +1,8 @@
 Index: libzcfg_fe_tr98-1.0/lanDev.c
 ===================================================================
---- libzcfg_fe_tr98-1.0.orig/lanDev.c	2018-01-04 18:57:56.560002648 +0800
-+++ libzcfg_fe_tr98-1.0/lanDev.c	2018-01-04 19:02:12.812491000 +0800
-@@ -4544,6 +4544,57 @@
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2018-01-05 17:16:48.656390908 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2018-01-05 17:18:04.642443400 +0800
+@@ -4623,6 +4623,57 @@
  		if(!strcmp(tr98ParmStr_1, "AESEncryption"))
  			json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
  	}

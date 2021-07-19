@@ -121,7 +121,9 @@ define Package/$(PKG_NAME)/install
 	#ln -sf /tmp/var $(1)/var
 	mkdir -p $(1)/etc
 	mkdir -p $(1)/data
-	
+
+	$(if $(CONFIG_ZYXEL_MODSW_ZYEE),-ln -s /var/run $(1)/run)
+
 	# force use dnsmasq as cpe dns proxy server.
 	echo "nameserver 127.0.0.1" > $(1)/etc/resolv.conf
 

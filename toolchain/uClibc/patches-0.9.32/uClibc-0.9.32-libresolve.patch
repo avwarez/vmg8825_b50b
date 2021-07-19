@@ -1219,23 +1219,7 @@ diff -rupN uClibc-0.9.32-ori/libc/inet/resolv.c uClibc-0.9.32/libc/inet/resolv.c
  
  
  #ifdef L_res_query
-@@ -3099,11 +3748,10 @@ int res_query(const char *dname, int cla
- 
- 	free(a.dotted);
- 
--	if (a.atype == type) { /* CNAME */
--		if (i > anslen)
--			i = anslen;
--		memcpy(answer, packet, i);
--	}
-+	if (i > anslen)
-+		i = anslen;
-+	memcpy(answer, packet, i);
-+
- 	free(packet);
- 	return i;
- }
-@@ -3324,9 +3972,343 @@ int res_querydomain(const char *name, co
+@@ -3324,9 +3973,343 @@ int res_querydomain(const char *name, co
  	return res_query(longname, class, type, answer, anslen);
  }
  libc_hidden_def(res_querydomain)

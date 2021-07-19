@@ -5,11 +5,24 @@
 # See /LICENSE for more information.
 #
 
-PKG_DEFAULT_DEPENDS = +libc +USE_EGLIBC:librt +USE_EGLIBC:libpthread
+ifeq (_$(FORCE_USE_EXTERNAL_KERNAL_TOOLCHAIN)_,_y_)
+PKG_DEFAULT_DEPENDS = +EXTERNAL_KERNEL_TOOLCHAIN:external-kernel-libc +EXTERNAL_KERNEL_TOOLCHAIN:external-kernel-libgcc +EXTERNAL_KERNEL_TOOLCHAIN:external-kernel-librt +EXTERNAL_KERNEL_TOOLCHAIN:external-kernel-libpthread
+PKG_DEFAULT_DEPENDS += +libc +USE_GLIBC:librt +USE_GLIBC:libpthread
+
+else
+PKG_DEFAULT_DEPENDS = +libc +USE_GLIBC:librt +USE_GLIBC:libpthread
+endif
+
+ifeq (_$(CONFIG_EXTERNAL_KERNEL_TOOLCHAIN)_$(FORCE_USE_EXTERNAL_KERNAL_TOOLCHAIN)_,_y_y_)
+ARCH:=$(call qstrip,$(CONFIG_KERNEL_TOOLCHAIN_CPU_ARCH))
+endif
 
 ifneq ($(PKG_NAME),toolchain)
   PKG_FIXUP_DEPENDS = $(if $(filter kmod-%,$(1)),$(2),$(PKG_DEFAULT_DEPENDS) $(filter-out $(PKG_DEFAULT_DEPENDS),$(2)))
 else
+  PKG_FIXUP_DEPENDS = $(2)
+endif
+ifeq ($(PKG_NAME),external-kernel-toolchain)
   PKG_FIXUP_DEPENDS = $(2)
 endif
 

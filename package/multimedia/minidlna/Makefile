@@ -8,14 +8,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=minidlna
-PKG_VERSION:=1.0.25
+PKG_VERSION:=1.2.1
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)_$(PKG_VERSION)_src.tar.gz
+PKG_SOURCE:=$(PKG_NAME)_$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/network/services
 
 PKG_BUILD_PARALLEL:=0
 PKG_BUILD_DEPENDS:=util-linux
+
+PATCH_DIR=patches_${PKG_VERSION}
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
@@ -76,7 +78,7 @@ MAKE_VARS +=\
 
 define Package/minidlna/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/minidlna $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/minidlnad $(1)/usr/bin/
 #	$(INSTALL_DIR) $(1)/etc/init.d
 #	$(INSTALL_BIN) ./files/minidlna.init $(1)/etc/init.d/minidlna
 #	$(INSTALL_DIR) $(1)/etc/config

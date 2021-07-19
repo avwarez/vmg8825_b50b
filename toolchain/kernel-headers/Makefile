@@ -11,6 +11,7 @@ BUILD_DIR := $(KERNEL_BUILD_DIR)
 
 override QUILT:=
 override HOST_QUILT:=
+override CONFIG_EXTERNAL_KERNEL_TOOLCHAIN:=
 
 include $(INCLUDE_DIR)/kernel.mk
 

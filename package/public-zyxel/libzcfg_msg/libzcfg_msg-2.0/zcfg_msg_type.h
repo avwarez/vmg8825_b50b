@@ -30,6 +30,10 @@
 
 #define ZCFG_MSG_ADDITIONAL_BITS	(ZCFG_NO_WAIT_REPLY | ZCFG_BLOCK_MODE_CONFIG_APPLY | ZCFG_PARTIAL_OBJECT_SET | ZCFG_MSG_RPC_ADDITIONS)
 
+#define ZCFG_MSG_TYPE(_t_)          (_t_ & 0x00FFffFF)
+#define ZCFG_MSG_WITH_REPLY(_t_)    (!(_t_ & ZCFG_NO_WAIT_REPLY))
+#define ZCFG_MSG_WITH_REPLY_S(_t_)  (ZCFG_MSG_WITH_REPLY(_t_) ? "with" : "without")
+
 /*******************************************************************************
 
     Messgae type
@@ -70,6 +74,11 @@
 #define REQUEST_SET_WHOLE_OBJ_BY_NAME                     23
 #define REQUEST_FIRMWARE_UPGRADE_FWUR                     24
 
+#define ZCFG_MSG_SP_DOMAIN_TIMER_START                (81 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_SP_DOMAIN_TIME_OUT                   (82 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_SFP_POWER_TIMER_START		      (83 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_SFP_POWER_TIME_OUT                  (84 | ZCFG_NO_WAIT_REPLY)
+
 #define RESPONSE_GET_SUCCESS                            (100 | ZCFG_NO_WAIT_REPLY)
 #define RESPONSE_GET_EMPTY                              (101 | ZCFG_NO_WAIT_REPLY)
 #define RESPONSE_GET_FAIL                               (102 | ZCFG_NO_WAIT_REPLY)
@@ -78,6 +87,8 @@
 #define RESPONSE_WRITE_OBJ_SUCCESS                      (105 | ZCFG_NO_WAIT_REPLY)
 #define RESPONSE_WRITE_OBJ_FAIL                         (106 | ZCFG_NO_WAIT_REPLY)
 #define RESPONSE_NO_MORE_INSTANCE                       (107 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_ZYSH_EXE_ROOT_CMD                       131
 
 #define ZCFG_MSG_DELAY_APPLY                             200
 #define ZCFG_MSG_RE_APPLY                                201
@@ -164,7 +175,27 @@
 #define ZCFG_MSG_RA_IPV6_LOST                           (283 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_FAKEROOT_SYS_FWUR                      (284 | ZCFG_NO_WAIT_REPLY)  /* Fakeroot for "sys fwur" */
 #define ZCFG_MSG_FAKEROOT_ZIGBEE_CMD                    (285 | ZCFG_NO_WAIT_REPLY)  /* Fakeroot for ZIGBEE_CMD */
+#define ZCFG_MSG_FAKEROOT_COMMAND_REPLY                  286
 
+#define ZCFG_MSG_FAKEROOT_ZYCLI_COMMAND                 (287 | ZCFG_NO_WAIT_REPLY)  /* Fakeroot for zycli command */
+#define ZCFG_MSG_GET_ROMD                                288
+#define ZCFG_MSG_ROOT_QURY_OBJECT_PATH_LIST             (289 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_OMCI_GPON_WAN_SERVICE_STATUS_CHANGE    (290 | ZCFG_NO_WAIT_REPLY)
+
+
+#define ZCFG_MSG_GUI_CUSTOMIZATION_OBJ_SYNC             (291 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_DEL_INTFGUP_PORT_EVENT                 (292 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_RDM_MAP_ATTR_SYNC                      (293 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_STOP_ZCMD_CONFIG_APPLY_THREAD          (294 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_NOTIFY_AUTO_DU_STATE_CHANGE_COMPLETE   (295 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_NOTIFY_DU_STATE_CHANGE_COMPLETE_POLICY (296 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_XMPP_REQUEST_SEND_CONNREQUEST          (297 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_XMPP_CONNECTION_UP                     (298 | ZCFG_NO_WAIT_REPLY)
 
 /*------------------------------------------------------------------------------
 
@@ -173,8 +204,8 @@
         prefix : ZCFG_MSG_WAN_
 
 ------------------------------------------------------------------------------*/
-#define ZCFG_MSG_WAN_CONNCTION_READY	                 1000
-#define ZCFG_MSG_WAN_CONNCTION_LOST	                     1001
+#define ZCFG_MSG_WAN_CONNCTION_READY	                (1000 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_WAN_CONNCTION_LOST	                    (1001 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_WAN_PPP_DISCONNECT                      1002
 #define ZCFG_MSG_WAN_PPP_CONNECT                         1003
 #define ZCFG_MSG_WAN_IP_RELEASE                          1004
@@ -187,7 +218,8 @@
 #define ZCFG_MSG_WAN_PPP_DISCONNECTED                   (1012 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_WAN_PPP_CONNECTING                     (1013 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_WAN_INTERNET_LED_UPDATE                (1014 | ZCFG_NO_WAIT_REPLY)
-
+/* __ZyXEL__, Albert, 20180209,Support IPv6 option IA_NA and IA_PD  */
+#define ZCFG_MSG_WAN_IPV6_CLIENT_RELOAD                 (1015  | ZCFG_NO_WAIT_REPLY)
 /*------------------------------------------------------------------------------
 
     VOIP
@@ -208,6 +240,7 @@
 #define ZCFG_MSG_VOICE_CONFIG_CHANGED_PARTIAL_RELOAD	(2010 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_DECT_CONTROL                            2011
 #define ZCFG_MSG_DECT_STATS_GET                          2012
+#define ZCFG_MSG_VOICE_AUTO_TEST                          2013
 
 /*------------------------------------------------------------------------------
 
@@ -236,7 +269,7 @@
 #define ZCFG_MSG_TR64_DEVICE_UPDATE                     (3017 | ZCFG_NO_WAIT_REPLY)
 #define REQUEST_SET_MULTI_OBJ_RUN_VALID_ONLY             3020
 #define REQUEST_SET_PARAMETERKEY                         3021
-
+#define REQUEST_QUERY_OBJ_PARAM_VALUE                    3022
 /*------------------------------------------------------------------------------
 
     WIFI
@@ -271,6 +304,28 @@
 #define ZCFG_MSG_UPDATE_ONE_CONNECT                     (4024 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_PRESET_SSID_MODE                       (4025 | ZCFG_NO_WAIT_REPLY)
 #define ZCFG_MSG_APP_SOCKET_CLOSE                       (4026 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_WPSRUN_ESMD_TIME_OUT                   (4027 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_WPSRUN_UPDATE_CONFIG                   (4028 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_WPSRUN_STOP                            (4029 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_WPS_IPTV_PBC				 4030
+#define ZCFG_MSG_WPSRUN_ESMD_ZHTTPD			(4031 | ZCFG_NO_WAIT_REPLY)
+
+#define ZCFG_MSG_ZCMD_MODULE_CONFIG			(4032 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_WIFI_TR_RELOAD                         (4033 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_MAP                   4034
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_STEERING_SUM_ST       4035
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_APDEV                 4036
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_RADIO                 4037
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_BSS                   4038
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_ASSOC_DEV             4039
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_ASSOC_DEV_ST          4040
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_ASSOC_DEV_STEERING_SUM_ST  4041
+#define ZCFG_MSG_ZYMAPSTEER_UPDATE_ASSOC_DEV_STEERING_HISTORY 4042
+#define ZCFG_MSG_WIFI_RECONF_M2                         (4043 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_AP_SCAN                                 4044
+#define ZCFG_MSG_WPS_PARING_SUCCESS_AND_RELOAD          (4045 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_SYSTEM_DEBUG_ENABLE                  (4049 | ZCFG_NO_WAIT_REPLY)
+#define ZCFG_MSG_SYSTEM_DEBUG_DISABLE                 (4050 | ZCFG_NO_WAIT_REPLY)
 
 //==============================================================================
 #endif // _ZCFG_MSG_TYPE_H_

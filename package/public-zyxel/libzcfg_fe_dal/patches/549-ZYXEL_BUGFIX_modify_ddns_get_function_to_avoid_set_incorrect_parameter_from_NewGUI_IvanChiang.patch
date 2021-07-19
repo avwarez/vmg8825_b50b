@@ -1,8 +1,8 @@
 Index: libzcfg_fe_dal-1.0/network/dns/zcfg_fe_dal_d_dns.c
 ===================================================================
---- libzcfg_fe_dal-1.0.orig/network/dns/zcfg_fe_dal_d_dns.c	2018-05-15 10:40:23.814630032 +0800
-+++ libzcfg_fe_dal-1.0/network/dns/zcfg_fe_dal_d_dns.c	2018-05-15 10:36:42.333138300 +0800
-@@ -53,11 +53,24 @@
+--- libzcfg_fe_dal-1.0.orig/network/dns/zcfg_fe_dal_d_dns.c	2018-05-15 10:45:26.778631496 +0800
++++ libzcfg_fe_dal-1.0/network/dns/zcfg_fe_dal_d_dns.c	2018-05-15 10:32:52.107051300 +0800
+@@ -56,11 +56,27 @@
  zcfgRet_t zcfgFeDalDDnsGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg){
  	zcfgRet_t ret = ZCFG_SUCCESS;
  	objIndex_t iid;
@@ -25,6 +25,9 @@ Index: libzcfg_fe_dal-1.0/network/dns/zcfg_fe_dal_d_dns.c
 +		json_object_object_add(paramJobj, "AuthenticationResult", JSON_OBJ_COPY(json_object_object_get(obj, "AuthenticationResult")));
 +		json_object_object_add(paramJobj, "UpdatedTime", JSON_OBJ_COPY(json_object_object_get(obj, "UpdatedTime")));
 +		json_object_object_add(paramJobj, "DynamicIP", JSON_OBJ_COPY(json_object_object_get(obj, "DynamicIP")));
++#ifdef CODETEL_CUSTOMIZATION
++		json_object_object_add(paramJobj, "Interface", JSON_OBJ_COPY(json_object_object_get(obj, "Interface")));
++#endif
 +		json_object_array_add(Jarray, paramJobj);
  		zcfgFeJsonObjFree(obj);
  	}

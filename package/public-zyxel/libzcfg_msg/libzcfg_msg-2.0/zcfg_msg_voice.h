@@ -14,22 +14,28 @@
 /************************/
 
 //*** Voice Config Change REQuest ***
-#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE	(1 << 0)
-//======
-#define VOICE_CONFIG_REQ_SIP_ACCT_MAX	VOICE_SIP_ACCT_MAX
-#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_NO_ACTION	0
-#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_ENABLE		1
-#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_DISABLE		2
-#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_MASK			0x03
-#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_SHIFT_UNIT	2
-//======
+
 typedef struct voiceConfigReq_s {
+//===== For bitFlag
+#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE  (1 << 0)
+#define VOICE_CONFIG_REQ_SIP_TLS_CONFIG_CHANGE (1 << 1)
+//=====
 	uint16_t	bitFlag;
 
+
+
+
+//====== For sipLineActivation
+#define VOICE_CONFIG_REQ_SIP_ACCT_MAX   VOICE_SIP_ACCT_MAX
+#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_NO_ACTION    0
+#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_ENABLE       1
+#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_DISABLE      2
+#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_MASK         0x03
+#define VOICE_CONFIG_REQ_SIP_LINE_ACTIVATE_SHIFT_UNIT   2
+//======
 	uint32_t	sipLineActivation; //bitmap: every successive 2bit (from the LSB) as a set, which can represent 3 action states (Reset/Idle/NoAction, Enable, Disable), is corresponding to one SIP account/line. This can handle 16 SIP accounts/lines - SIP-00 ~ SIP-15.
 } voiceConfigReq_t;
 //Michael.20140625.001.E: Add.
-
 
 
 /*************************************/
@@ -62,21 +68,37 @@ typedef struct voiceConfigReq_s {
 /***********************/
 
 //*** Voice Stats Update REQuest ***
-#define VOICE_STATS_REQ_REGISTRATION_STATUS	(1 << 0)
-#define VOICE_STATS_REQ_MWI_STATUS			(1 << 1)
-#define VOICE_STATS_REQ_CALL_STATE			(1 << 2)
-#define VOICE_STATS_REQ_PHONE_HOOK_STATUS	(1 << 3)
-#define VOICE_STATS_REQ_VOIP_INUSE			(1 << 4)
-#define VOICE_STATS_REQ_ONGOING_CALL_CNT	(1 << 5)
-#define VOICE_STATS_REQ_VOICE_LINE_STATS	(1 << 6)
-#define VOICE_STATS_REQ_SIP_LINE_CALL_STATE	(1 << 7) //Amber.20170901: Add for support SIP Line CallState info Retrieve via TR069
+#define VOICE_STATS_REQ_SIP_LINE_REG_STATUS		(1 << 0)
+#define VOICE_STATS_REQ_REGISTRATION_STATUS		VOICE_STATS_REQ_SIP_LINE_REG_STATUS //Backward compatible.
+//--------------------------------------------------
+#define VOICE_STATS_REQ_SIP_LINE_MWI_STATUS		(1 << 1)
+#define VOICE_STATS_REQ_MWI_STATUS				VOICE_STATS_REQ_SIP_LINE_MWI_STATUS //Backward compatible.
+//--------------------------------------------------
+#define VOICE_STATS_REQ_CALL_STATE				(1 << 2)
+#define VOICE_STATS_REQ_PHONE_HOOK_STATUS		(1 << 3)
+#define VOICE_STATS_REQ_VOIP_INUSE				(1 << 4)
+#define VOICE_STATS_REQ_ONGOING_CALL_CNT		(1 << 5)
+//--------------------------------------------------
+#define VOICE_STATS_REQ_SIP_LINE_VOICE_STATS		(1 << 6)
+#define VOICE_STATS_REQ_VOICE_LINE_STATS			VOICE_STATS_REQ_SIP_LINE_VOICE_STATS //Backward compatible.
+//--------------------------------------------------
+#define VOICE_STATS_REQ_SIP_LINE_CALL_STATE		(1 << 7) //Amber.20170901: Add for support SIP Line CallState info Retrieve via TR069
+#define VOICE_STATS_REQ_SIP_LINE_DIALTONE_TYPE	(1 << 8) //Michael.20191207.001: Add to support the 3GPP IMS Dial-tone Management feature (defined in the Spec. ETSI TS 183.043) Part-3: Make VoIP debug CLI and other FE module support to query/get the Current Dial-tone Type setting of each SIP Acct/Line.
+//==================================================
 #define VOICE_STATS_REQ_SIP_ACCT_MAX VOICE_SIP_ACCT_MAX
-//======
-typedef struct voiceStatsReq_s {
-    uint16_t    bitFlag;
+//==================================================
+typedef struct voiceStatsReq_s
+{
+    uint16_t    bitFlag; //corresponding to the above Bit-Flag 'VOICE_STATS_REQ_XXXXXX'.
 
     uint16_t    registerStatus; //bitmap: each bit (from the LSB) is corresponding to one SIP account/line. Markup dedicated bit to indicate requesting its corresponding SIP account/line's SIP Registration Status. This is designed to support 16 SIP accounts/lines - SIP-00 ~ SIP-15.
     uint16_t    mwiStatus; //bitmap: each bit (from the LSB) is corresponding to one SIP account/line. Markup dedicated bit to indicate requesting its corresponding SIP account/line's MWI Status. This is designed to support 16 SIP accounts/lines - SIP-00 ~ SIP-15.
+
+    //Michael.20191207.001.B: Add to support the 3GPP IMS Dial-tone Management feature (defined in the Spec. ETSI TS 183.043) Part-3: Make VoIP debug CLI and other FE module support to query/get the Current Dial-tone Type setting of each SIP Acct/Line.
+    uint16_t    dialToneType; //bitmap: each bit (from the LSB) is corresponding to one SIP account/line. Markup dedicated bit to indicate requesting its corresponding SIP account/line's Dial-tone Type (setting) info. This is designed to support 16 SIP accounts/lines - SIP-00 ~ SIP-15.
+    uint16_t    dialToneType_extraInfoQuery_bitFlag; //also corresponding to the above Bit-Flag 'VOICE_STATS_REQ_XXXXXX'. The general 'Non-Zero' usage case condition SHOULD be: (VOICE_STATS_REQ_SIP_LINE_REG_STATUS | VOICE_STATS_REQ_SIP_LINE_MWI_STATUS).
+    //Michael.20191207.001.E: Add.
+
     //uint16_t	callState; //bitmap: each bit (from the LSB) is corresponding to one Call. Markup dedicated bit to indicate requesting its corresponding Call's Operation State. This is designed to support 10 Concurrent Calls - SIP-00 ~ SIP-09.
     uint8_t     fxsHookState; //bitmap: each bit (from the LSB) is corresponding to one FXS phone port. Markup dedicated bit to indicate requesting its corresponding FXS phone port's Hood State. This is designed to support 8 FXS phone ports - FXS-00 ~ FXS-07.
 
@@ -87,22 +109,43 @@ typedef struct voiceStatsReq_s {
 
 
 //*** Voice Stats Update ReSPonse ***
-#define VOICE_STATS_RSP_REGISTRATION_STATUS_SET1	(1 << 0)
-#define VOICE_STATS_RSP_REGISTRATION_STATUS_SET2	(1 << 1)
-#define VOICE_STATS_RSP_MWI_STATUS					(1 << 2)
+#define VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET1	(1 << 0)
+#define VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET2	(1 << 1)
+#define VOICE_STATS_RSP_REGISTRATION_STATUS_SET1	VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET1 //Backward compatible.
+#define VOICE_STATS_RSP_REGISTRATION_STATUS_SET2	VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET2 //Backward compatible.
+//--------------------------------------------------
+#define VOICE_STATS_RSP_SIP_LINE_MWI_STATUS			(1 << 2)
+#define VOICE_STATS_RSP_MWI_STATUS					VOICE_STATS_RSP_SIP_LINE_MWI_STATUS //Backward compatible.
+//--------------------------------------------------
 #define VOICE_STATS_RSP_CALL_STATE					(1 << 3)
 #define VOICE_STATS_RSP_PHONE_HOOK_STATUS			(1 << 4)
 #define VOICE_STATS_RSP_VOIP_INUSE					(1 << 5)
 #define VOICE_STATS_RSP_ONGOING_CALL_CNT			(1 << 6)
-#define VOICE_STATS_RSP_VOICE_LINE_STATS			(1 << 7)
+//--------------------------------------------------
+#define VOICE_STATS_RSP_SIP_LINE_VOICE_STATS			(1 << 7)
+#define VOICE_STATS_RSP_VOICE_LINE_STATS				VOICE_STATS_RSP_SIP_LINE_VOICE_STATS //Backward compatible.
+//--------------------------------------------------
 #define VOICE_STATS_RSP_SIP_LINE_CALL_STATE			(1 << 8) //Amber.20170901: Add for support SIP Line CallState info Retrieve via TR069
-//======
-#define VOICE_STATS_RSP_REGISTRATION_STATUS_SET_SIZE	8
-#define VOICE_STATS_RSP_REGISTRATION_STATUS_MASK		0x0f
-#define VOICE_STATS_RSP_REGISTRATION_STATUS_SHIFT_UNIT	4
+#define VOICE_STATS_RSP_SIP_LINE_DIALTONE_TYPE		(1 << 9) //Michael.20191207.001: Add to support the 3GPP IMS Dial-tone Management feature (defined in the Spec. ETSI TS 183.043) Part-3: Make VoIP debug CLI and other FE module support to query/get the Current Dial-tone Type setting of each SIP Acct/Line.
+//==================================================
+#define VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET_SIZE	8 //can handle/represent up to 8 SIP accounts/lines Per-Set.
+#define VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET_CNT	2
+#define VOICE_STATS_RSP_SIP_LINE_REG_STATUS_MASK		0x0f
+#define VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SHIFT_UNIT	4
+#define VOICE_STATS_RSP_REGISTRATION_STATUS_SET_SIZE	VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET_SIZE //Backward compatible.
+#define VOICE_STATS_RSP_REGISTRATION_STATUS_MASK		VOICE_STATS_RSP_SIP_LINE_REG_STATUS_MASK //Backward compatible.
+#define VOICE_STATS_RSP_REGISTRATION_STATUS_SHIFT_UNIT	VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SHIFT_UNIT //Backward compatible.
+//--------------------------------------------------
 #define VOICE_STATS_RSP_CALL_STATE_MASK			0x07
 #define VOICE_STATS_RSP_CALL_STATE_SHIFT_UNIT	3
-//======
+//--------------------------------------------------
+//Michael.20191207.001.B: Add to support the 3GPP IMS Dial-tone Management feature (defined in the Spec. ETSI TS 183.043) Part-3: Make VoIP debug CLI and other FE module support to query/get the Current Dial-tone Type setting of each SIP Acct/Line.
+#define VOICE_STATS_RSP_SIP_LINE_DIALTONE_TYPE_SET_SIZE		4 //can handle/represent up to 4 SIP accounts/lines Per-Set.
+#define VOICE_STATS_RSP_SIP_LINE_DIALTONE_TYPE_SET_CNT		4
+#define VOICE_STATS_RSP_SIP_LINE_DIALTONE_TYPE_MASK		0xFF
+#define VOICE_STATS_RSP_SIP_LINE_DIALTONE_TYPE_SHIFT_UNIT	8
+//Michael.20191207.001.E: Add.
+//==================================================
 typedef struct voiceStatsRsp_s {
 	uint16_t bitFlag;
 	uint16_t errorBitFlag;       //2015-02-13 Steve Add. Use RSP bit to indicate error. if all success will be 0
@@ -118,6 +161,13 @@ typedef struct voiceStatsRsp_s {
 	uint32_t registerStatusSet2; //bitmap: every successive 4bit (from the LSB) as a set, which can represent 10 statuses, is corresponding to one SIP account/line. This set can handle 8 SIP accounts/lines - SIP-08 ~ SIP-15.
 	//------
 	uint16_t mwiStatus; //bitmap: each bit (from the LSB), which represents NoMWI=0 & IsMWI=1, is corresponding to one SIP account/line. This can handle 16 SIP accounts/lines - SIP-00 ~ SIP-15.
+	//------
+	//Michael.20191207.001.B: Add to support the 3GPP IMS Dial-tone Management feature (defined in the Spec. ETSI TS 183.043) Part-3: Make VoIP debug CLI and other FE module support to query/get the Current Dial-tone Type setting of each SIP Acct/Line.
+	uint16_t CFUstatus; //bitmap: each bit (from the LSB), which represents the CFU function is Disabled=0 & Enabled=1, is corresponding to one SIP account/line. This can handle 16 SIP accounts/lines - SIP-00 ~ SIP-15.
+	uint16_t DNDstatus; //bitmap: each bit (from the LSB), which represents the DND function is Disabled=0 & Enabled=1, is corresponding to one SIP account/line. This can handle 16 SIP accounts/lines - SIP-00 ~ SIP-15.
+	uint32_t dialToneTypeSet[VOICE_STATS_RSP_SIP_LINE_DIALTONE_TYPE_SET_CNT]; //bitmap: every successive 8bit (from the LSB) as a set, which can represent 256 Tone Id(s) to be played to serve as the Dial-tone for the 3GPP IMS Dial-tone Management feature, is corresponding to one SIP account/line. This set can handle 4 SIP accounts/lines - SIP-00 ~ SIP-03 + SIP-04 ~ SIP-07 + SIP-08 ~ SIP-11 + SIP-12 ~ SIP-15.
+	uint16_t dialToneType_extraInfoResp_bitFlag; //also corresponding to the above Bit-Flag 'VOICE_STATS_RSP_XXXXXX'. The general 'Non-Zero' usage case condition SHOULD be: (VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET1 | VOICE_STATS_RSP_SIP_LINE_REG_STATUS_SET2 | VOICE_STATS_RSP_SIP_LINE_MWI_STATUS).
+	//Michael.20191207.001.E: Add.
 	//------
 	//Amber.20170901: Modify for support SIP Line CallState info Retrieve via TR069.
 	//uint32_t callState; //bitmap: every successive 3bit (from the LSB) as a set, which can represent 8 states, is corresponding to one Call. This can handle 10 Concurrent Calls - Call-00 ~ Call-09.

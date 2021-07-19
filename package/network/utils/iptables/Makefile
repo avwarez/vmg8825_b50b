@@ -11,9 +11,15 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=iptables
 PKG_VERSION:=1.4
 ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
+ifneq ($(findstring 502L0,$(BRCM_SDK_VERSION)),)
+PKG_VERSION:=1.4.21
+else
 PKG_VERSION:=1.4.16.3
+endif
 else ifeq ("$(strip ${ZCFG_PLATFORM})","ECONET")
 PKG_VERSION:=1.4.10
+else ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+PKG_VERSION:=1.4.21
 endif
 #PKG_RELEASE:=3
 
@@ -57,7 +63,11 @@ define Package/iptables
 $(call Package/iptables/Default)
   TITLE:=IPv4 firewall administration tool
   MENU:=1
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+  DEPENDS+= +kmod-ipt-core +libip4tc +IPV6:libip6tc +libxtables
+else
   DEPENDS+= +kmod-ipt-core +libip4tc +libxtables
+endif
 endef
 
 define Package/iptables/description
@@ -137,7 +147,9 @@ iptables extensions for matching/changing IP packet options.
   - time
   - unclean
   - hl
+ifeq ("$(CONFIG_KERNEL_ZYXEL_EXT_MARK)", "y")
   - zextmark
+endif
   - connmark
 
  Targets:
@@ -146,7 +158,9 @@ iptables extensions for matching/changing IP packet options.
   - ECN
   - MARK
   - HL
+ifeq ("$(CONFIG_KERNEL_ZYXEL_EXT_MARK)", "y")
   - ZEXTMARK
+endif
   - CONNMARK
 
 endef
@@ -209,6 +223,32 @@ iptables extensions for user-space packet logging.
 
 endef
 
+define Package/iptables-mod-nflog
+$(call Package/iptables/Module, +kmod-nfnetlink-log +kmod-ipt-nflog)
+  TITLE:=Netfilter NFLOG target
+endef
+
+define Package/iptables-mod-nflog/description
+ iptables extension for user-space logging via NFNETLINK.
+
+ Includes:
+  - libxt_NFLOG
+
+endef
+
+define Package/iptables-mod-nfqueue
+$(call Package/iptables/Module, +kmod-nfnetlink-queue +kmod-ipt-nfqueue)
+  TITLE:=Netfilter NFQUEUE target
+endef
+
+define Package/iptables-mod-nfqueue/description
+ iptables extension for user-space queuing via NFNETLINK.
+
+ Includes:
+  - libxt_NFQUEUE
+
+endef
+
 define Package/iptables-mod-hashlimit
 $(call Package/iptables/Module, +kmod-ipt-hashlimit)
   TITLE:=hashlimit matching
@@ -233,6 +273,46 @@ iptables extensions for matching ip ranges.
  Matches:
   - iprange
 
+endef
+
+define Package/iptables-mod-cluster
+$(call Package/iptables/Module, +kmod-ipt-cluster)
+  TITLE:=Match cluster extension
+endef
+
+define Package/iptables-mod-cluster/description
+iptables extensions for matching cluster.
+
+ Netfilter (IPv4/IPv6) module for matching cluster
+ This option allows you to build work-load-sharing clusters of
+ network servers/stateful firewalls without having a dedicated
+ load-balancing router/server/switch. Basically, this match returns
+ true when the packet must be handled by this cluster node. Thus,
+ all nodes see all packets and this match decides which node handles
+ what packets. The work-load sharing algorithm is based on source
+ address hashing.
+
+ This module is usable for ipv4 and ipv6.
+
+ If you select it, it enables kmod-ipt-cluster.
+
+ see `iptables -m cluster --help` for more information.
+endef
+
+define Package/iptables-mod-clusterip
+$(call Package/iptables/Module, +kmod-ipt-clusterip)
+  TITLE:=Clusterip extension
+endef
+
+define Package/iptables-mod-clusterip/description
+iptables extensions for CLUSTERIP.
+ The CLUSTERIP target allows you to build load-balancing clusters of
+ network servers without having a dedicated load-balancing
+ router/server/switch.
+
+ If you select it, it enables kmod-ipt-clusterip.
+
+ see `iptables -j CLUSTERIP --help` for more information.
 endef
 
 define Package/iptables-mod-extra
@@ -308,12 +388,42 @@ U32 iptables extensions.
 
 endef
 
+define Package/iptables-mod-mark2prio
+$(call Package/iptables/Module, +kmod-ipt-mark2prio)
+  TITLE:=mark2prio extension
+endef
+
 define Package/ip6tables
 $(call Package/iptables/Default)
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+  DEPENDS:=@IPV6 +kmod-ip6tables +iptables
+else
   DEPENDS:=+kmod-ip6tables +libip6tc +libxtables
+endif
   CATEGORY:=IPv6
   TITLE:=IPv6 firewall administration tool
   MENU:=1
+endef
+
+
+define Package/ip6tables-extra
+$(call Package/iptables/Default)
+  DEPENDS:=ip6tables +kmod-ip6tables-extra
+  TITLE:=IPv6 header matching modules
+endef
+
+define Package/ip6tables-mod-extra/description
+iptables header matching modules for IPv6
+endef
+
+define Package/ip6tables-mod-nat
+$(call Package/iptables/Default)
+  DEPENDS:=ip6tables +kmod-ipt-nat6
+  TITLE:=IPv6 NAT extensions
+endef
+
+define Package/ip6tables-mod-nat/description
+iptables extensions for IPv6-NAT targets.
 endef
 
 define Package/libiptc
@@ -329,6 +439,9 @@ $(call Package/iptables/Default)
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=IPv4 firewall - shared libiptc library
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+  DEPENDS:=+libxtables
+endif
 endef
 
 define Package/libip6tc
@@ -336,6 +449,9 @@ $(call Package/iptables/Default)
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=IPv6 firewall - shared libiptc library
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+  DEPENDS:=+libxtables
+endif
 endef
 
 define Package/libxtables
@@ -347,15 +463,32 @@ endef
 PFX_EXT:=TCPMSS SKIPLOG
 PF4_EXT:=icmp
 PF6_EXT:=
-
-# PFX_EXT+=length limit standard conntrack tcp udp NFQUEUE dscp DSCP mac physdev mark MARK AUTOMAP policer time multiport pkttype connlimit recent iprange helper zextmark ZEXTMARK connmark CONNMARK connzextmark CONNZEXTMARK set SET
-PFX_EXT+=length limit standard conntrack tcp udp NFQUEUE dscp DSCP mac physdev mark MARK AUTOMAP policer time multiport pkttype connlimit recent iprange helper connmark CONNMARK set SET zextmark ZEXTMARK connzextmark CONNZEXTMARK
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+PFX_EXT+=length limit standard conntrack tcp udp NFQUEUE dscp DSCP mac mark MARK AUTOMAP policer time multiport pkttype connlimit recent iprange helper
+else
+ifeq ("$(CONFIG_KERNEL_ZYXEL_EXT_MARK)", "y")
+PFX_EXT+=length limit standard conntrack tcp udp NFQUEUE dscp DSCP mac physdev mark MARK AUTOMAP policer time multiport pkttype connlimit recent iprange helper connmark CONNMARK set SET zextmark ZEXTMARK connzextmark CONNZEXTMARK blog
+else
+PFX_EXT+=length limit standard conntrack tcp udp NFQUEUE dscp DSCP mac physdev mark MARK AUTOMAP policer time multiport pkttype connlimit recent iprange helper blog
+endif
+endif
+ifeq ("$(CONFIG_ZYXEL_HOME_CYBER_SECURITY)", "y")
+PFX_EXT+= CT connmark CONNMARK 
+endif
 PF4_EXT+=LOG DNAT MASQUERADE REDIRECT REJECT SNAT TRIGGER
 
 ifneq ($(strip $(CONFIG_IPV6)),)
 PF6_EXT+=ah dst eui64 frag hbh hl icmp6 ipv6header mh rt HL LOG REJECT
 endif
 
+ifneq ("$(CONFIG_EXTERNAL_KERNEL_TOOLCHAIN)","")
+TARGET_CPPFLAGS := \
+	-I$(PKG_BUILD_DIR)/include \
+	$(TARGET_CPPFLAGS)
+
+TARGET_CFLAGS += \
+	-I$(PKG_BUILD_DIR)/include
+else
 TARGET_CPPFLAGS := \
 	-I$(PKG_BUILD_DIR)/include \
 	-I$(LINUX_DIR)/user_headers/include \
@@ -364,18 +497,38 @@ TARGET_CPPFLAGS := \
 TARGET_CFLAGS += \
 	-I$(PKG_BUILD_DIR)/include \
 	-I$(LINUX_DIR)/user_headers/include
+endif
 
-ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+TARGET_CFLAGS += \
+	-ffunction-sections -fdata-sections \
+	-DNO_LEGACY
+
+TARGET_LDFLAGS += \
+	-Wl,--gc-sections
+
+CONFIGURE_ARGS += \
+	--enable-shared \
+	--enable-devel \
+	--with-kernel="$(LINUX_DIR)/user_headers" \
+	--with-xtlibdir=/usr/lib/iptables \
+	--enable-static \
+	$(if $(CONFIG_IPV6),,--disable-ipv6)
+else ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
 CONFIGURE_ARGS += \
 	--disable-shared \
 	--disable-devel \
 	$(if $(CONFIG_IPV6),--enable-ipv6,--disable-ipv6) \
-	--with-kernel="$(LINUX_DIR)/user_headers" \
 	--with-xtlibdir=/usr/lib/iptables \
 	--enable-static \
 	--with-pfxmods="$(PFX_EXT)" \
 	--with-pf4mods="$(PF4_EXT)" \
-	--with-pf6mods="$(PF6_EXT)" 
+	--with-pf6mods="$(PF6_EXT)"
+ifneq ("$(CONFIG_EXTERNAL_KERNEL_TOOLCHAIN)","")
+CONFIGURE_ARGS += --with-kbuild=$(TOOLCHAIN_DIR)/include
+else
+CONFIGURE_ARGS += --with-kernel="$(LINUX_DIR)/user_headers"
+endif
 else ifeq ("$(strip ${ZCFG_PLATFORM})","ECONET")
 CONFIGURE_ARGS += \
 	--disable-shared \
@@ -385,21 +538,32 @@ CONFIGURE_ARGS += \
 	--enable-static
 endif
 
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+MAKE_FLAGS := \
+	$(TARGET_CONFIGURE_OPTS) \
+	COPT_FLAGS="$(TARGET_CFLAGS)" \
+	KERNEL_DIR="$(LINUX_DIR)/user_headers/" PREFIX=/usr \
+	KBUILD_OUTPUT="$(LINUX_DIR)" \
+	BUILTIN_MODULES="$(patsubst ip6t_%,%,$(patsubst ipt_%,%,$(patsubst xt_%,%,$(IPT_BUILTIN) $(IPT_CONNTRACK-m) $(IPT_NAT-m))))"
+else
 MAKE_FLAGS := \
 	$(TARGET_CONFIGURE_OPTS) \
 	COPT_FLAGS="$(TARGET_CFLAGS)" \
 	KERNEL_DIR="$(LINUX_DIR)/user_headers/" PREFIX=/usr \
 	KBUILD_OUTPUT="$(LINUX_DIR)" \
 	BUILTIN_MODULES="$(patsubst ipt_%,%,$(patsubst xt_%,%,$(IPT_BUILTIN) $(IPT_CONNTRACK-m) $(IPT_NAT-m)))" 
+endif
 
+ifeq ("$(CONFIG_KERNEL_ZYXEL_EXT_MARK)", "y")
 define Build/Prepare
 	# netfilter module for zoned firewall - bpan
 	$(call Build/Prepare/Default)
-	$(CP) ./src/libxt_zextmark.c $(PKG_BUILD_DIR)/extensions/
-	$(CP) ./src/libxt_ZEXTMARK.c $(PKG_BUILD_DIR)/extensions/
-	$(CP) ./src/libxt_CONNZEXTMARK.c $(PKG_BUILD_DIR)/extensions/
-	$(CP) ./src/libxt_connzextmark.c $(PKG_BUILD_DIR)/extensions/
+	$(CP) ./src-$(PKG_VERSION)/libxt_zextmark.c $(PKG_BUILD_DIR)/extensions/
+	$(CP) ./src-$(PKG_VERSION)/libxt_ZEXTMARK.c $(PKG_BUILD_DIR)/extensions/
+	$(CP) ./src-$(PKG_VERSION)/libxt_CONNZEXTMARK.c $(PKG_BUILD_DIR)/extensions/
+	$(CP) ./src-$(PKG_VERSION)/libxt_connzextmark.c $(PKG_BUILD_DIR)/extensions/
 endef
+endif
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
@@ -407,17 +571,30 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include/net/netfilter
 
 	# XXX: iptables header fixup, some headers are not installed by iptables anymore
+ifneq ($(findstring 502L0,$(BRCM_SDK_VERSION)),)
+	$(CP) $(PKG_BUILD_DIR)/include/linux/netfilter/*.h $(1)/usr/include/net/netfilter/
+else
+ifneq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
 	$(CP) $(PKG_BUILD_DIR)/include/net/netfilter/*.h $(1)/usr/include/net/netfilter/
+endif
+endif
 	$(CP) $(PKG_BUILD_DIR)/include/iptables/*.h $(1)/usr/include/iptables/
 	$(CP) $(PKG_BUILD_DIR)/include/iptables.h $(1)/usr/include/
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_BUILD_DIR)/include/ip6tables.h $(1)/usr/include/
+endif
 	$(CP) $(PKG_BUILD_DIR)/include/libipulog $(1)/usr/include/
 	$(CP) $(PKG_BUILD_DIR)/include/libiptc $(1)/usr/include/
 
-#	$(CP) $(PKG_INSTALL_DIR)/usr/include/* $(1)/usr/include/
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_INSTALL_DIR)/usr/include/* $(1)/usr/include/
+endif
 	$(INSTALL_DIR) $(1)/usr/lib
 
-#	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libxtables.so $(1)/usr/lib/
-#	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip*tc.so* $(1)/usr/lib/
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libxtables.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip*tc.so* $(1)/usr/lib/
+endif
 
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libxtables.a $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip*tc.a* $(1)/usr/lib/
@@ -425,6 +602,10 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/xtables.pc $(1)/usr/lib/pkgconfig/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/libiptc.pc $(1)/usr/lib/pkgconfig/
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	# XXX: needed by firewall3
+	$(CP) $(PKG_BUILD_DIR)/extensions/libiptext*.so $(1)/usr/lib/
+endif
 endef
 
 define Package/iptables/install
@@ -436,8 +617,15 @@ define Package/iptables/install
 	
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/rc3.d
+#In ECONET platform, kernel modules are built-in
+ifeq ("$(strip ${ZCFG_PLATFORM})","BROADCOM")
 	$(CP) ./files/nf_basic_modules_install.sh $(1)/etc/init.d
 	ln -s ../init.d/nf_basic_modules_install.sh $(1)/etc/rc3.d/S45nf-basic-module
+endif
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) ./files/nf_basic_modules_install.sh $(1)/etc/init.d
+	ln -s ../init.d/nf_basic_modules_install.sh $(1)/etc/rc3.d/S45nf-basic-module
+endif
 endef
 
 define Package/ip6tables/install
@@ -453,20 +641,29 @@ endef
 
 define Package/libiptc/install
 	$(INSTALL_DIR) $(1)/usr/lib
-
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libiptc.so* $(1)/usr/lib/
+endif
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libiptc.a $(1)/usr/lib/
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libiptc.so $(1)/usr/lib/
 endef
 
 define Package/libip4tc/install
 	$(INSTALL_DIR) $(1)/usr/lib
-
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip4tc.so* $(1)/usr/lib/
+	$(CP) $(PKG_BUILD_DIR)/extensions/libiptext4.so $(1)/usr/lib/
+endif
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip4tc.a $(1)/usr/lib/
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip4tc.so $(1)/usr/lib/
 endef
 
 define Package/libip6tc/install
 	$(INSTALL_DIR) $(1)/usr/lib
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip6tc.so* $(1)/usr/lib/
+	$(CP) $(PKG_BUILD_DIR)/extensions/libiptext6.so $(1)/usr/lib/
+endif
 
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip6tc.a $(1)/usr/lib/
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libip6tc.so $(1)/usr/lib/
@@ -474,6 +671,10 @@ endef
 
 define Package/libxtables/install
 	$(INSTALL_DIR) $(1)/usr/lib
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libxtables.so* $(1)/usr/lib/
+	$(CP) $(PKG_BUILD_DIR)/extensions/libiptext.so $(1)/usr/lib/
+endif
 	
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libxtables.a $(1)/usr/lib/
 #	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libxtables.so $(1)/usr/lib/
@@ -482,11 +683,19 @@ endef
 define BuildPlugin
   define Package/$(1)/install
 	$(INSTALL_DIR) $$(1)/usr/lib/iptables
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+	for m in $(patsubst xt_%,ipt_%,$(2)) $(patsubst ipt_%,xt_%,$(2)) $(patsubst xt_%,ip6t_%,$(2)) $(patsubst ip6t_%,xt_%,$(2)); do \
+		if [ -f $(PKG_INSTALL_DIR)/usr/lib/iptables/lib$$$$$$$${m}.so ]; then \
+			$(CP) $(PKG_INSTALL_DIR)/usr/lib/iptables/lib$$$$$$$${m}.so $$(1)/usr/lib/iptables/ ; \
+		fi; \
+	done
+else
 	for m in $(patsubst xt_%,ipt_%,$(2)) $(patsubst ipt_%,xt_%,$(2)); do \
 		if [ -f $(PKG_INSTALL_DIR)/usr/lib/iptables/lib$$$$$$$${m}.so ]; then \
 			$(CP) $(PKG_INSTALL_DIR)/usr/lib/iptables/lib$$$$$$$${m}.so $$(1)/usr/lib/iptables/ ; \
 		fi; \
 	done
+endif
 	$(3)
   endef
 
@@ -518,3 +727,12 @@ $(eval $(call BuildPackage,libiptc))
 $(eval $(call BuildPackage,libip4tc))
 $(eval $(call BuildPackage,libip6tc))
 $(eval $(call BuildPackage,libxtables))
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+$(eval $(call BuildPlugin,iptables-mod-cluster,$(IPT_CLUSTER-m)))
+$(eval $(call BuildPlugin,iptables-mod-clusterip,$(IPT_CLUSTERIP-m)))
+$(eval $(call BuildPlugin,iptables-mod-nflog,$(IPT_NFLOG-m)))
+$(eval $(call BuildPlugin,iptables-mod-nfqueue,$(IPT_NFQUEUE-m)))
+$(eval $(call BuildPlugin,iptables-mod-mark2prio,$(IPT_MARK2PRIO-m)))
+$(eval $(call BuildPlugin,ip6tables-extra,$(IPT_IPV6_EXTRA-m)))
+$(eval $(call BuildPlugin,ip6tables-mod-nat,$(IPT_NAT6-m)))
+endif

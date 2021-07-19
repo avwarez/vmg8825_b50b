@@ -5,6 +5,8 @@
 # See /LICENSE for more information.
 #
 
+FORCE_USE_EXTERNAL_KERNAL_TOOLCHAIN=y
+
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 

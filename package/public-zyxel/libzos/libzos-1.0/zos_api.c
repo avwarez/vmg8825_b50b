@@ -12,10 +12,16 @@
 #include <stdarg.h>     // va_list()
 #include <sys/types.h>
 #include <sys/wait.h>   // waitpid()
-#include <unistd.h>     // fork(), execvp(), _exit()
 #include <string.h>     // strchr()
 #include <errno.h>
+#include <time.h>
+#include <stdint.h>
 
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <unistd.h>         // for syscall(), fork(), execvp(), _exit()
+#include <sys/syscall.h>    // for syscall()
+
+#include "zos_api.h"
 #include "zlog_api.h"
 
 //==============================================================================
@@ -39,16 +45,18 @@
  * zcfg_system("ping 8.8.8.8 > /tmp/result)  -> not support redirect (>)
  *
  * plan to support redirect (>) in future.
-*/
+ */
 static int _zcfg_system(const char *cmd)
 {
-	pid_t pid, pid2;
-	char *argv[128] = {NULL};
-	char buf[ZOS_CMD_MAX_LEN + 1] = {0};
-	int i = 0, j = 0;
-	char *p = NULL;
-	int status = 0;
-	int background = 0;
+	pid_t pid;
+	pid_t pid2;
+	char  *argv[128] = {NULL};
+	char  buf[ZOS_CMD_MAX_LEN + 1] = {0};
+	int   i = 0;
+	int   j = 0;
+	char  *p = NULL;
+	int   status = 0;
+	int   background = 0;
 
 	if (*cmd == '\0')
 	{
@@ -85,15 +93,18 @@ static int _zcfg_system(const char *cmd)
 		i++;
 	}
 
-	if(*argv[j-1] == '&'){
+	if (*argv[j-1] == '&')
+        {
 		background = 1;
 		argv[j-1] = NULL;
 	}
 
-	if((pid = fork()) < 0){
+	if ((pid = fork()) < 0)
+        {
 		status = -1;
 	}
-	else if(pid == 0){
+	else if (pid == 0)
+        {
 		if(!background){
 			execvp(argv[0], argv);
 			_exit(127);
@@ -148,7 +159,7 @@ bool zos_system(
 
     if (format == NULL)
     {
-        ZLOG_ERROR("format == NULL\n");
+        ZLOG_ERROR("format == NULL");
         return false;
     }
 
@@ -184,3 +195,99 @@ bool zos_system(
     return true;
 
 } // zos_system
+
+/*!
+ *  work as snprintf(), avoid the issue from man page
+ *      "However, the standards explicitly note that the results are undefined
+ *      if source and destination buffers overlap when calling sprintf(),
+ *      snprintf(), vsprintf(), and vsnprintf()."
+ *
+ *  @param [in] buf          string buffer to print to
+ *  @param [in[ size         maximum size of the string
+ *  @param [in] format       string format of command
+ *  @param [in] ...          arguments required by the format
+ *
+ *  @return >= 0 - successful, the number of characters printed
+ *          <  0 - failed
+ */
+int zos_snprintf(
+    char        *buf,
+    size_t      size,
+    const char  *format,
+    ...
+)
+{
+    char        *tmp_buf;
+    va_list     arg;
+    int         ret = -1;
+
+    if (buf == NULL)
+    {
+        ZLOG_ERROR("buf == NULL");
+        return ret;
+    }
+
+    if (format == NULL)
+    {
+        ZLOG_ERROR("format == NULL");
+        return ret;
+    }
+
+    tmp_buf = ZOS_MALLOC(size);
+    if (tmp_buf == NULL)
+    {
+        ZLOG_ERROR("fail to allocate memory");
+        return ret;
+    }
+
+    va_start(arg, format);
+    ret = vsnprintf(tmp_buf, size, format, arg);
+    va_end(arg);
+
+    if (ret >= 0)
+    {
+        memset(buf, 0, size);
+
+        if (ret > 0)
+        {
+            strcpy(buf, tmp_buf);
+        }
+    }
+
+    ZOS_FREE(tmp_buf);
+
+    return ret;
+
+} // zos_snprintf
+
+/*!
+ *  get my pid which is shown in top command.
+ *
+ *  @return uint32_t      my pid
+ */
+uint32_t zos_pid_get()
+{
+    return (uint32_t)(syscall(__NR_gettid));
+}
+
+/*!
+ *  get monotonic time in milli-second.
+ *
+ *  @return uint32_t    milli-second
+ *                      0: failed
+ */
+uint32_t zos_mtime_get()
+{
+    struct timespec     tp;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &tp) != 0)
+    {
+        ZLOG_ERROR("fail to get monotonic time");
+        return 0;
+    }
+
+    return tp.tv_sec * 1000 + tp.tv_nsec / 1000000;
+}
+
+
+

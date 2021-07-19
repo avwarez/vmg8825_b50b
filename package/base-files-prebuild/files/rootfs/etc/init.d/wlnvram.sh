@@ -1,9 +1,7 @@
 #!/bin/sh
 # This script runs before kernel load modules, first wlcsm modules is required to load as
 # first one to serve nvram for lkm and user spaces applications  LNXVERSION will be replaced
-# by 3.4.11
-
-insmod /lib/modules/3.4.11/extra/wlcsm.ko
+# by 4.1.52
 
 vol_nm="mfg_data"  			#nvram volume and dir name
 wl_srom_nm=".wlsromcustomerfile.nvm"	#wl calibration file name
@@ -72,12 +70,7 @@ case "$1" in
 				fi
 			fi
 		fi
-		if [ $is_nand -eq 1 ]; then
-			if  [ ! -f $kernel_nvram_file ]; then
-				cp $original_kernel_nvram_file $kernel_nvram_file
-			fi
-			nvram kernelset $kernel_nvram_file
-		fi
+
 		exit 0
 		;;
 	stop)

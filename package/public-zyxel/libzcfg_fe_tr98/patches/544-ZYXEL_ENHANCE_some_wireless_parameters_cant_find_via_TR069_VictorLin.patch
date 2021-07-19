@@ -1,8 +1,8 @@
 Index: libzcfg_fe_tr98-1.0/lanDev.c
 ===================================================================
---- libzcfg_fe_tr98-1.0.orig/lanDev.c	2018-02-06 18:59:31.996737747 +0800
-+++ libzcfg_fe_tr98-1.0/lanDev.c	2018-02-06 18:59:32.012737747 +0800
-@@ -4299,6 +4299,9 @@
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2018-02-07 17:27:31.683210728 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2018-02-07 17:27:31.723190727 +0800
+@@ -4378,6 +4378,9 @@
  		else if(!strcmp(paramList->name, "X_ZYXEL_OperatingChannelBandwidth")) {
  			paramValue = json_object_object_get(radioJobj, "OperatingChannelBandwidth");
  		}
@@ -12,7 +12,7 @@ Index: libzcfg_fe_tr98-1.0/lanDev.c
  		else if(!strcmp(paramList->name, "PeerBSSID")) {
  			paramValue = json_object_new_string("");
  			freeflag = 1;
-@@ -4862,7 +4865,6 @@
+@@ -4941,7 +4944,6 @@
  		json_object_put(ssidJobj);
  		return ret;
  	}
@@ -22,8 +22,8 @@ Index: libzcfg_fe_tr98-1.0/lanDev.c
  		strcpy(ssidRef, json_object_get_string(json_object_object_get(apJobj, "SSIDReference")));
 Index: libzcfg_fe_tr98-1.0/lanDev_parameter.h
 ===================================================================
---- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2018-02-06 18:59:31.996737747 +0800
-+++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2018-02-06 18:59:32.012737747 +0800
+--- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2018-02-07 17:27:31.703200727 +0800
++++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2018-02-07 17:27:31.723190727 +0800
 @@ -256,8 +256,8 @@
  	{ "IEEE11iEncryptionModes", PARAMETER_ATTR_WRITE, 28, json_type_string},
  	{ "IEEE11iAuthenticationMode", PARAMETER_ATTR_WRITE, 26, json_type_string},

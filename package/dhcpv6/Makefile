@@ -30,7 +30,7 @@ define Package/wide-dhcpv6/Default
   CATEGORY:=IPv6
   TITLE:=WIDE-DHCPv6
   SUBMENU:=wide-dhcpv6
-  DEPENDS:=+libzcfg_msg  +libjson
+  DEPENDS:=+libzcfg_msg  +libjson +libzcmd_tool +libzcfg_fe_rdm_access +libzcfg_fe_rdm_struct
   URL:=https://sourceforge.net/projects/wide-dhcpv6/
   MAINTAINER:=Andrew Byrne <openwrt@andy.id.au>
 endef
@@ -89,6 +89,10 @@ endef
 
 TARGET_CFLAGS+=-D_GNU_SOURCE
 
+ifeq ($(CONFIG_WIND_Greece_DHCPv6_Client_NTP_Option),y)
+TARGET_CFLAGS += -DWIND_Greece_DHCPv6_Client_NTP_Option
+endif
+
 define Build/Configure
 	$(call Build/Configure/Default,--with-localdbdir=/var)
 endef
@@ -107,6 +111,7 @@ endef
 define Package/dhcp6c/install
 	$(INSTALL_DIR) $(1)/bin
 	$(CP) $(PKG_BUILD_DIR)/dhcp6c $(1)/bin
+	$(CP) ./files/dhcp6c_script $(1)/bin
 endef
 
 define Package/dhcp6s/install

@@ -23,12 +23,17 @@ else
 
   LINUX_KMOD_SUFFIX=ko
 
-  ifneq (,$(findstring uml,$(BOARD)))
-    KERNEL_CC?=$(HOSTCC)
-    KERNEL_CROSS?=
+  ifneq ($(CONFIG_EXTERNAL_KERNEL_TOOLCHAIN),)
+      KERNEL_CC?=$(KERNEL_TARGET_CC)
+      KERNEL_CROSS?=$(KERNEL_TARGET_CROSS)
   else
-    KERNEL_CC?=$(TARGET_CC)
-    KERNEL_CROSS?=$(TARGET_CROSS)
+    ifneq (,$(findstring uml,$(BOARD)))
+      KERNEL_CC?=$(HOSTCC)
+      KERNEL_CROSS?=
+    else
+      KERNEL_CC?=$(TARGET_CC)
+      KERNEL_CROSS?=$(TARGET_CROSS)
+    endif
   endif
 
   ifeq ($(TARGET_BUILD),1)
@@ -36,6 +41,8 @@ else
 
   ifeq ($(KERNEL),2.6)
     FILES_DIR ?= $(foreach dir,$(wildcard ./$(CUSTOM_KPATCH_PREFIX)files-2.6 ./$(CUSTOM_KPATCH_PREFIX)files-$(KERNEL_PATCHVER)),"$(dir)")
+  else ifeq ($(KERNEL),3.10)
+    FILES_DIR ?= $(foreach dir,$(wildcard ./$(CUSTOM_KPATCH_PREFIX)files-3.10),"$(dir)")
   else
     FILES_DIR ?= $(foreach dir,$(wildcard ./$(CUSTOM_KPATCH_PREFIX)files ./$(CUSTOM_KPATCH_PREFIX)files-$(KERNEL_PATCHVER)),"$(dir)")
   endif
@@ -65,7 +72,11 @@ else
     ifeq ($(KERNEL),2.6)
        LINUX_SITE:=@ZyXEL_SITE/kernel/2.6.x
     else
-       LINUX_SITE:=@ZyXEL_SITE/kernel/3.x
+       ifeq ($(KERNEL),4.1)
+          LINUX_SITE:=@ZyXEL_SITE/kernel/4.x
+       else
+          LINUX_SITE:=@ZyXEL_SITE/kernel/3.x
+       endif
     endif
   endif
 
@@ -74,14 +85,17 @@ else
   endif
 endif
 
-ifneq (,$(findstring uml,$(BOARD)))
-  LINUX_KARCH=um
+ifneq ($(CONFIG_EXTERNAL_KERNEL_TOOLCHAIN),)
+  LINUX_KARCH=$(strip $(subst i386,x86,$(subst armeb,arm,$(subst mipsel,mips,$(subst mips64,mips,$(subst mips64el,mips,$(subst sh2,sh,$(subst sh3,sh,$(subst sh4,sh,$(subst aarch64,arm64,$(subst aarch64_be,arm64,$(KERNEL_ARCH))))))))))))
 else
-  ifeq (,$(LINUX_KARCH))
-    LINUX_KARCH=$(strip $(subst i386,x86,$(subst armeb,arm,$(subst mipsel,mips,$(subst mips64,mips,$(subst mips64el,mips,$(subst sh2,sh,$(subst sh3,sh,$(subst sh4,sh,$(ARCH))))))))))
+  ifneq (,$(findstring uml,$(BOARD)))
+    LINUX_KARCH=um
+  else
+    ifeq (,$(LINUX_KARCH))
+      LINUX_KARCH=$(strip $(subst i386,x86,$(subst armeb,arm,$(subst mipsel,mips,$(subst mips64,mips,$(subst mips64el,mips,$(subst sh2,sh,$(subst sh3,sh,$(subst sh4,sh,$(subst aarch64,arm64,$(subst aarch64_be,arm64,$(ARCH))))))))))))
+    endif
   endif
 endif
-
 
 define KernelPackage/Defaults
   FILES:=

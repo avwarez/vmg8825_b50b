@@ -1,6 +1,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ubus
+ifeq ("$(strip ${ZCFG_PLATFORM})","QUALCOMM")
+PKG_VERSION:=2015-05-25
+PKG_SOURCE_VERSION:=f361bfa5fcb2daadf3b160583ce665024f8d108e
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
+else ifeq ("$(strip ${ZCFG_PLATFORM})","ECONET")
+PKG_VERSION:=2015-05-25
+PKG_SOURCE_VERSION:=f361bfa5fcb2daadf3b160583ce665024f8d108e
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
+PATCH_DIR:=patches-econet
+else 
 PKG_VERSION:=2012-12-15
 #PKG_RELEASE=$(PKG_SOURCE_VERSION)
 
@@ -10,10 +20,11 @@ PKG_VERSION:=2012-12-15
 #PKG_SOURCE_VERSION:=bb856ad8a9a1e786494d01e34bbfe2b4d2134021
 #PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
 PKG_MIRROR_MD5SUM:=fe419893677d12e6455bbe5e3b503944
-CMAKE_INSTALL:=1
 
 PKG_RELEASE:=bb856ad8a9a1e786494d01e34bbfe2b4d2134021
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_RELEASE).tar.gz
+endif
+CMAKE_INSTALL:=1
 PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/misc
 
 PKG_LICENSE:=LGPLv2.1
@@ -37,7 +48,7 @@ define Package/ubusd
   CATEGORY:=LuCI2
   SUBMENU:=System
   TITLE:=OpenWrt RPC daemon
-  DEPENDS:=+libubox
+  DEPENDS:=+libubox +libubus
 endef
 
 define Package/libubus
@@ -69,6 +80,11 @@ endef
 define Package/ubusd/install
 	$(INSTALL_DIR) $(1)/sbin
 	$(CP) $(PKG_INSTALL_DIR)/usr/sbin/ubusd $(1)/sbin/
+ifeq ("$(strip ${ZCFG_PLATFORM})","ECONET")
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(CP) $(PKG_INSTALL_DIR)/usr/bin/msg $(1)/usr/bin
+endif
+
 endef
 
 define Package/libubus/install

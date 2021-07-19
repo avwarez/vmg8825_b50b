@@ -7,7 +7,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/useraccount/zcfg_fe_dal_user_account.c
  dal_param_t USER_ACCOUNT_param[] =  //RDM_OID_ZY_LOG_CFG_GP_ACCOUNT
  {
 -	{"Username",			dalType_string,  0, 	0,		NULL,	NULL,	dal_Add|dal_Edit|dal_Delete},
-+	{"Username",			dalType_string,  1, 	16,		NULL,	NULL,	dal_Add|dal_Edit|dal_Delete},
++	{"Username",			dalType_string,  1, 	32,		NULL,	NULL,	dal_Add|dal_Edit|dal_Delete},
  	{"Enabled", 			dalType_boolean, 0, 	0,		NULL,	NULL,	0}, //default true
  	{"EnableQuickStart",	dalType_boolean, 0, 	0,		NULL,	NULL,	0}, //default value based on schema.json
  	{"oldPw",				dalType_string,  0, 	0,		NULL,	NULL,	dal_Add_ignore},

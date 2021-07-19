@@ -24,7 +24,9 @@ PKG_LICENSE:=GPL-2.0+
 
 PKG_INSTALL:=1
 
+ifeq ("$(CONFIG_KERNEL_ZYXEL_EXT_MARK)", "y")
 PATCH_DIR:=./patches
+endif
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -45,6 +47,9 @@ define Package/libnetfilter-conntrack/description
 endef
 
 TARGET_CFLAGS += $(FPIC)
+ifeq ($(CONFIG_KERNEL_ZYXEL_EXT_MARK),y)
+TARGET_CFLAGS += -DZYXEL_EXT_MARK -DCONFIG_SBG_SKB_MARK -DCONFIG_ZYXEL_EXT_MARK -DSBG_SKB_MARK
+endif
 
 CONFIGURE_ARGS += \
 	--enable-static \

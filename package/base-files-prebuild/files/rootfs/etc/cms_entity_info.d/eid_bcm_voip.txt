@@ -7,8 +7,8 @@
 
 
 BEGIN
-  eid         = EID_VODSL
-  name        = vodsl
+  eid         = EID_VOICE
+  name        = voice
   flags       = EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_AUTO_RELAUNCH
 END
 

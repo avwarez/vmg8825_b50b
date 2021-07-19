@@ -87,7 +87,11 @@ ifneq ($(LOCAL_TYPE),hostapd)
 	CONFIG_DRIVER_ROBOSWITCH=$(CONFIG_PACKAGE_kmod-switch)
 endif
 
+ifeq ($(CONFIG_PACKAGE_libnl),y)
 DRV_DEPENDS:=+PACKAGE_kmod-mac80211:libnl @(!(TARGET_avr32||TARGET_etrax)||BROKEN)
+else
+DRV_DEPENDS:=+PACKAGE_kmod-mac80211:libnl-tiny @(!(TARGET_avr32||TARGET_etrax)||BROKEN)
+endif
 
 define Package/hostapd/Default
   SECTION:=net
@@ -215,8 +219,14 @@ define Build/Configure
 	$(CP) ./files/wpa_supplicant-$(LOCAL_VARIANT).config $(PKG_BUILD_DIR)/wpa_supplicant/.config
 endef
 
+ifeq ($(CONFIG_PACKAGE_libnl),y)
+LIB_NL:=$(STAGING_DIR)/usr/include/libnl
+else
+LIB_NL:=$(STAGING_DIR)/usr/include/libnl-tiny 
+endif
+
 TARGET_CPPFLAGS := \
-	-I$(STAGING_DIR)/usr/include/libnl \
+	-I$(LIB_NL) \
 	-I$(PKG_BUILD_DIR)/src/crypto \
 	$(TARGET_CPPFLAGS) \
 	-I$(STAGING_DIR)/usr/include/madwifi \
@@ -228,7 +238,11 @@ TARGET_CFLAGS += -ffunction-sections -fdata-sections
 TARGET_LDFLAGS += -Wl,--gc-sections
 
 ifdef CONFIG_PACKAGE_kmod-mac80211
+ifeq ("$(CONFIG_KERNEL_ZYXEL_EXT_MARK)", "y")
   TARGET_LDFLAGS += -lm -lnl
+else
+  TARGET_LDFLAGS += -lm -lnl-tiny
+endif
 endif
 
 define Build/RunMake

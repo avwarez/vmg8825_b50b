@@ -6,7 +6,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  #include "zcfg_msg.h"
  #include "zcfg_fe_dal_common.h"
  #include "zcfg_webgui_flag.h"
-+//#include "zlog_api.h"
++#include "zlog_api.h"
  
  #define TYPE_IEEE8021AG 0
  #define TYPE_LOOPBACK 1
@@ -15,13 +15,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  zcfgRet_t zcfgFeDal8021agCfg(struct json_object *Jobj){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): Enter..\n ",__FUNCTION__);
-+	//ZLOG_INFO(" Enter..\n ");
++	ZLOG_INFO(" Enter..\n ");
  	get8021agBasicInfo(Jobj);
  
  	IID_INIT(ieee8021agIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_IEEE8021AG, &ieee8021agIid, &ieee8021agobj)) != ZCFG_SUCCESS) {
 -		printf("%s():(ERROR) Get IEEE 802.1ag Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
++		ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -30,7 +30,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  
  		if((ret = zcfgFeObjJsonSet(RDM_OID_IEEE8021AG, &ieee8021agIid, ieee8021agobj, NULL)) != ZCFG_SUCCESS){
 -			printf("%s():(ERROR) Set IEEE 802.1ag fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set IEEE 802.1ag fail\n");
++			ZLOG_INFO("(ERROR) Set IEEE 802.1ag fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -39,13 +39,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  zcfgRet_t zcfgFeDalLoopBack(struct json_object *Jobj){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): Enter..\n ",__FUNCTION__);
-+	//ZLOG_INFO(" Enter..\n ");
++	ZLOG_INFO(" Enter..\n ");
  	getLoopBackBasicInfo(Jobj);
  
  	IID_INIT(ieee8021agIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_IEEE8021AG, &ieee8021agIid, &ieee8021agobj)) != ZCFG_SUCCESS) {
 -		printf("%s():(ERROR) Get IEEE 802.1ag Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
++		ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -54,7 +54,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  
  		if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_IEEE8021AG, &ieee8021agIid, ieee8021agobj, NULL)) != ZCFG_SUCCESS){
 -			printf("%s():(ERROR) Set IEEE 802.1ag fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set IEEE 802.1ag fail\n");
++			ZLOG_INFO("(ERROR) Set IEEE 802.1ag fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -63,13 +63,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  zcfgRet_t zcfgFeDalLinktrace(struct json_object *Jobj){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): Enter..\n ",__FUNCTION__);
-+	//ZLOG_INFO(" Enter..\n ");
++	ZLOG_INFO(" Enter..\n ");
  	getLinkTraceBasicInfo(Jobj);
  
  	IID_INIT(ieee8021agIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_IEEE8021AG, &ieee8021agIid, &ieee8021agobj)) != ZCFG_SUCCESS) {
 -		printf("%s():(ERROR) Get IEEE 802.1ag Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
++		ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -78,7 +78,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  
  		if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_IEEE8021AG, &ieee8021agIid, ieee8021agobj, NULL)) != ZCFG_SUCCESS){
 -			printf("%s():(ERROR) Set IEEE 802.1ag fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set IEEE 802.1ag fail\n");
++			ZLOG_INFO("(ERROR) Set IEEE 802.1ag fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -87,26 +87,26 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
  zcfgRet_t zcfgFeDal8021agEdit(struct json_object *Jobj, char *replyMsg){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): input --- %s \n ",__FUNCTION__,json_object_to_json_string(Jobj));
-+	//ZLOG_INFO(" input --- %s \n ",json_object_to_json_string(Jobj));
++	ZLOG_INFO(" input --- %s \n ",json_object_to_json_string(Jobj));
  	init8021agGlobalObjects();
  	getCfgTypeInfo(Jobj);
  
  	if(type == TYPE_IEEE8021AG){
  		if((ret = zcfgFeDal8021agCfg(Jobj)) != ZCFG_SUCCESS){
 -			printf("%s: config 8021ag fail\n", __FUNCTION__);
-+			//ZLOG_INFO(" config 8021ag fail\n");
++			ZLOG_INFO(" config 8021ag fail\n");
  			goto exit;
  		}
  	}else if(type == TYPE_LOOPBACK){
  		if((ret = zcfgFeDalLoopBack(Jobj)) != ZCFG_SUCCESS){
 -			printf("%s():(ERROR) config LoopBack fail\n", __FUNCTION__);
-+			//ZLOG_INFO("%(ERROR) config LoopBack fail\n");
++			ZLOG_INFO("%(ERROR) config LoopBack fail\n");
  			goto exit;
  		}
  	}else if(type == TYPE_LINKTRACE){
  		if((ret = zcfgFeDalLinktrace(Jobj)) != ZCFG_SUCCESS){
 -			printf("%s():(ERROR) config Linktrace fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) config Linktrace fail\n");
++			ZLOG_INFO("(ERROR) config Linktrace fail\n");
  			goto exit;
  		}
  	}
@@ -147,7 +147,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
 +
 +	IID_INIT(ieee8021agIid);
 +	if((ret = zcfgFeObjJsonGet(RDM_OID_IEEE8021AG, &ieee8021agIid, &ieee8021agobj)) != ZCFG_SUCCESS) {
-+		//ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
++		ZLOG_INFO("(ERROR) Get IEEE 802.1ag Obj fail\n");
 +		return ZCFG_INTERNAL_ERROR;
 +	}
 +	json_object_object_add(ieee8021agobj, "interfaceList",JSON_OBJ_COPY(interfaceList));;

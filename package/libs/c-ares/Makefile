@@ -27,6 +27,9 @@ include $(INCLUDE_DIR)/package.mk
 TARGET_CPPFLAGS += $(filter -D%,$(TARGET_CFLAGS))
 TARGET_CFLAGS := $(filter-out -D%,$(TARGET_CFLAGS))
 
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+PATCH_DIR:=patches-$(PKG_VERSION)
+
 define Package/libcares
   SECTION:=libs
   CATEGORY:=Libraries
@@ -46,11 +49,31 @@ endef
 define Package/libcares/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so.* $(1)/usr/lib/
+
+	$(INSTALL_DIR) $(STAGING_DIR)/usr/lib/voice
+	$(CP)  $(PKG_INSTALL_DIR)/usr/lib/libcares.a  $(STAGING_DIR)/usr/lib/voice/
+
+#NOTE: The following actions are to make this 'c-ares' library Backward-Compatible for the VoIP application(s) originally utilizing the 'ares' library (e.g. ZyIMS VoIP).
+	$(RM)  $(STAGING_DIR)/usr/lib/voice/libares.a
+	$(LN)  $(STAGING_DIR)/usr/lib/voice/libcares.a  $(STAGING_DIR)/usr/lib/voice/libares.a
 endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)
 	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
+
+	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/voice/c-ares
+	$(CP) $(PKG_BUILD_DIR)/ares.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+	$(CP) $(PKG_BUILD_DIR)/ares_dns.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+	$(CP) $(PKG_BUILD_DIR)/ares_version.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+	$(CP) $(PKG_BUILD_DIR)/ares_private.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+	$(CP) $(PKG_BUILD_DIR)/ares_build.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+	$(CP) $(PKG_BUILD_DIR)/ares_llist.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+	$(CP) $(PKG_BUILD_DIR)/ares_rules.h  $(STAGING_DIR)/usr/include/voice/c-ares/
+
+#NOTE: The following actions are to make this 'c-ares' library Backward-Compatible for the VoIP application(s) originally utilizing the 'ares' library (e.g. ZyIMS VoIP).
+	$(RM) -r $(STAGING_DIR)/usr/include/voice/ares
+	$(LN) $(STAGING_DIR)/usr/include/voice/c-ares  $(STAGING_DIR)/usr/include/voice/ares
 endef
 
 $(eval $(call BuildPackage,libcares))

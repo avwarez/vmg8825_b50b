@@ -6,7 +6,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
  #include "zcfg_msg.h"
  #include "zcfg_fe_dal_common.h"
  #include "zcfg_webgui_flag.h"
-+//#include "zlog_api.h"
++#include "zlog_api.h"
  
  dal_param_t IEEE_8023AH_param[]={
  	{"Enabled",								dalType_boolean,0,	0,	NULL},
@@ -23,7 +23,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
  	IID_INIT(ieee8023ahIid);
  	if((ret = zcfgFeObjJsonGet(RDM_OID_IEEE8023AH, &ieee8023ahIid, &ieee8023ahobj)) != ZCFG_SUCCESS) {
 -		printf("%s():(ERROR) Get IEEE 802.3ah Obj fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) Get IEEE 802.3ah Obj fail\n");
++		ZLOG_INFO("(ERROR) Get IEEE 802.3ah Obj fail\n");
  		return ZCFG_INTERNAL_ERROR;
  	}
  
@@ -32,7 +32,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
  
  		if((ret = zcfgFeObjJsonSet(RDM_OID_IEEE8023AH, &ieee8023ahIid, ieee8023ahobj, NULL)) != ZCFG_SUCCESS){
 -			printf("%s():(ERROR) Set IEEE 802.3ah fail\n", __FUNCTION__);
-+			//ZLOG_INFO("(ERROR) Set IEEE 802.3ah fail\n");
++			ZLOG_INFO("(ERROR) Set IEEE 802.3ah fail\n");
  			return ZCFG_INTERNAL_ERROR;
  		}
  	}
@@ -41,13 +41,13 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
  zcfgRet_t zcfgFeDal8023ahEdit(struct json_object *Jobj, char *replyMsg){
  	zcfgRet_t ret = ZCFG_SUCCESS;
 -	printf("%s(): input --- %s \n ",__FUNCTION__,json_object_to_json_string(Jobj));
-+	//ZLOG_INFO(" input --- %s \n ",json_object_to_json_string(Jobj));
++	ZLOG_INFO(" input --- %s \n ",json_object_to_json_string(Jobj));
  	init8023ahGlobalObjects();
  	get8023ahBasicInfo(Jobj);
  
  	if((ret = zcfgFeDal8023ahCfg(Jobj)) != ZCFG_SUCCESS){
 -		printf("%s():(ERROR) config 8023ah fail\n", __FUNCTION__);
-+		//ZLOG_INFO("(ERROR) config 8023ah fail\n");
++		ZLOG_INFO("(ERROR) config 8023ah fail\n");
  			goto exit;
  	}
  
@@ -88,7 +88,7 @@ Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
 +
 +	IID_INIT(ieee8023ahIid);
 +	if((ret = zcfgFeObjJsonGet(RDM_OID_IEEE8023AH, &ieee8023ahIid, &ieee8023ahobj)) != ZCFG_SUCCESS) {
-+		//ZLOG_INFO("(ERROR) Get IEEE 802.3ah Obj fail\n");
++		ZLOG_INFO("(ERROR) Get IEEE 802.3ah Obj fail\n");
 +		return ZCFG_INTERNAL_ERROR;
 +	}
 +	json_object_object_add(ieee8023ahobj, "interfaceList",JSON_OBJ_COPY(interfaceList));;

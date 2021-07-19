@@ -4,7 +4,13 @@ PKG_NAME:=ares
 PKG_RELEASE:=1
 PKG_VERSION:=1.1.1
 
+# The ares tarball on zyxel server is not the original file and it was patched zylist.
+# Now we remove zylist from ares tarball and put the formal released tarball ares-1.1.1-raw.tar.gz on server.
+ifeq ("$(PKG_VERSION)","1.1.1")
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-raw.tar.gz
+else
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+endif
 PKG_SOURCE_URL:=@ZyXEL_SITE/opensource/libs
 DL_DIR:=$(TOPDIR)/dl
 
@@ -34,7 +40,6 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/voice/ares
 	$(CP) $(PKG_BUILD_DIR)/ares.h  $(STAGING_DIR)/usr/include/voice/ares/
 	$(CP) $(PKG_BUILD_DIR)/ares_dns.h  $(STAGING_DIR)/usr/include/voice/ares/
-	$(CP) $(PKG_BUILD_DIR)/zylist.h  $(STAGING_DIR)/usr/include/voice/ares/
 	$(CP) $(PKG_BUILD_DIR)/ares_private.h  $(STAGING_DIR)/usr/include/voice/ares/
 endef
 

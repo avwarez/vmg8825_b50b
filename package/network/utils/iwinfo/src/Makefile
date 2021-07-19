@@ -26,8 +26,13 @@ endif
 
 ifneq ($(filter nl80211,$(IWINFO_BACKENDS)),)
 	IWINFO_CFLAGS      += -DUSE_NL80211
+ifeq ($(CONFIG_PACKAGE_libnl),y)
 	IWINFO_CLI_LDFLAGS += -lnl
 	IWINFO_LIB_LDFLAGS += -lnl
+else
+	IWINFO_CLI_LDFLAGS += -lnl-tiny
+	IWINFO_LIB_LDFLAGS += -lnl-tiny
+endif
 	IWINFO_LIB_OBJ     += iwinfo_nl80211.o
 endif
 

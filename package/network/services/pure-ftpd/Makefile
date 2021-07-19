@@ -24,11 +24,15 @@ define Package/pure-ftpd
   SECTION:=net
   CATEGORY:=Base system
   TITLE:=A secure and standard-conformant FTP server.
-  DEPENDS:=+libzcfg_msg +libzcmd_tool +libjson +libzcfg_fe_rdm_access +libzcfg_fe_rdm_struct +libzyutil
+  DEPENDS:=+libzcfg_msg +libzcmd_tool +libjson +libzcfg_fe_rdm_access +libzcfg_fe_rdm_struct +libzyutil +libcrypto +libopenssl
 endef
 
 ifeq ($(CONFIG_ZYXEL_REMOTE_ACCESS_PRIVILEGE),y)
 	CFLAGS += -DZYXEL_REMOTE_ACCESS_PRIVILEGE
+endif
+
+ifeq ($(CONFIG_ZYXEL_REMOTE_ACCOUNT_ACCESS_PRIVILEGE),y)
+	CFLAGS += -DZYXEL_REMOTE_ACCOUNT_ACCESS_PRIVILEGE
 endif
 
 ifeq ($(CONFIG_ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT),y)
@@ -47,10 +51,15 @@ ifeq ($(CONFIG_CBT_CUSTOMIZATION),y)
 FTP_CFLAGS += -DCBT_CUSTOMIZATION
 endif
 
+ifeq ($(CONFIG_ABOG_CUSTOMIZATION),y)
+FTP_CFLAGS += -DABOG_CUSTOMIZATION
+endif
+
 define Build/Configure
 	$(call Build/Configure/Default, \
 		--with-throttling \
 		--with-virtualchroot \
+		LDFLAGS="$(TARGET_LDFLAGS) -lcrypto -lzos -lzlog -lzcfg_msg" \
 		CFLAGS="$(CFLAGS) $(FTP_CFLAGS)" \
 	)
 endef

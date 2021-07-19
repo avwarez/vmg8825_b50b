@@ -4,3 +4,7 @@ config dnsmasq_releaseno
 	prompt "specify dnsmasq release no" if PACKAGE_dnsmasq
 	default "2.67"
 
+config dnsmasq_dnssec
+	bool
+	prompt "enable/disable dnsmasq dnssec" if PACKAGE_dnsmasq
+	default 0

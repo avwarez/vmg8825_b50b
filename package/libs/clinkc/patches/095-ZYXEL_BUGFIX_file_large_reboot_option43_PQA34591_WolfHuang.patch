@@ -27,7 +27,7 @@ Index: clinkc/src/cybergarage/http/chttp_packet.c
 +	if(ZCFG_SUCCESS == zyUtilMtdDevGetByName(IMAGE_PARTITION_NAME, mtdDev))
 +#endif
 +	{
-+		if((compareSize = zyUtilMtdDevGetSize(mtdDev)) != ZCFG_INTERNAL_ERROR){
++		if((compareSize = zyUtilMtdDevGetSize(mtdDev)) != 0/*ZCFG_INTERNAL_ERROR*/){
 +			if( compareSize < bufLen ){
 +				return TRUE;
 +			}else{

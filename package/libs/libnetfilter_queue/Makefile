@@ -41,6 +41,9 @@ define Package/libnetfilter_queue/description
 endef
 
 TARGET_CFLAGS += $(FPIC) -D_GNU_SOURCE=1
+ifeq ($(CONFIG_KERNEL_ZYXEL_EXT_MARK),y)
+  TARGET_CFLAGS += -DZYXEL_EXT_MARK -DCONFIG_SBG_SKB_MARK -DCONFIG_ZYXEL_EXT_MARK -DSBG_SKB_MARK
+endif
 
 CONFIGURE_ARGS += \
 	--enable-static \

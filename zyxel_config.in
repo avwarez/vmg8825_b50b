@@ -7,6 +7,10 @@ menu "ZyXEL Project Configuration"
         string "ZyXEL firmware Id"
         default ""
 
+   config ZYXEL_FIRMWARE_VERSION_EXT
+        string "ZyXEL firmware ext version"
+        default "AGXKK_0.0.0"
+
    config ZYXEL_GUI_PATCH_DIR
         string "ZyXEL GUI patch directory"
         default ""
@@ -138,6 +142,10 @@ menu "ZyXEL Project Configuration"
         bool "Voice Support"
         default n
         depends on MRD_FEATURE_BITS
+    config MRD_SUPPORT_VOICE_SINGLE
+        bool "Voice Only Support One Port"
+        default n
+        depends on MRD_SUPPORT_VOICE
 
     config MRD_SUPPORT_2_4_G
         bool "2.4G Support"
@@ -183,6 +191,11 @@ menu "ZyXEL Project Configuration"
         default MRD_SUPPORT_ANNEX_A
         depends on MRD_FEATURE_BITS
 
+        config MRD_SUPPORT_WITHOUT_XDSL
+            bool "Without xDSL"
+            help
+                ADSL Annex A
+
         config MRD_SUPPORT_ANNEX_A
             bool "Annex A"
             help
@@ -197,11 +210,35 @@ menu "ZyXEL Project Configuration"
                 ADSL Annex C
     endchoice
 
+    config MRD_SUPPORT_ZIGBEE
+        bool "Zigbee Support"
+        default n
+        depends on MRD_FEATURE_BITS
+
     endmenu
 
 	config ZYXEL_SUPPORT_MISC
 		bool "Support misc partition"
 		default n
+
+	config ZYXEL_CUSTOMISED_MISC_NAME
+		string "Name of customised misc partition"
+		depends on ZYXEL_SUPPORT_MISC
+		default "misc1" if (TARGET_brcm963xx=y && ZYXEL_SUPPORT_MISC=y)
+		default "misc" if (TARGET_en75xx=y && ZYXEL_SUPPORT_MISC=y)
+		help
+                For Broadcom projects, some of WiFi chips (ex.43684 series) default use misc1 as an embeded nvram,
+                so the name of Zyxel customised misc partiton need to use "misc2".
+                For Econet projects, all use the name "misc".
+
+	config ZYXEL_BROADCOM_LICENSE_NAME
+        string "Name of replace license file name"
+	default "license_zyxel_20090201.txt"
+        depends on PACKAGE_brcm-license
+        help
+        The filename should follow the naming rule, license_zyxel_yymmddss.txt
+        file is located at https://svn.zyxel.com/svn/TPDC/pkg_tarball/private/Broadcom/brcm-licence
+        yymmdd means this files is got in 20yy/mm/dd and ss mean the order if there are two files got in the same day.
 
    endmenu
 
@@ -301,6 +338,7 @@ menu "ZyXEL Project Configuration"
         prompt "Zigbee module"
         select PACKAGE_Z3GatewayHost
         select PACKAGE_ZigbeeNcpUpdate
+        select PACKAGE_picocom
         default n
         help
                 Support Zigbee module.
@@ -320,12 +358,25 @@ menu "ZyXEL Project Configuration"
 		help
 			Reset QTN software.
 
+	config ZYXEL_SW_RESET_WIFI_MODULE
+		bool "Software reset WiFi modules"
+		default n
+		help
+			Software reset WiFi modules.
+
 	config ZYXEL_WPS_SPOTLIGHT
 		bool
 		prompt "WPS spotlight"
 		default n
 		help
 			Display WPS spotlight.
+
+	config ZYXEL_WPS_SPOTLIGHT_BLINK
+		bool
+		prompt "WPS blink spotlight"
+		default n
+		help
+			Display WPS spotlight blink.
 			
 	config ZYXEL_WPS_SPOTLIGHT_2GPIO
 		bool
@@ -335,30 +386,68 @@ menu "ZyXEL Project Configuration"
 		help
 			Display WPS spotlight. (use Red LED and Green LED to generate orange LED)
 
+	config ZYXEL_WPS_IPTVPARING_2GPIO
+		bool
+		prompt "WPS IptvParing LED controled by 2 GPIO"
+		default n
+		help
+			Display WPS IptvParing.
+
+	config ZYXEL_QUALITY_AMBER_2GPIO
+		bool
+		prompt "QUALITY AMBER"
+		default n
+		help
+			Display QUALITY AMBER. (use Red LED and Green LED to generate orange LED)
+
+	config ZYXEL_LED_EN_SUPPORT
+		bool
+		prompt "LED EN"
+		default n
+		help
+			support LED EN.
+
 	config ZYXEL_SFP_MODULE_SUPPORT
 		bool
-		prompt "SFP components"
+		prompt "SFP/xPON components"
 		default n
 		help
 			Support SFP module.
 
 	config ZYXEL_SFP_DETECT_PIN
 		bool "SFP detect pin"
+		default n
 		depends on ZYXEL_SFP_MODULE_SUPPORT
 		help
 			Get SFP detect pin value.
 
 	config ZYXEL_SFP_TX_FAULT_PIN
 		bool "SFP tx fault pin"
+		default n
 		depends on ZYXEL_SFP_MODULE_SUPPORT
 		help
 			Get SFP tx fault pin value.
 
 	config ZYXEL_SFP_TX_DISABLE
 		bool "SFP tx disable pin"
+		default n
 		depends on ZYXEL_SFP_MODULE_SUPPORT
 		help
 			Get SFP tx disable pin value.
+
+	config ZYXEL_SFP_RX_SLEEP
+		bool "rx sleep mod pin for BOSA"
+		default n
+		depends on ZYXEL_SFP_MODULE_SUPPORT
+		help
+			Get rx sleep mod pin value.
+
+        config ZYXEL_SFP_SW_RX_LOS
+                bool "get sfp rx los (sw)"
+                default n
+                depends on ZYXEL_SFP_MODULE_SUPPORT
+                help
+                        Get SFP rx los (sw).
 
 	config ZYXEL_FEM_DETECT
 		bool
@@ -367,11 +456,45 @@ menu "ZyXEL Project Configuration"
 		help
 			Detect FEM component.
 
+	config ZYXEL_BOARD_DETECT_BY_GPIO
+		bool
+		prompt "Detect board type by GPIO"
+		default n
+		help
+			Detect board type by GPIO.
+
+	config ZYXEL_SUPPORT_BOTH_256_512_FLASH
+		bool
+		prompt "Support both 256MB & 512MB flash"
+		default n
+		help
+			Support both 256MB & 512MB flash.
+			For now, only apply on VMG8825-B50B WIND & Generic.
    endmenu
 
+   config ZYXEL_UPS_FEATURE
+		bool "Display the status of UPS battery by LED."
+		default n
+		
    config ZYXEL_NEW_ATEN_ATSE
 		bool "New ATEN/ATSE algorithm"
 		default n
+
+   config ZYXEL_AT_SET_KEY
+		bool "AT SET KEY"
+		default n
+		help
+			store admin password and WiFi PSK key in MRD information.
+			if these item is not empty, zcfg_be will use them.
+			if these item is empty, zcfg_be will auto-generate them(not store in MRD).
+
+   config ZYXEL_AT_SET_SUPERVISOR_KEY
+		bool "AT SET SUPERVISOR KEY"
+		default n
+		depends on ZYXEL_AT_SET_KEY
+		help
+			store supervisor password and WiFi PSK key in MRD information.
+			Generially, Zyxel will not enable this flag.
 
    menu "Customization design for new id"
 	config ZYXEL_DISABLE_TXRX_FOR_WAN_ACT
@@ -400,6 +523,78 @@ menu "ZyXEL Project Configuration"
 		default n
 		help
 			Build samba-3.6.25 to support samba SMBv2 protocol.
+
+	config ZYXEL_URL_FILTER
+		bool "Support URL white/black list"
+		default n
+		help
+			Support Zyxel URL white/black list.
+
+	config ZYXEL_HOME_CYBER_SECURITY
+		bool "Support Home Cyber Security"
+		default n
+		help
+			Support Zyxel Home Cyber Security.
+
+	config ZYXEL_ZIPQ_USE_LIBMNL
+		bool "zipq using the libmnl instead of libnetfilter_queue"
+		default n if !ZYXEL_HOME_CYBER_SECURITY
+		default y if ZYXEL_HOME_CYBER_SECURITY
+		depends on KERNEL_ZYXEL_EXT_MARK 
+		help
+			zipq using the libmnl instead of libnetfilter_queue.
+
+	config ZYXEL_ZIPQ_USE_ZEXTMARK
+		bool "zipq using the zextension mark intead of mark"
+		default n if !ZYXEL_HOME_CYBER_SECURITY
+		default y if ZYXEL_HOME_CYBER_SECURITY
+		depends on KERNEL_ZYXEL_EXT_MARK 
+		help
+			zipq using the zextension mark intead of mark.
+
+    config ZYXEL_MODSW_ZYEE
+        bool "Enable Zyxel Execution Environment (ZYEE)"
+        select ZYXEL_SUPPORT_MISC 
+        select PACKAGE_lxc
+        select PACKAGE_zyee
+        default n
+        help
+            Support Zyxel Execution Environment.
+
+	config ZCFG_MODULE_DEBUG
+		bool "zcfg module debug"
+		default n
+
+	config ZYXEL_WIFI_DELAY_INIT
+		bool "Delay WIFI init event from zcfg_be wifi module to esmd"
+		default n
+	
+	config ZYXEL_ZYWIFID_FORCE_AFFINITY
+		bool "Force zywifid affinity"
+		default n
+        help
+            This feature can force zywifid running on specific cpu.
+
+	config ZYXEL_ZYWIFID_AFFINITY
+		int "zywifid affinity value"
+		depends on ZYXEL_ZYWIFID_FORCE_AFFINITY 
+		default 1
+        help
+            Set the zywifid to specific cpu value.
+
+	config ZYXEL_DELAY_CHK_DO_POWER_SAVE
+		int "Delay chk_do_power_save.sh execution"
+		default 0
+        help
+            Delay chk_do_power_save.sh execution.
+			
+    config ZYXEL_TR69_XMPP_CONNECTION_REQUEST
+        bool "Enable XMPP connection request"
+        select PACKAGE_libstrophe
+        select PACKAGE_zxmppc
+        default n
+        help
+            Support XMPP connection request.
 
 endmenu
 

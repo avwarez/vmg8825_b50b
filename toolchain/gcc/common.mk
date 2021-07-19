@@ -1,7 +1,7 @@
 #
 # Copyright (C) 2002-2003 Erik Andersen <andersen@uclibc.org>
 # Copyright (C) 2004 Manuel Novoa III <mjn3@uclibc.org>
-# Copyright (C) 2005-2006 Felix Fietkau <nbd@openwrt.org>
+# Copyright (C) 2005-2006 Felix Fietkau <nbd@nbd.name>
 # Copyright (C) 2006-2013 OpenWrt.org
 #
 # This program is free software; you can redistribute it and/or modify
@@ -38,8 +38,15 @@ ifeq ($(findstring linaro, $(CONFIG_GCC_VERSION)),linaro)
       PKG_VERSION_MAJOR:=4.7
       PKG_MD5SUM:=72e37ed0601f72e4d7e842d7e5373148
     endif
+    ifeq ($(CONFIG_GCC_VERSION),"4.8-linaro")
+      PKG_REV:=4.8-2014.04
+      PKG_VERSION:=4.8.3
+      PKG_VERSION_MAJOR:=4.8
+      PKG_MD5SUM:=5ba2f3a449b1658ccc09d27cc7ab3c03
+      PKG_COMP:=xz
+    endif
     #PKG_SOURCE_URL:=http://launchpad.net/gcc-linaro/$(PKG_VERSION_MAJOR)/$(PKG_REV)/+download/
-    PKG_SOURCE:=$(PKG_NAME)-linaro-$(PKG_REV).tar.bz2
+    PKG_SOURCE:=$(PKG_NAME)-linaro-$(PKG_REV).tar.$(PKG_COMP)
     GCC_DIR:=gcc-linaro-$(PKG_REV)
     HOST_BUILD_DIR:=$(BUILD_DIR_TOOLCHAIN)/$(GCC_DIR)
 else
@@ -60,6 +67,12 @@ else
   endif
   ifeq ($(PKG_VERSION),4.8.0)
     PKG_MD5SUM:=e6040024eb9e761c3bea348d1fa5abb0
+  endif
+  ifeq ($(PKG_VERSION),5.3.0)
+    PKG_MD5SUM:=c9616fd448f980259c31de613e575719
+  endif
+  ifeq ($(PKG_VERSION),5.5.0)
+    PKG_MD5SUM:=d87af596eb9954385f64e2130580a558
   endif
 endif
 
@@ -99,8 +112,22 @@ ifdef CONFIG_USE_UCLIBC
   export glibcxx_cv_c99_math_tr1=no
 endif
 
+ifdef CONFIG_GCC_USE_GRAPHITE
+  ifdef CONFIG_GCC_VERSION_4_8
+    GRAPHITE_CONFIGURE=--with-cloog=$(REAL_STAGING_DIR_HOST)
+  else
+    GRAPHITE_CONFIGURE=--with-isl=$(REAL_STAGING_DIR_HOST)
+  endif
+else
+  GRAPHITE_CONFIGURE=--without-isl --without-cloog
+endif
+
 GCC_CONFIGURE:= \
 	SHELL="$(BASH)" \
+	$(if $(shell gcc --version 2>&1 | grep LLVM), \
+		CFLAGS="-O2 -fbracket-depth=512 -pipe" \
+		CXXFLAGS="-O2 -fbracket-depth=512 -pipe" \
+	) \
 	$(HOST_SOURCE_DIR)/configure \
 		--with-bugurl=$(BUGURL) \
 		--with-pkgversion="$(PKGVERSION)" \
@@ -115,16 +142,55 @@ GCC_CONFIGURE:= \
 		$(SOFT_FLOAT_CONFIG_OPTION) \
 		$(call qstrip,$(CONFIG_EXTRA_GCC_CONFIG_OPTIONS)) \
 		$(if $(CONFIG_mips64)$(CONFIG_mips64el),--with-arch=mips64 \
-			--with-abi=$(subst ",,$(CONFIG_MIPS64_ABI))) \
+			--with-abi=$(call qstrip,$(CONFIG_MIPS64_ABI))) \
 		--with-gmp=$(TOPDIR)/staging_dir/host \
 		--with-mpfr=$(TOPDIR)/staging_dir/host \
+		--with-mpc=$(TOPDIR)/staging_dir/host \
 		--disable-decimal-float
 
-ifeq ("_$(CONFIG_arm)_$(CONFIG_TARGET_brcm963xx)_$(CONFIG_UCLIBC_VERSION_0_9_32)_","_y_y_y_")
+ifeq ("_$(CONFIG_arm)_$(CONFIG_TARGET_brcm963xx)_","_y_y_")
   GCC_CONFIGURE += \
 		--with-abi=aapcs-linux \
 		--with-tune=cortex-a9 \
 		--enable-tls
+ifneq ($(CONFIG_GCC_VERSION_5_3_0)$(CONFIG_GCC_VERSION_5_5_0),)
+ifeq ($(GCC_VARIANT),final)
+  GCC_CONFIGURE += \
+		--enable-static
+endif
+  GCC_CONFIGURE += \
+		--with-mode=arm \
+		--disable-libmudflap \
+		--disable-libquadmath \
+		--disable-nls
+ifneq ($(CONFIG_GCC_VERSION_5_5_0),)
+  GCC_CONFIGURE += \
+		--with-float=soft \
+		--disable-option-checking
+endif
+endif
+else
+ifeq ("_$(CONFIG_aarch64)_$(CONFIG_TARGET_brcm963xx)_","_y_y_")
+  GCC_CONFIGURE += \
+		--with-abi=lp64 \
+		--with-cpu=cortex-a53 \
+		--enable-tls
+ifneq ($(CONFIG_GCC_VERSION_5_3_0)$(CONFIG_GCC_VERSION_5_5_0),)
+ifeq ($(GCC_VARIANT),final)
+  GCC_CONFIGURE += \
+		--enable-static
+endif
+ifneq ($(GCC_VARIANT),final)
+  GCC_CONFIGURE += \
+		--disable-nls
+endif
+  GCC_CONFIGURE += \
+		--disable-libmudflap \
+		--disable-libquadmath
+ifneq ($(CONFIG_GCC_VERSION_5_5_0),)
+  GCC_CONFIGURE += --disable-option-checking
+endif
+endif
 else
 ifeq ("_$(CONFIG_mips)_$(CONFIG_TARGET_en75xx)_$(CONFIG_UCLIBC_VERSION_0_9_33)_","_y_y_y_")
   GCC_CONFIGURE += \
@@ -132,11 +198,26 @@ ifeq ("_$(CONFIG_mips)_$(CONFIG_TARGET_en75xx)_$(CONFIG_UCLIBC_VERSION_0_9_33)_"
 		--with-tune=mips32r2 \
 		--disable-nls \
 		--enable-tls
+ifeq ("$(CONFIG_TC_SDK_7_3_245_300)","y")
+  GCC_CONFIGURE += --disable-libmudflap
+endif
+else
+ifeq ("_$(CONFIG_mipsel)_$(CONFIG_TARGET_en75xx)_$(CONFIG_UCLIBC_VERSION_0_9_33)_","_y_y_y_")
+  GCC_CONFIGURE += \
+		--with-abi=32 \
+		--with-tune=mips32r2 \
+		--disable-nls \
+		--enable-tls
+ifeq ("$(CONFIG_TC_SDK_7_3_257_150)","y")
+  GCC_CONFIGURE += --disable-libmudflap
+endif
 else
   GCC_CONFIGURE += \
 		--disable-libmudflap \
 		--disable-nls \
 		--with-host-libstdcxx=-lstdc++
+endif
+endif
 endif
 endif
 
@@ -147,9 +228,9 @@ ifneq ($(CONFIG_mips)$(CONFIG_mipsel),)
 endif
 
   GCC_CONFIGURE += --disable-multilib
-ifeq ($(CONFIG_GCC_VERSION_4_4),)
-  GCC_CONFIGURE+= \
-		--with-mpc=$(TOPDIR)/staging_dir/host
+
+ifndef GCC_VERSION_4_8
+  GCC_CONFIGURE += --with-diagnostics-color=auto-if-env
 endif
 
 ifneq ($(CONFIG_SSP_SUPPORT),)
@@ -181,12 +262,30 @@ ifeq ($(LIBC),uClibc)
   GCC_CONFIGURE+= \
 		--disable-__cxa_atexit
 else
+ifneq ("_$(CONFIG_aarch64)_$(CONFIG_TARGET_brcm963xx)_$(CONFIG_GCC_VERSION_5_5_0)_","_y_y_y_")
   GCC_CONFIGURE+= \
 		--enable-__cxa_atexit
 endif
+endif
+
+
 
 ifneq ($(GCC_ARCH),)
+ifeq ($(GCC_VARIANT),final)
+ifneq ("_$(call qstrip,$(CONFIG_arm)$(CONFIG_aarch64))_$(CONFIG_TARGET_brcm963xx)_","_y_y_")
+ifneq ($(CONFIG_GCC_VERSION_5_3_0)$(CONFIG_GCC_VERSION_5_5_0),y)
   GCC_CONFIGURE+= --with-arch=$(GCC_ARCH)
+endif
+endif
+endif
+endif
+
+
+ifneq ($(CONFIG_SOFT_FLOAT),y)
+  ifeq ($(CONFIG_arm),y)
+    GCC_CONFIGURE+= \
+		--with-float=hard
+  endif
 endif
 
 GCC_MAKE:= \

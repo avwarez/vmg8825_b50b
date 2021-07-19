@@ -34,6 +34,10 @@ endef
 TARGET_CFLAGS += $(FPIC)
 TARGET_LDFLAGS += -lncurses
 
+ifeq ($(CONFIG_ZYXEL_CLI_IDLE_TIMEOUT),y)
+TARGET_CFLAGS += -DZYXEL_CLI_IDLE_TIMEOUT
+endif
+
 CONFIGURE_ARGS = \
 	--host=mips-linux \
 	ac_cv_lib_ncurses_tgetent=yes \
@@ -53,8 +57,10 @@ define Build/Install/Default
 endef
 
 define Package/libedit/install
-	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/local/lib/libedit.so* $(1)/usr/lib/
+	$(INSTALL_DIR) $(1)/lib
+	$(CP) $(PKG_INSTALL_DIR)/usr/local/lib/libedit.so* $(1)/lib/
+#	$(INSTALL_DIR) $(1)/usr/lib
+#	$(CP) $(PKG_INSTALL_DIR)/usr/local/lib/libedit.so* $(1)/usr/lib/
 #	$(CP) $(PKG_INSTALL_DIR)/usr/local/lib/libedit.{a,so*} $(1)/usr/lib/
 endef
 

@@ -10,10 +10,14 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=dnsmasq
 ifeq ($(CONFIG_dnsmasq_releaseno),"2.78")
 PKG_VERSION:=2.78
-COPTS:=HAVE_DBUS
+#COPTS:=HAVE_DBUS
 else
 PKG_VERSION:=2.67
 endif
+
+COPTS:=
+PKG_BUILD_DEPENDS:=PACKAGE_zcfg:esmd
+
 
 PKG_RELEASE:=3
 
@@ -30,31 +34,39 @@ PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(BUILD_VARIANT)/$(PKG_NAME)-$(PKG_VERSI
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
-PKG_BUILD_DEPENDS:=PACKAGE_zcfg:esmd
 
 PATCH_DIR=patches_$(PKG_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
+
+ifeq ($(CONFIG_dnsmasq_dnssec),y)
+COPTS += -DHAVE_DNSSEC -DNO_GMP -DNO_NETTLE_ECC
+#PKG_BUILD_DEPENDS += PACKAGE_nettle:nettle
+endif
 
 define Package/dnsmasq/Default
   SECTION:=net
   CATEGORY:=Base system
   TITLE:=A lightweight DNS and DHCP server
   URL:=http://www.thekelleys.org.uk/dnsmasq/
+  DEPENDS:=+dnsmasq_dnssec:nettle
 endef
 
 define Package/dnsmasq
 $(call Package/dnsmasq/Default)
   VARIANT:=nodhcpv6
-  DEPENDS:=
   MENU:=1
 endef
 
 define Package/dnsmasq/config
 	select PACKAGE_libzcfg_msg if PACKAGE_zcfg
 	select PACKAGE_esmd if PACKAGE_zcfg
+	select PACKAGE_nettle if dnsmasq_dnssec
+	deselect PACKAGE_nettle if !dnsmasq_dnssec
+	deselect dnsmasq_dnssec if dnsmasq_releaseno=2.67
 	source "$(SOURCE)/Config.in"
 endef
+
 #Disable Dependencies Check
 define CheckDependencies
 endef
@@ -91,7 +103,10 @@ ifeq ($(BUILD_VARIANT),nodhcpv6)
   TARGET_CFLAGS += -DNO_DHCP6
 endif
 
+ifeq ($(CONFIG_PACKAGE_zcfg),y)
 TARGET_CFLAGS += -DZYXEL_PATCH
+TARGET_LDFLAGS+= -lzos -lzlog -lzcfg_msg
+endif
 
 ifeq ($(CONFIG_ZYXEL_DNS_TRAFFIC_ROUTE),y)
 TARGET_CFLAGS += -DDNS_TRAFFIC_ROUTE
@@ -102,9 +117,10 @@ TARGET_CFLAGS += -DZyXEL_DHCP_OPTION125
 endif
 
 MAKE_FLAGS := \
+	COPTS="$(COPTS)" \
 	$(TARGET_CONFIGURE_OPTS) \
-	CFLAGS="$(TARGET_CFLAGS) -g" \
-	LDFLAGS="-Wl,--gc-sections -lzcfg_msg" \
+	CFLAGS="$(TARGET_CFLAGS) -g -Werror" \
+	LDFLAGS="$(TARGET_LDFLAGS) -Wl,--gc-sections" \
 	PREFIX="/usr"
 
 define Package/dnsmasq/install
@@ -118,6 +134,7 @@ ifeq ($(strip $(CONFIG_ISKON_CUSTOMIZATION)),y)
 else
 	$(INSTALL_DATA) ./files/dnsmasq.conf.ZyXEL $(1)/etc/dnsmasq.conf
 endif
+	$(INSTALL_DATA) ./files/trust-anchors.conf $(1)/etc/trust-anchors.conf
 	$(INSTALL_DIR) $(1)/etc/init.d
 ifeq ($(strip $(CONFIG_ISKON_CUSTOMIZATION)),y)
 	$(INSTALL_BIN) ./files/dnsmasq.sh.ZyXEL.isKon $(1)/etc/init.d/dnsmasq.sh

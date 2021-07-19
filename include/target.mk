@@ -207,6 +207,18 @@ ifeq ($(DUMP),1)
   DEFAULT_CFLAGS_sparc=-Os -pipe -mcpu=ultrasparc -fno-caller-saves
   DEFAULT_CFLAGS_arm=-Os -pipe -march=armv5te -mtune=xscale -fno-caller-saves
   DEFAULT_CFLAGS_armeb=$(DEFAULT_CFLAGS_arm)
+  ifeq ($(ARCH),aarch64)
+    CPU_TYPE?=generic
+    ifeq ($(CPU_TYPE),cortex-a53)
+      DEFAULT_CFLAGS_aarch64=-Os -pipe -mcpu=cortex-a53
+    else ifeq ($(CPU_TYPE),brahma53)
+      DEFAULT_CFLAGS_aarch64=-Os -pipe -march=armv8-a -mtune=cortex-a53
+    else
+      DEFAULT_CFLAGS_aarch64=-Os -pipe -mcpu=generic
+    endif
+    DEFAULT_CFLAGS_aarch64_be=$(DEFAULT_CFLAGS_aarch64)
+  endif
+
   DEFAULT_CFLAGS=$(if $(DEFAULT_CFLAGS_$(ARCH)),$(DEFAULT_CFLAGS_$(ARCH)),-Os -pipe -fno-caller-saves)
 endif
 

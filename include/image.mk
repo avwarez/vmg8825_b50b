@@ -47,7 +47,7 @@ ifeq ($(CONFIG_TARGET_ROOTFS_JFFS2_IN_NAND),y)
   JFFS2OPTS += -n
 endif
 
-SQUASHFS_BLOCKSIZE := 256k
+SQUASHFS_BLOCKSIZE := $(CONFIG_TARGET_SQUASHFS_BLOCK_SIZE)k
 SQUASHFSOPT := -b $(SQUASHFS_BLOCKSIZE)
 SQUASHFSCOMP := gzip
 LZMA_XZ_OPTIONS := -Xpreset 9 -Xe -Xlc 0 -Xlp 2 -Xpb 2
@@ -62,6 +62,11 @@ ifeq ($(CONFIG_SQUASHFS_XZ),y)
 endif
 
 JFFS2_BLOCKSIZE ?= 64k 128k
+
+ifneq ($(CONFIG_TARGET_ROOTFS_UBIFS),)
+# ADD UBIFS_OPTS arguments
+  UBIFS_OPTS     :=  -x zlib -F -v
+endif
 
 define add_jffs2_mark
 	echo -ne '\xde\xad\xc0\xde' >> $(1)
@@ -202,8 +207,10 @@ define BuildImage
 		$(call Image/mkfs/targz)
 		$(call Image/mkfs/ext4)
 		$(call Image/mkfs/iso)
+		$(call Image/mkfs/jffs2/fcs_RD0_checksum)
 		$(call Image/mkfs/jffs2)
 		$(call Image/mkfs/squashfs)
+		$(call Image/mkfs/ubifs/fcs_RD0_checksum)
 		$(call Image/mkfs/ubifs)
 		$(call Image/Checksum)
   else
@@ -213,8 +220,10 @@ define BuildImage
 		$(call Image/mkfs/targz)
 		$(call Image/mkfs/ext4)
 		$(call Image/mkfs/iso)
+		$(call Image/mkfs/jffs2/fcs_RD0_checksum)
 		$(call Image/mkfs/jffs2)
 		$(call Image/mkfs/squashfs)
+		$(call Image/mkfs/ubifs/fcs_RD0_checksum)
 		$(call Image/mkfs/ubifs)
 		$(call Image/Checksum)
   endif
