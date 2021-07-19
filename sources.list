@@ -1,0 +1,8 @@
+deb http://old-releases.ubuntu.com/ubuntu/ precise main universe restricted multiverse
+deb-src http://old-releases.ubuntu.com/ubuntu/ precise main universe restricted multiverse
+
+deb http://old-releases.ubuntu.com/ubuntu/ precise-security main universe restricted multiverse
+deb-src http://old-releases.ubuntu.com/ubuntu/ precise-security main universe restricted multiverse
+
+deb http://old-releases.ubuntu.com/ubuntu/ precise-updates main universe restricted multiverse
+deb-src http://old-releases.ubuntu.com/ubuntu/ precise-updates main universe restricted multiverse
