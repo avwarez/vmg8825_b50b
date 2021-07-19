@@ -1,0 +1,331 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-12-12 15:46:17.396057155 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-12-12 15:46:17.504057153 +0800
+@@ -26,7 +26,7 @@
+ 	{"X_ZYXEL_IfName",		dalType_string,	0,	32,	NULL, NULL, dalcmd_Forbid}, //read only
+ 	{"Name",				dalType_string,	1,	32,	NULL, NULL, dal_Add|dal_Edit|dal_Delete},
+ 	{"Enable",				dalType_boolean,	0,	0,	NULL},
+-	{"Type",				dalType_string,	3,	4,	NULL, "ATM|PTM|ETH|GPON", dal_Add | dal_Edit_ignore},
++	{"Type",				dalType_string,	3,	4,	NULL, "ATM|PTM|ETH|GPON|SFP", dal_Add | dal_Edit_ignore},
+ 	{"Mode",				dalType_string,	9,	10,	NULL, "IP_Routed|IP_Bridged", dal_Add},
+ 	{"Encapsulation",		dalType_string,	4,	5,	NULL, "IPoE|IPoA|PPPoE|PPPoA"},
+ 	{"ipMode",				dalType_string,	4,	9,	NULL, "IPv4|DualStack|IPv6"},
+@@ -246,6 +246,8 @@
+ 			printf("%-2s %-20s %-10s \n", "", "Type", "ADSL/VDSL over PTM.");
+ 		else if(!strcmp("ETH",json_object_get_string(json_object_object_get(obj_idx, "Type"))))
+ 			printf("%-2s %-20s %-10s \n", "", "Type", "Ethnet.");
++		else if(!strcmp("SFP",json_object_get_string(json_object_object_get(obj_idx, "Type"))))
++			printf("%-2s %-20s %-10s \n", "", "Type", "SFP.");
+ 		if(!strcmp("IP_Routed",json_object_get_string(json_object_object_get(obj_idx, "Mode"))))
+ 			printf("%-2s %-20s %-10s \n", "", "Mode", "Routing");
+ 		else if(!strcmp("IP_Bridged",json_object_get_string(json_object_object_get(obj_idx, "Mode"))))
+@@ -591,6 +593,7 @@
+ 	}
+ 	else if(strcmp(Type, "ATM") && 
+ 			strcmp(Type, "PTM") && 
++			strcmp(Type, "SFP") &&
+ 			strcmp(Type, "ETH") && 
+ 			strcmp(Type, "GPON")){
+ 		return ZCFG_INVALID_PARAM_VALUE;
+@@ -913,6 +916,7 @@
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	objIndex_t iid;
+ 	int value;
++	int valueSFP = 0;
+ 	
+ 	if(!strcmp(Type, "ATM")){
+ 		ret = editAtmObjects(Jobj);
+@@ -922,11 +926,20 @@
+ 	}
+ 	else if(!strcmp(Type, "ETH")){
+ 		value = 1;
+-		if(getSpecificObj(RDM_OID_ETH_IFACE, "Upstream", json_type_boolean, &value, &iid, NULL))
++		if((getSpecificObj(RDM_OID_ETH_IFACE, "Upstream", json_type_boolean, &value, &iid, NULL)) )
+ 			sprintf(currLowerLayers, "Ethernet.Interface.%u", iid.idx[0]);
+ 		else
+ 			currLowerLayers[0] = '\0';
+ 	}
++	else if(!strcmp(Type, "SFP")){
++		value = 1;
++		valueSFP = 1;
++		if((getSpecificObj(RDM_OID_ETH_IFACE, "Upstream", json_type_boolean, &value, &iid, NULL)) && (getSpecificObj(RDM_OID_ETH_IFACE, "X_ZYXEL_SFP", json_type_boolean, &valueSFP, &iid, NULL)) )
++			sprintf(currLowerLayers, "Ethernet.Interface.%u", iid.idx[0]);
++		else
++			currLowerLayers[0] = '\0';
++		printf("[%s][%d] currLowerLayers=[%s]\n",__FUNCTION__,__LINE__,currLowerLayers);
++	}
+ 	else if(!strcmp(Type, "GPON")){
+ 		value = 1;
+ 		if(getSpecificObj(RDM_OID_OPT_INTF, "Upstream", json_type_boolean, &value, &iid, NULL))
+@@ -945,7 +958,7 @@
+ 
+ zcfgRet_t editEthLinkObject(struct json_object *Jobj){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-
++	char *oldLowerLayers;
+ 	if(!strcmp(Mode, "IP_Routed") && (!strcmp(Encapsulation, "IPoA") || !strcmp(Encapsulation, "PPPoA")))
+ 		return ret;
+ 
+@@ -956,15 +969,16 @@
+ 		if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ETH_LINK, &ethLinkIid, &ethLinkObj)) != ZCFG_SUCCESS)
+ 			return ret;
+ 	}
+-
++	oldLowerLayers = json_object_get_string(json_object_object_get(ethLinkObj, "LowerLayers"));
++	printf("[%s][%d]oldLowerLayers=[%s]  to [%s]\n",__FUNCTION__,__LINE__,oldLowerLayers,currLowerLayers);
+ 	json_object_object_add(ethLinkObj, "Enable", json_object_new_boolean(true));
+ 	json_object_object_add(ethLinkObj, "LowerLayers", json_object_new_string(currLowerLayers));
+ 	if(Type) {
+-		if(!strcmp(Type, "ETH")){
++		if(!strcmp(Type, "ETH") || !strcmp(Type, "SFP")){
+ 			json_object_object_add(ethLinkObj, "X_ZYXEL_OrigEthWAN", json_object_new_boolean(true));
+ 		}
+ #ifdef ZYXEL_WAN_MAC
+-		if(!strcmp(Type, "ETH") || !strcmp(Type, "ATM") || !strcmp(Type, "PTM")){
++		if(!strcmp(Type, "ETH") || !strcmp(Type, "ATM") || !strcmp(Type, "PTM")|| !strcmp(Type, "SFP")){
+ 			if(!strcmp(Mode, "IP_Routed"))
+ 			{
+ 				json_object_object_add(ethLinkObj, "X_ZYXEL_WanMacType", json_object_new_string(WanMacType));
+@@ -981,9 +995,8 @@
+ 		}
+ #endif
+ 	}
+-	
+ 	sprintf(currLowerLayers, "Ethernet.Link.%u", ethLinkIid.idx[0]);
+-	
++	printf("[%s][%d]currLowerLayers=[%s]\n",__FUNCTION__,__LINE__,currLowerLayers);
+ 	return ret;
+ }
+ 
+@@ -2182,7 +2195,7 @@
+ 	LowerLayer = json_object_get_string(json_object_object_get(ipObj, "LowerLayers"));		
+ 	HigherLayer = "IP.Interface.";
+ 	strcpy(CurrMode, json_object_get_string(json_object_object_get(ipObj, "X_ZYXEL_ConnectionType")));
+-	
++
+ 	while(count < 4)
+ 	{
+ 		count++;
+@@ -3085,7 +3098,10 @@
+ 				ethIfaceIid.level = 1;
+ 				sscanf(LowerLayer, "Ethernet.Interface.%hhu", &ethIfaceIid.idx[0]);
+ 				zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ETH_IFACE, &ethIfaceIid, &ethIfaceObj);
++				if(json_object_get_boolean(json_object_object_get(ethIfaceObj, "X_ZYXEL_SFP")) == false)
+ 				strcpy(CurrType, "ETH");
++				else
++					strcpy(CurrType, "SFP");
+ 				if(json_object_get_boolean(json_object_object_get(ethIfaceObj, "Upstream")) == false){
+ 					if(json_object_get_boolean(json_object_object_get(ethLinkObj, "X_ZYXEL_OrigEthWAN")) == false){
+ 						return ZCFG_REQUEST_REJECT;
+@@ -3868,7 +3884,6 @@
+ 		zcfgFeJsonObjFree(dynamicDnsClientSrv6Obj);
+ 		dynamicDnsClientSrv6Obj = NULL;
+ 	}
+-	
+ 	deleteUnnecessaryObj();
+ 	if((ret = editPhyLayerObjects(Jobj)) != ZCFG_SUCCESS)
+ 		goto dalwan_edit_fail;
+@@ -3933,16 +3948,16 @@
+ 	int count = 0;
+ 
+ 	sprintf(ipIfacePath, "IP.Interface.%u", ipIfaceIid.idx[0]);
+-	dbg_printf("%s: enter , ipIfacePath = %s\n",__FUNCTION__,ipIfacePath);
++	printf("%s: enter , ipIfacePath = %s\n",__FUNCTION__,ipIfacePath);
+ 
+ 	LowerLayer = json_object_get_string(json_object_object_get(ipIfaceObj, "LowerLayers"));
+ 	strcpy(CurrMode, json_object_get_string(json_object_object_get(ipIfaceObj, "X_ZYXEL_ConnectionType")));
+ 	
+ 		HigherLayer = ipIfacePath;
+ 		while(count < 4){
+-			dbg_printf("count=%d\n", count);
+-			dbg_printf("HigherLayer=%s\n", HigherLayer);
+-			dbg_printf("LowerLayer=%s\n", LowerLayer);
++			printf("count=%d\n", count);
++			printf("HigherLayer=%s\n", HigherLayer);
++			printf("LowerLayer=%s\n", LowerLayer);
+ 			
+ 			count++;
+ 			if(!strncmp(HigherLayer, "IP.Interface.", 13)){
+@@ -4031,7 +4046,10 @@
+ 					ethIfaceIid.level = 1;
+ 					sscanf(LowerLayer, "Ethernet.Interface.%hhu", &ethIfaceIid.idx[0]);
+ 					zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ETH_IFACE, &ethIfaceIid, &ethIfaceObj);
++					if(json_object_get_boolean(json_object_object_get(ethIfaceObj, "X_ZYXEL_SFP")) == false)
+ 					strcpy(CurrType, "ETH");
++					else
++						strcpy(CurrType, "SFP");
+ 					if(json_object_get_boolean(json_object_object_get(ethIfaceObj, "Upstream")) == false){
+ 						if(json_object_get_boolean(json_object_object_get(ethLinkObj, "X_ZYXEL_OrigEthWAN")) == false){
+ 							return ZCFG_REQUEST_REJECT;
+@@ -4632,7 +4650,7 @@
+ 		
+ 		pramJobj = json_object_new_object();
+ 		ret = parseIpIfaceObj(pramJobj, ipIfaceIid, ipIfObj);
+-		
++	
+ 		if( ret == ZCFG_SUCCESS )
+ 		{
+ 			count++;
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2019-12-12 15:46:17.336057156 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2019-12-12 15:46:17.536057153 +0800
+@@ -1019,8 +1019,8 @@
+ 
+  */
+ zcfgRet_t getWanLanList(struct json_object **Jarray){
+-	struct json_object *ipIfaceJarray, *pppIfaceJarray, *vlanTermJarray, *ethLinkJarray, *bridgeBrJarray;
+-	struct json_object *ipIfaceObj, *pppIfaceObj = NULL, *vlanTermObj, *ethLinkObj = NULL, *bridgeBrObj, *routerObj;
++	struct json_object *ipIfaceJarray, *pppIfaceJarray, *vlanTermJarray, *ethLinkJarray, *ethIfaceJarray, *bridgeBrJarray;
++	struct json_object *ipIfaceObj, *pppIfaceObj = NULL, *vlanTermObj, *ethLinkObj = NULL, *ethIfaceObj = NULL, *bridgeBrObj, *routerObj;
+ 	struct json_object *v4AddrJarray, *v6AddrJarray, *v4AddrObj, *v6AddrObj;
+ 	struct json_object *natIntfJarray, *natIntfObj, *igmpObj, *mldObj;
+ 	struct json_object *atmLinkJarray, *atmLinkObj;
+@@ -1034,11 +1034,11 @@
+ 	char intfGrpWANList[512] = {0};
+ 	char *intf = NULL, *tmp_ptr = NULL;
+ 	const char *IpIfacePath = NULL, *natInterface = NULL, *igmpInterface = NULL, *mldInterface = NULL;
+-
+ 	zcfgFeWholeObjJsonGet("Device.IP.Interface.", &ipIfaceJarray);
+ 	zcfgFeWholeObjJsonGet("Device.PPP.Interface.", &pppIfaceJarray);
+ 	zcfgFeWholeObjJsonGet("Device.Ethernet.VLANTermination.", &vlanTermJarray);
+ 	zcfgFeWholeObjJsonGet("Device.Ethernet.Link.", &ethLinkJarray);
++	zcfgFeWholeObjJsonGet("Device.Ethernet.Interface.", &ethIfaceJarray);
+ 	zcfgFeWholeObjJsonGet("Device.ATM.Link.", &atmLinkJarray);
+ 	zcfgFeWholeObjJsonGet("Device.Bridging.Bridge.", &bridgeBrJarray);
+ 	zcfgFeWholeObjJsonGet("Device.Routing.Router.1.", &routerObj);
+@@ -1048,13 +1048,14 @@
+ 	zcfgFeWholeObjJsonGet("Device.X_ZYXEL_MLD.", &mldObj);
+ 
+ 	if(ipIfaceJarray==NULL||pppIfaceJarray==NULL||vlanTermJarray==NULL||
+-		ethLinkJarray==NULL||atmLinkJarray==NULL||bridgeBrJarray==NULL||
++		ethLinkJarray==NULL||ethIfaceJarray==NULL||atmLinkJarray==NULL||bridgeBrJarray==NULL||
+ 		routerObj==NULL||natIntfJarray==NULL||igmpObj==NULL||mldObj==NULL){
+ 
+ 		json_object_put(ipIfaceJarray);
+ 		json_object_put(pppIfaceJarray);
+ 		json_object_put(vlanTermJarray);
+ 		json_object_put(ethLinkJarray);
++		json_object_put(ethIfaceJarray);
+ 		json_object_put(atmLinkJarray);
+ 		json_object_put(bridgeBrJarray);
+ 		json_object_put(routerObj);
+@@ -1064,7 +1065,6 @@
+ 
+ 		return ZCFG_INTERNAL_ERROR;
+ 	}
+-
+ 	X_ZYXEL_ActiveDefaultGateway = Jgets(routerObj, "X_ZYXEL_ActiveDefaultGateway");
+ 	X_ZYXEL_ActiveV6DefaultGateway = Jgets(routerObj, "X_ZYXEL_ActiveV6DefaultGateway");
+ 	igmpInterface = Jgets(igmpObj, "Interface");
+@@ -1199,7 +1199,7 @@
+ 			}
+ 		}
+ 
+-		
++
+ 		int count = 0;
+ 		const char *HigherLayer = "IP.Interface.";
+ 		while(count < 4){
+@@ -1209,6 +1209,7 @@
+ 				Jobj = NULL;
+ 				break;
+ 			}
++
+ 			if(!strncmp(HigherLayer, "IP.Interface.", 13)){
+ 				if(!strncmp(LowerLayers, "PPP.Interface.", 14)){
+ 					sscanf(LowerLayers, "PPP.Interface.%hhu", &idx);
+@@ -1321,7 +1322,12 @@
+ 					break;
+ 				}
+ 				else if(!strncmp("Ethernet.Interface.", LowerLayers, 19)){
++					sscanf(LowerLayers, "Ethernet.Interface.%hhu", &idx);
++					ethIfaceObj = json_object_array_get_idx(ethIfaceJarray, idx-1);
++					if(json_object_get_boolean(json_object_object_get(ethIfaceObj, "X_ZYXEL_SFP")) == false)
+ 					json_object_object_add(Jobj, "LinkType", json_object_new_string("ETH"));
++					else
++						json_object_object_add(Jobj, "LinkType", json_object_new_string("SFP"));
+ 					Status = json_object_get_string(json_object_object_get(ethLinkObj, "Status"));
+ 					if(Status != NULL && strstr(Status, "Up"))
+ 						json_object_object_add(Jobj, "LowerLayerUp", json_object_new_boolean(true));
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2019-12-12 15:46:17.312057156 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2019-12-12 15:49:41.980125961 +0800
+@@ -275,7 +275,7 @@
+  */
+ zcfgRet_t getWanLanList_ext(struct json_object **Jarray){
+ 	struct json_object *ipIfaceJarray, *pppIfaceJarray, *v4AddrJarray, *v6AddrJarray, *v6PrefixJarray, *vlanTermJarray, *atmLinkJarray, *bridgeBrJarray, *dhcp4PoolJarray, *dhcp4ClientJarray, *dnsClientJarray = NULL;
+-	struct json_object *ipIfaceObj, *pppIfaceObj, *v4AddrObj, *v6AddrObj, *v6PrefixObj, *vlanTermObj, *ethLinkObj = NULL, *atmLinkObj, *bridgeBrObj, *dnsClientObj;
++	struct json_object *ipIfaceObj, *pppIfaceObj, *v4AddrObj, *v6AddrObj, *v6PrefixObj, *vlanTermObj, *ethLinkObj = NULL, *ethIfaceObj = NULL, *atmLinkObj, *bridgeBrObj, *dnsClientObj;
+ 	struct json_object *Jobj = NULL;
+ 	struct json_object *addrJarray, *dnsv4Array = NULL, *dnsv6Array = NULL;
+ 	char ifacePath[32] = {0}, BridgingBrPath[32] = {0};
+@@ -540,7 +540,17 @@
+ 					break;
+ 				}
+ 				else if(!strncmp("Ethernet.Interface.", LowerLayers, 19)){
++					IID_INIT(iid);
++					iid.level = 1;
++					sscanf(LowerLayers, "Ethernet.Interface.%hhu",  &(iid.idx[0]));
++					zcfgFeObjJsonGet(RDM_OID_ETH_IFACE, &iid, &ethIfaceObj);
++					if(json_object_get_boolean(json_object_object_get(ethIfaceObj, "X_ZYXEL_SFP")) == false)
+ 					json_object_object_add(Jobj, "LinkType", json_object_new_string("ETH"));
++					else
++					json_object_object_add(Jobj, "LinkType", json_object_new_string("SFP"));
++					if(ethIfaceObj){
++						zcfgFeJsonObjFree(ethIfaceObj);
++					}
+ 					break;
+ 				}
+ 				else if(!strncmp("Optical.Interface.", LowerLayers, 18)){
+@@ -875,7 +885,7 @@
+ 	struct json_object *gponstatusObj = NULL;
+     struct json_object *optIntfJarray = NULL, *optIbtfObj = NULL;
+ 	objIndex_t iid;
+-	int count = 0, maxBitRate = 0, len = 0, i;
++	int count = 0, maxBitRate = 0, len = 0, i, isSFP =0;
+ 	const char *lanport = NULL, *lanMacAddr = NULL, *duplexMode = NULL, 
+                *guestOperatingFrequencyBand = NULL, *mainOperatingFrequencyBand = NULL,
+                *optStatus = NULL;
+@@ -970,7 +980,7 @@
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_ETH_IFACE, &iid, &ethIfaceObj) == ZCFG_SUCCESS) {
+ 		lanport = json_object_get_string (json_object_object_get(ethIfaceObj, "X_ZYXEL_LanPort"));
+-
++		isSFP = json_object_get_boolean (json_object_object_get(ethIfaceObj, "X_ZYXEL_SFP"));
+ #if (defined(ZCFG_VMG4927_B50A_Generic) || defined (ZCFG_EMG6726_B10A_Generic) )
+ 		if(!strncmp (lanport, "LAN1", 4)) {
+ #else
+@@ -979,8 +989,9 @@
+ 			lanMacAddr = json_object_get_string (json_object_object_get(ethIfaceObj, "MACAddress"));
+ 			Jadds (ethnewObj, "LanMac", lanMacAddr);
+ 		}
+-		else if (!strcmp (lanport, "ETHWAN")) {
++		else if (!strcmp (lanport, "ETHWAN")  && !isSFP) {
+ 			ethPortExist = true;
++			ethConnectionStatus[0] = '\0';
+ 			maxBitRate = json_object_get_int (json_object_object_get(ethIfaceObj, "MaxBitRate"));
+ 			duplexMode = json_object_get_string (json_object_object_get(ethIfaceObj, "DuplexMode"));
+ 			if (maxBitRate > 0) {
+@@ -991,6 +1002,19 @@
+ 			}
+ 			Jadds (ethnewObj, "EthConnectionStatus", ethConnectionStatus);
+ 		}
++		else if (!strcmp (lanport, "ETHWAN")  && isSFP) {
++			ethPortExist = true;
++			ethConnectionStatus[0] = '\0';
++			maxBitRate = json_object_get_int (json_object_object_get(ethIfaceObj, "MaxBitRate"));
++			duplexMode = json_object_get_string (json_object_object_get(ethIfaceObj, "DuplexMode"));
++			if (maxBitRate > 0) {
++				sprintf (ethConnectionStatus, "%d/%s", maxBitRate, duplexMode);
++			}
++			else {
++				strcat (ethConnectionStatus, "Connection down");
++			}
++			Jadds (ethnewObj, "SFPConnectionStatus", ethConnectionStatus);
++		}
+ 		Jaddb (ethnewObj, "ethPortExist", ethPortExist);
+ 		zcfgFeJsonObjFree (ethIfaceObj);
+ 	}

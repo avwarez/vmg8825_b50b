@@ -1,0 +1,13 @@
+Index: libzcfg_fe_tr98-1.0/zyExt_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt_parameter.h	2019-12-19 16:51:14.843433983 +0800
++++ libzcfg_fe_tr98-1.0/zyExt_parameter.h	2019-12-19 16:51:49.519162298 +0800
+@@ -133,7 +133,7 @@
+ 	{ "Username", PARAMETER_ATTR_WRITE, 17, json_type_string},
+ 	{ "Password", PARAMETER_ATTR_WRITE | PARAMETER_ATTR_PASSWORD, 257, json_type_string},
+ 	{ "AutoShowQuickStart", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+-	{ "Page", PARAMETER_ATTR_WRITE, 2049, json_type_string},
++//	{ "Page", PARAMETER_ATTR_WRITE, 2049, json_type_string},
+ 	{ "DefaultPassword", PARAMETER_ATTR_WRITE | PARAMETER_ATTR_PASSWORD, 257, json_type_string},
+ 	{ "ResetDefaultPassword", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "PasswordHash", PARAMETER_ATTR_READONLY | PARAMETER_ATTR_PASSWORD, 17, json_type_string},

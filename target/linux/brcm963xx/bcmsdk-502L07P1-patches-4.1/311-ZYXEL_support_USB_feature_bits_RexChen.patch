@@ -1,0 +1,14 @@
+Index: linux-4.1.52/include/uapi/linux/zy_feature_bits.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/zy_feature_bits.h	2020-04-12 03:05:38.022156585 +0000
++++ linux-4.1.52/include/uapi/linux/zy_feature_bits.h	2020-04-12 03:13:05.370597339 +0000
+@@ -47,6 +47,9 @@
+ #define ZYFEATUREBITS_ZIGBEE_BASEBIT    0x1000000
+ #define ZYFEATUREBITS_ZIGBEE            (ZYFEATUREBITS_ZIGBEE_BASEBIT << 0)
+ #define ZYFEATUREBITS_ZIGBEE_RESERVERD_1    (ZYFEATUREBITS_ZIGBEE_BASEBIT << 1)
++#define ZYFEATUREBITS_USB_BASEBIT	0x4000000
++#define ZYFEATUREBITS_USB		(ZYFEATUREBITS_USB_BASEBIT << 0)
++#define ZYFEATUREBITS_USB_RESERVERD_1	(ZYFEATUREBITS_USB_BASEBIT << 1)
+ 
+ /*!
+  *  MRDFEATUREBITS_XXX :

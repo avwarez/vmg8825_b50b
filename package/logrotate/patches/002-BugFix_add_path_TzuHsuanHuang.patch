@@ -1,0 +1,20 @@
+Index: logrotate-3.7.1/Makefile
+===================================================================
+--- logrotate-3.7.1.orig/Makefile	2019-10-04 17:45:18.094364095 +0800
++++ logrotate-3.7.1/Makefile	2019-10-04 17:45:51.861283360 +0800
+@@ -5,6 +5,7 @@
+ LFS = $(shell echo `getconf LFS_CFLAGS 2>/dev/null`)
+ 
+ CFLAGS = -Wall -D_GNU_SOURCE -D$(OS_NAME) -DVERSION=\"$(VERSION)\" $(RPM_OPT_FLAGS) $(LFS)
++CFLAGS += -idirafter$(STAGING_DIR)/usr/include
+ PROG = logrotate
+ MAN = logrotate.8
+ 
+@@ -74,6 +75,7 @@
+ ifeq ($(RPM_OPT_FLAGS),)
+ CFLAGS += -g
+ LDFLAGS = -g
++LDFLAGS += -L$(STAGING_DIR)/usr/lib
+ endif
+ 
+ #ifeq (.depend,$(wildcard .depend))

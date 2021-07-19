@@ -1,0 +1,71 @@
+Index: libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_provider.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/voip/sip/zcfg_fe_dal_sip_provider.c	2018-09-27 14:58:23.585895723 +0800
++++ libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_provider.c	2018-09-27 14:59:23.296220264 +0800
+@@ -23,6 +23,7 @@
+ 	{"RegistrarServer",							dalType_string,	0,	0,	NULL},
+ 	{"RegistrarServerPort",						dalType_int,	1025,	65535,	NULL},
+ 	{"UserAgentDomain",							dalType_string,	0,	0,	NULL},
++	{"X_ZYXEL_ConferenceURI",                                             dalType_string, 0,  0,  NULL},
+ 	{"Rfc3262Support",							dalType_boolean,0,	0,	NULL},
+ 	{"VoipIOPFlags",							dalType_int,	0,	0,	NULL,	NULL,	dalcmd_Forbid},	// need modify, change two parameter of GUI, type: bool //close
+ 	{"ReplaceDialDigit",						dalType_boolean,0,	0,	NULL},	// new parameter for VoipIOPFlag
+@@ -143,6 +144,7 @@
+ unsigned int RegistrarServerPort;
+ const char* TransportType;
+ const char* UserAgentDomain;
++const char* X_ZYXEL_ConferenceURI;
+ const char* OutboundProxy;
+ unsigned int OutboundProxyPort;
+ bool X_ZYXEL_Option120Use;
+@@ -230,6 +232,7 @@
+ 		printf("%-2s %-30s %-10s \n","", "SIP REGISTRAR Server Address:", json_object_get_string(json_object_object_get(obj, "RegistrarServer")));
+ 		printf("%-2s %-30s %-10s \n","", "SIP REGISTRAR Server Port:", json_object_get_string(json_object_object_get(obj, "RegistrarServerPort")));
+ 		printf("%-2s %-30s %-10s \n","", "SIP Service Domain:", json_object_get_string(json_object_object_get(obj, "UserAgentDomain")));
++		printf("%-2s %-30s %-10s \n","", "URI of the network conference bridge:", json_object_get_string(json_object_object_get(obj, "X_ZYXEL_ConferenceURI")));
+ 		printf("RFC Support:\n");
+ 		printf("%-2s %-30s %-10s \n","", "PRACK (RFC 3262, Require: 100rel):", json_object_get_string(json_object_object_get(obj, "X_ZYXEL_Rfc3262Support")));
+ 		printf("VoIP IOP Flags:\n");
+@@ -291,7 +294,8 @@
+ 			json_object_get_string(json_object_object_get(obj, "ProfName")),
+ 			json_object_get_string(json_object_object_get(obj, "ProxyServer")),
+ 			json_object_get_string(json_object_object_get(obj, "RegistrarServer")),
+-			json_object_get_string(json_object_object_get(obj, "UserAgentDomain")));
++			json_object_get_string(json_object_object_get(obj, "UserAgentDomain")),
++			json_object_get_string(json_object_object_get(obj, "X_ZYXEL_ConferenceURI")));
+ 	}
+ 	}
+ 
+@@ -379,6 +383,7 @@
+ 	RegistrarServerPort = json_object_get_int(json_object_object_get(Jobj, "RegistrarServerPort"));
+ 	TransportType = json_object_get_string(json_object_object_get(Jobj, "TransportType"));
+ 	UserAgentDomain = json_object_get_string(json_object_object_get(Jobj, "UserAgentDomain"));
++	X_ZYXEL_ConferenceURI = json_object_get_string(json_object_object_get(Jobj, "X_ZYXEL_ConferenceURI"));
+ 	OutboundProxy = json_object_get_string(json_object_object_get(Jobj, "OutboundProxy"));
+ 	OutboundProxyPort = json_object_get_int(json_object_object_get(Jobj, "OutboundProxyPort"));
+ 	X_ZYXEL_Option120Use = json_object_get_boolean(json_object_object_get(Jobj, "Option120Use"));
+@@ -660,6 +665,8 @@
+ 		}
+ 		if(json_object_object_get(Jobj, "UserAgentDomain") != NULL)
+ 			json_object_object_add(profSipObj, "UserAgentDomain", json_object_new_string(UserAgentDomain));
++		if(json_object_object_get(Jobj, "X_ZYXEL_ConferenceURI") != NULL)
++			json_object_object_add(profSipObj, "X_ZYXEL_ConferenceURI", json_object_new_string(X_ZYXEL_ConferenceURI));
+ 		if(json_object_object_get(Jobj, "OutboundProxy") != NULL)
+ 			json_object_object_add(profSipObj, "OutboundProxy", json_object_new_string(OutboundProxy));
+ 		if(json_object_object_get(Jobj, "OutboundProxyPort") != NULL)
+@@ -1348,6 +1355,7 @@
+ 		RegistrarServerTransport = json_object_get_string(json_object_object_get(profSipObj, "RegistrarServerTransport"));
+ 		UserAgentDomain = json_object_get_string(json_object_object_get(profSipObj, "UserAgentDomain"));
+ 		UserAgentTransport = json_object_get_string(json_object_object_get(profSipObj, "UserAgentTransport"));
++		X_ZYXEL_ConferenceURI = json_object_get_string(json_object_object_get(profSipObj, "X_ZYXEL_ConferenceURI"));
+ 		OutboundProxy = json_object_get_string(json_object_object_get(profSipObj, "OutboundProxy"));
+ 		OutboundProxyPort = json_object_get_int(json_object_object_get(profSipObj, "OutboundProxyPort"));
+ 		X_ZYXEL_Option120Use = json_object_get_boolean(json_object_object_get(profSipObj, "X_ZYXEL_Option120Use"));
+@@ -1367,6 +1375,7 @@
+ 		json_object_object_add(paserobj, "RegistrarServerTransport", json_object_new_string(RegistrarServerTransport));
+ 		json_object_object_add(paserobj, "UserAgentDomain", json_object_new_string(UserAgentDomain));
+ 		json_object_object_add(paserobj, "UserAgentTransport", json_object_new_string(UserAgentTransport));
++		json_object_object_add(paserobj, "X_ZYXEL_ConferenceURI", json_object_new_string(X_ZYXEL_ConferenceURI));
+ 		json_object_object_add(paserobj, "OutboundProxy", json_object_new_string(OutboundProxy));
+ 		json_object_object_add(paserobj, "OutboundProxyPort", json_object_new_int(OutboundProxyPort));
+ 		json_object_object_add(paserobj, "X_ZYXEL_Option120Use", json_object_new_boolean(X_ZYXEL_Option120Use));

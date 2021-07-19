@@ -1,0 +1,59 @@
+Index: openssl-1.1.1b/Configurations/10-main.conf
+===================================================================
+--- openssl-1.1.1b.orig/Configurations/10-main.conf	2019-02-26 22:15:30.000000000 +0800
++++ openssl-1.1.1b/Configurations/10-main.conf	2019-12-03 11:06:56.346143075 +0800
+@@ -715,6 +715,16 @@
+         inherit_from     => [ "linux-generic32", asm("armv4_asm") ],
+         perlasm_scheme   => "linux32",
+     },
++    "linux-bcmmips" => {
++        inherit_from     => [ "linux-generic32", asm("mips_asm") ],
++        cflags           => add("-D_REENTRANT -D_XOPEN_SOURCE=500 -D_BSD_SOURCE"),
++        perlasm_scheme   => "o32",
++    },
++    "linux-bcmarm" => {
++        inherit_from     => [ "linux-generic32", asm("armv4_asm") ],
++        cflags           => add("-D_REENTRANT"),
++        perlasm_scheme   => "linux32",
++    },
+     "linux-aarch64" => {
+         inherit_from     => [ "linux-generic64", asm("aarch64_asm") ],
+         perlasm_scheme   => "linux64",
+Index: openssl-1.1.1b/Configure
+===================================================================
+--- openssl-1.1.1b.orig/Configure	2019-12-03 10:51:20.062143075 +0800
++++ openssl-1.1.1b/Configure	2019-12-03 11:06:10.170143075 +0800
+@@ -302,7 +302,7 @@
+ my $default_ranlib;
+ 
+ # Top level directories to build
+-$config{dirs} = [ "crypto", "ssl", "engines", "apps", "util", "tools" ];
++$config{dirs} = [ "crypto", "ssl", "engines", "apps", "tools" ];
+ # crypto/ subdirectories to build
+ $config{sdirs} = [
+     "objects",
+Index: openssl-1.1.1b/Configurations/unix-Makefile.tmpl
+===================================================================
+--- openssl-1.1.1b.orig/Configurations/unix-Makefile.tmpl	2019-02-26 22:15:30.000000000 +0800
++++ openssl-1.1.1b/Configurations/unix-Makefile.tmpl	2019-12-03 11:09:47.866203075 +0800
+@@ -200,7 +200,7 @@
+ 
+ CROSS_COMPILE={- $config{CROSS_COMPILE} -}
+ CC=$(CROSS_COMPILE){- $config{CC} -}
+-CXX={- $config{CXX} ? "\$(CROSS_COMPILE)$config{CXX}" : '' -}
++CXX={- $config{CXX} -}
+ CPPFLAGS={- our $cppflags1 = join(" ",
+                                   (map { "-D".$_} @{$config{CPPDEFINES}}),
+                                   (map { "-I".$_} @{$config{CPPINCLUDES}}),
+@@ -214,9 +214,9 @@
+ 
+ PERL={- $config{PERL} -}
+ 
+-AR=$(CROSS_COMPILE){- $config{AR} -}
++AR={- $config{AR} -}
+ ARFLAGS= {- join(' ', @{$config{ARFLAGS}}) -}
+-RANLIB={- $config{RANLIB} ? "\$(CROSS_COMPILE)$config{RANLIB}" : "true"; -}
++RANLIB={- $config{RANLIB} -}
+ RC= $(CROSS_COMPILE){- $config{RC} -}
+ RCFLAGS={- join(' ', @{$config{RCFLAGS}}) -} {- $target{shared_rcflag} -}
+ 

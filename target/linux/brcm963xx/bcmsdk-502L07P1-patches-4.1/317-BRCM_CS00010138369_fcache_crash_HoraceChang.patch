@@ -1,0 +1,79 @@
+--- linux-4.1.52/include/linux/blog.h
++++ linux-4.1.52/include/linux/blog.h
+@@ -628,7 +628,6 @@
+         BLOG_DECL(BRIDGEFDB_KEY_SET)    /* Set Client key into bridge FDB     */
+         BLOG_DECL(BRIDGEFDB_KEY_GET)    /* Get Client key into bridge FDB     */
+         BLOG_DECL(BRIDGEFDB_TIME_SET)   /* Refresh bridge FDB time            */
+-        BLOG_DECL(BRIDGEFDB_IFIDX_GET)  /* Get bridge FDB's device ifindex    */
+         BLOG_DECL(SYS_TIME_GET)         /* Get the system time in jiffies     */
+         BLOG_DECL(GRE_TUNL_XMIT)        /* GRE Tunnel tx                      */
+         BLOG_DECL(GRE6_TUNL_XMIT)       /* GRE6 Tunnel tx                      */
+@@ -2209,6 +2208,7 @@
+     /* --- [ARM64]64 byte cacheline boundary --- */
+ 
+     void                * fdb[2];       /* fdb_src and fdb_dst */
++    uint32_t            ifidx[2];       /* fdb src and fdb dst bridge ifidx */
+     int8_t              delta[MAX_VIRT_DEV];  /* octet delta info */
+     int8_t              tx_dev_delta; /* octet delta of TX dev */
+     uint8_t             l2_dirty_offset;
+--- linux-4.1.52/net/bridge/br_device.c
++++ linux-4.1.52/net/bridge/br_device.c
+@@ -101,7 +101,7 @@
+ #if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
+ 	{
+ 		blog_lock();
+-		blog_link(BRIDGEFDB, blog_ptr(skb), (void*)dst, BLOG_PARAM1_DSTFDB, 0);
++		blog_link(BRIDGEFDB, blog_ptr(skb), (void*)dst, BLOG_PARAM1_DSTFDB, br->dev->ifindex);
+ 		blog_unlock();
+ #if defined(CONFIG_BCM_KF_WL)
+ #if defined(PKTC)
+--- linux-4.1.52/net/bridge/br_input.c
++++ linux-4.1.52/net/bridge/br_input.c
+@@ -262,10 +262,10 @@
+ 		src = __br_fdb_get(br, eth_hdr(skb)->h_source, vid);
+ 		blog_lock();
+ 		if (src)
+-			blog_link(BRIDGEFDB, blog_ptr(skb), (void*)src, BLOG_PARAM1_SRCFDB, 0);
++			blog_link(BRIDGEFDB, blog_ptr(skb), (void*)src, BLOG_PARAM1_SRCFDB, br->dev->ifindex);
+ 
+ 		if (dst)
+-			blog_link(BRIDGEFDB, blog_ptr(skb), (void*)dst, BLOG_PARAM1_DSTFDB, 0);
++			blog_link(BRIDGEFDB, blog_ptr(skb), (void*)dst, BLOG_PARAM1_DSTFDB, br->dev->ifindex);
+ 
+ 		blog_unlock();
+ 
+--- linux-4.1.52/net/core/blog.c
++++ linux-4.1.52/net/core/blog.c
+@@ -432,7 +432,6 @@
+     BLOG_ARY_INIT(BRIDGEFDB_KEY_SET)
+     BLOG_ARY_INIT(BRIDGEFDB_KEY_GET)
+     BLOG_ARY_INIT(BRIDGEFDB_TIME_SET)
+-    BLOG_ARY_INIT(BRIDGEFDB_IFIDX_GET)
+     BLOG_ARY_INIT(SYS_TIME_GET) 
+     BLOG_ARY_INIT(GRE_TUNL_XMIT)
+     BLOG_ARY_INIT(GRE6_TUNL_XMIT)
+@@ -1692,6 +1691,7 @@
+             }
+ 
+             blog_p->fdb[param1] = net_p;
++            blog_p->ifidx[param1] = param2;
+             break;
+         }
+ 
+@@ -2210,16 +2210,6 @@
+             ((struct net_bridge_fdb_entry *)net_p)->updated = param2;
+             return 0;
+ 
+-        case BRIDGEFDB_IFIDX_GET:
+-        {
+-            struct net_bridge_fdb_entry *fdb_p = (struct net_bridge_fdb_entry *)net_p;
+-            if (fdb_p && fdb_p->dst && fdb_p->dst->dev)
+-                ret = fdb_p->dst->dev->ifindex;
+-            else
+-                ret = 0;
+-            break;
+-        }
+-
+         case NETIF_PUT_STATS:
+         {
+             struct net_device * dev_p = (struct net_device *)net_p;

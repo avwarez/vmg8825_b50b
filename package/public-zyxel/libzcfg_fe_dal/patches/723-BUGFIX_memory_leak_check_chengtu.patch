@@ -1,0 +1,36 @@
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosQueue.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosQueue.c	2019-11-29 13:56:16.000000000 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosQueue.c	2019-11-29 13:59:59.142396019 +0800
+@@ -318,6 +318,7 @@
+ 		}
+ 		zcfgFeObjJsonBlockedSet(RDM_OID_QOS_QUE, &queueIid, queueObj, NULL);
+ 		updateQosQueueInfo(e_ActionType_ADD, queueIid.idx[0]);
++		zcfgFeJsonObjFree(queueObj);
+ 		return ret;
+ 	}
+ 
+Index: libzcfg_fe_dal-1.0/network/usbService/zcfg_fe_dal_usb_filesharing.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/usbService/zcfg_fe_dal_usb_filesharing.c	2019-11-29 13:56:15.000000000 +0800
++++ libzcfg_fe_dal-1.0/network/usbService/zcfg_fe_dal_usb_filesharing.c	2019-11-29 13:59:59.146398019 +0800
+@@ -182,6 +182,7 @@
+ 		paramJobj3 = json_object_new_object();
+ 		json_object_object_add(paramJobj3, "File Sharing Services", JSON_OBJ_COPY(json_object_object_get(sambaJobj, "Enable")));
+ 		json_object_object_add(allJobj, "Service Conf", paramJobj3);
++		zcfgFeJsonObjFree(sambaJobj);
+ 	}
+ 	json_object_object_add(allJobj, "Account", acctmpJobj);
+ 	json_object_object_add(allJobj, "Samba", sambadirtmpJobj);
+Index: libzcfg_fe_dal-1.0/network/usbService/zcfg_fe_dal_usb_samba.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/usbService/zcfg_fe_dal_usb_samba.c	2019-11-29 13:56:16.000000000 +0800
++++ libzcfg_fe_dal-1.0/network/usbService/zcfg_fe_dal_usb_samba.c	2019-11-29 13:59:59.146398019 +0800
+@@ -369,6 +369,7 @@
+ 		paramJobj3 = json_object_new_object();
+ 		json_object_object_add(paramJobj3, "File Sharing Services", JSON_OBJ_COPY(json_object_object_get(sambaJobj, "Enable")));
+ 		json_object_object_add(allJobj, "Service Conf", paramJobj3);
++		zcfgFeJsonObjFree(sambaJobj);
+ 	}
+ #ifdef  ABOG_CUSTOMIZATION	
+ 	usbdevinfoIid.level=2;

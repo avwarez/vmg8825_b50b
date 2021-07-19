@@ -1,0 +1,31 @@
+Index: openssl-1.1.1b/crypto/armcap.c
+===================================================================
+--- openssl-1.1.1b.orig/crypto/armcap.c	2019-02-26 22:15:30.000000000 +0800
++++ openssl-1.1.1b/crypto/armcap.c	2019-12-03 11:02:41.618143075 +0800
+@@ -133,7 +133,18 @@
+ # endif
+ 
+     OPENSSL_armcap_P = 0;
++#if 1
++    // BRCM SPECIFIC: do NOT probe for NEON, etc.
++    // On the 138, NEON is only on one core.  The autodetect may detect NEON,
++    // and then migrate to the other core, at which point an illegal instruction
++    // would be encountered.
++
++    // For the 148: currently the neon registers are not saved on a context switch.
++    // If multiple users are accessing neon, then a context switch can cause corrupt
++    // registers.
+ 
++    // simply disabling neon by default:
++#else
+ # ifdef OSSL_IMPLEMENT_GETAUXVAL
+     if (getauxval(HWCAP) & HWCAP_NEON) {
+         unsigned long hwcap = getauxval(HWCAP_CE);
+@@ -158,6 +169,7 @@
+ #  endif
+     }
+ # endif
++#endif
+ 
+     sigfillset(&all_masked);
+     sigdelset(&all_masked, SIGILL);

@@ -1,0 +1,15 @@
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosShaper.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosShaper.c	2019-08-22 16:45:04.288556795 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosShaper.c	2019-08-22 16:51:23.856569268 +0800
+@@ -292,7 +292,9 @@
+                 else if (strstr(Interface, "IP") != NULL)
+                 {
+                     sscanf(Interface, "IP.Interface.%hhu", &wanIid.idx[0]);
+-                    ret = zcfgFeObjJsonGet(RDM_OID_IP_IFACE, &wanIid, &wanobj);
++                    if(wanIid.idx[0] > 0){
++						ret = zcfgFeObjJsonGet(RDM_OID_IP_IFACE, &wanIid, &wanobj);
++					}
+                 }
+                 else
+                 {

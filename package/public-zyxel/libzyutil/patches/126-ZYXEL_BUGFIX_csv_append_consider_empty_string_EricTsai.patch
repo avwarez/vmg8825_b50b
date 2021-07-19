@@ -1,0 +1,30 @@
+Index: libzyutil-1.0/common.c
+===================================================================
+--- libzyutil-1.0.orig/common.c	2020-05-06 00:03:01.519420437 +0800
++++ libzyutil-1.0/common.c	2020-05-06 00:35:26.103364338 +0800
+@@ -856,12 +856,13 @@
+ {
+ 	int n = 0, csvLen;
+ 
+-	if(!csv || !string || !strlen(string))
++	if(!csv || !string || !strlen(string)){
+ 		return;
++	}
+ 
+-	if(*csv)
++	if(*csv && (csvLen = strlen(*csv)))
+ 	{
+-		csvLen = strlen(*csv);
++		//csvLen = strlen(*csv);
+ 		n = strlen(string) + 2;
+ 		char *newcsv = ZOS_MALLOC(csvLen+n);
+ 		strcpy(newcsv, *csv);
+@@ -871,6 +872,8 @@
+ 		*csv = newcsv;
+ 	}
+ 	else{
++		if(*csv)
++			free(*csv);
+ 		n = strlen(string) + 1;
+ 		*csv = ZOS_MALLOC(n);
+ 		strcpy(*csv, string);

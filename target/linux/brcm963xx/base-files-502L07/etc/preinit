@@ -1,0 +1,33 @@
+#!/bin/sh
+# Copyright (C) 2006 OpenWrt.org
+# Copyright (C) 2010 Vertical Communications
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH=/home/bin:/home/scripts:/opt/bin:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/jamvm/bin:/opt/scripts
+export LD_LIBRARY_PATH=/lib/public:/lib/private:/lib/gpl:/lib:/usr/lib
+
+# Generate device node
+mount -t tmpfs -o noatime,mode=0755,size=512K tmpfs /dev
+mount -t tmpfs -o noatime,mode=0755,size=512K tmpfs /tmp
+# No need to create device nodes by makeDevs.sh
+# SDK504L02 use mdev and make_static_devnodes.sh to handle it!
+#sh /etc/init.d/makeDevs.sh
+# Create FIFO devices
+mknod /dev/initctl p
+
+mknod /dev/tty0 c 4 0
+mknod /dev/tty1 c 4 1
+mknod /dev/ttyS0 c 4 64
+mknod /dev/ttyS1 c 4 65
+## __zy_bsp__ >>>
+## 502L04:
+## mknod /dev/ttyH0 c 4 66
+## 502L05:
+mknod /dev/ttyH0 c 4 70
+## __zy_bsp__ <<<
+mknod /dev/console c 5 1
+
+# Clean input/output
+exec >/dev/console </dev/console 2>&1
+exec /sbin/init </dev/console >/dev/console 2>&1
+

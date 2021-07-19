@@ -1,0 +1,99 @@
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.h	2020-08-26 12:11:02.006992929 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.h	2020-08-26 12:11:02.754992907 +0800
+@@ -12,4 +12,6 @@
+ 
+ extern bool validateMacAddr1(const char *macAddr, const char *delim);
+ 
++void zcfgInitDAL();
++
+ #endif
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-08-26 12:11:02.686992909 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-08-26 11:55:06.110315800 +0800
+@@ -18,6 +18,8 @@
+ 
+ bool printDebugMsg = false;
+ 
++struct json_object *guiCustomObj = NULL;
++
+ extern dal_param_t WAN_param[];
+ extern dal_param_t MGMT_param[];
+ extern dal_param_t ETHWANLAN_param[];
+@@ -2612,6 +2614,33 @@
+ 	return -1;
+ }
+ 
++void zcfgInitDAL()
++{
++	objIndex_t iid;
++
++	IID_INIT(iid);
++	if(guiCustomObj)
++		json_object_put(guiCustomObj);
++	zcfgFeObjJsonGet(RDM_OID_GUI_CUSTOMIZATION, &iid, &guiCustomObj);
++}
++
++bool retrieveGUICustomizationFlags(uint32_t *flag1, uint32_t *flag2, uint32_t *flag3, uint32_t *flagVoIP1)
++{
++	if(!guiCustomObj)
++		return false;
++
++	if(flag1)
++		*flag1 = json_object_get_int(json_object_object_get(guiCustomObj, "Flag1"));
++	if(flag2)
++		*flag2 = json_object_get_int(json_object_object_get(guiCustomObj, "Flag2"));
++	if(flag3)
++		*flag3 = json_object_get_int(json_object_object_get(guiCustomObj, "Flag3"));
++	if(flagVoIP1)
++		*flagVoIP1 = json_object_get_int(json_object_object_get(guiCustomObj, "FlagVoIP1"));
++
++	return true;
++}
++
+ 
+ bool validMacMask(const char *mask) { 
+ 	char buff[32] = {0};
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal_common.h	2020-08-26 12:11:02.578992912 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h	2020-08-26 12:11:02.754992907 +0800
+@@ -164,4 +164,6 @@
+ bool validateMacAddr1(const char *macAddr, const char *delim);
+ bool parseParenService(const char *service, char *parenCtlService);
+ 
++bool retrieveGUICustomizationFlags(uint32_t *flag1, uint32_t *flag2, uint32_t *flag3, uint32_t *flagVoIP1);
++
+ #endif
+Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/diagnostic/zcfg_fe_dal_8021ag.c	2020-08-26 12:11:02.746992907 +0800
++++ libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c	2020-08-26 12:11:02.754992907 +0800
+@@ -320,10 +320,11 @@
+ 	struct json_object *guiCustomObj;
+ 	objIndex_t iid;
+ 
+-
+ 	if(!method || !Jobj)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
++	retrieveGUICustomizationFlags(&flag1, NULL, NULL, NULL);
++
+ 	if(!flag1){
+ 		IID_INIT(iid);
+ 		if(zcfgFeObjJsonGet(RDM_OID_GUI_CUSTOMIZATION, &iid, &guiCustomObj) == ZCFG_SUCCESS){
+Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/diagnostic/zcfg_fe_dal_8023ah.c	2020-08-26 12:11:02.746992907 +0800
++++ libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c	2020-08-26 12:11:02.754992907 +0800
+@@ -195,6 +195,8 @@
+ 	if(!method || !Jobj)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
++	retrieveGUICustomizationFlags(&flag1, NULL, NULL, NULL);
++
+ 	if(!flag1){
+ 		IID_INIT(iid);
+ 		if(zcfgFeObjJsonGet(RDM_OID_GUI_CUSTOMIZATION, &iid, &guiCustomObj) == ZCFG_SUCCESS){

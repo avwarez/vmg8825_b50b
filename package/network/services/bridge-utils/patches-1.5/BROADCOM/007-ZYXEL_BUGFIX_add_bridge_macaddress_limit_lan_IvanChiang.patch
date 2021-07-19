@@ -1,0 +1,356 @@
+Index: bridge-utils-1.5/brctl/brctl_cmd.c
+===================================================================
+--- bridge-utils-1.5.orig/brctl/brctl_cmd.c	2019-12-14 23:51:49.503119316 +0800
++++ bridge-utils-1.5/brctl/brctl_cmd.c	2019-12-15 00:02:56.213862400 +0800
+@@ -228,6 +228,7 @@
+ static int br_cmd_set_macaddrlearning(int argc, char *const *argv)
+ {
+ 	unsigned long value;
++	int LANnum;
+ 	int err;
+ 
+ 	if(sscanf(argv[3], "%lu", &value) != 1)
+@@ -235,8 +236,13 @@
+ 
+ 	if(value != 1 && value != 0)
+ 		return 1;
+-
+-	err = br_set_mac_address_learning(argv[1], argv[2], value);
++	if(sscanf(argv[4], "%d", &LANnum) != 1){
++		return 1;
++	}
++	if((LANnum < 0) || (LANnum > 32)){
++		return 1;
++	}
++	err = br_set_mac_address_learning(argv[1], argv[2], value, LANnum);
+ 	if(err)
+ 		fprintf(stderr, "set mac address learning failed: %s\n",
+ 				strerror(err));
+@@ -1093,8 +1099,8 @@
+ #if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ static int br_get_port_list(const char *brname, int *ifindices, int num)
+ {
+-	unsigned long args[4] = { BRCTL_GET_PORT_LIST,
+-				  (unsigned long)ifindices, num, 0 };
++	unsigned long args[5] = { BRCTL_GET_PORT_LIST,
++				  (unsigned long)ifindices, num, 0, 0};
+ 	struct ifreq ifr;
+     int br_socket_fd;   
+ 
+@@ -1238,8 +1244,8 @@
+ 	  "<bridge> <port> <cost>\tset path cost" },
+ 	{ 3, "setportprio", br_cmd_setportprio,
+ 	  "<bridge> <port> <prio>\tset port priority" },
+-	{ 3, "setmaclearning", br_cmd_set_macaddrlearning,
+-	  "<bridge> <port> <value>\t\t port: ifname(0=no specific port), value: 0-disable 1-enable"},
++	{ 4, "setmaclearning", br_cmd_set_macaddrlearning,
++	  "<bridge> <port> <value> <lanlimitnum>\t\t port: ifname(0=no specific port), value: 0-disable 1-enable, lanlimitnum: 0=disable range(1-32)"},
+ #if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ 	{ 2, "enableportsnooping", br_cmd_enableportsnooping,
+ 	  "<bridge> <value>\t0-disable 1-standard 2-blocking" },
+Index: bridge-utils-1.5/libbridge/libbridge.h
+===================================================================
+--- bridge-utils-1.5.orig/libbridge/libbridge.h	2019-12-14 23:51:49.503119316 +0800
++++ bridge-utils-1.5/libbridge/libbridge.h	2019-12-15 00:04:02.635127800 +0800
+@@ -113,7 +113,7 @@
+ extern int br_set_bridge_hello_time(const char *br, struct timeval *tv);
+ extern int br_set_bridge_max_age(const char *br, struct timeval *tv);
+ extern int br_set_ageing_time(const char *br, struct timeval *tv);
+-extern int br_set_mac_address_learning(const char *br, const char *port, unsigned long value);
++extern int br_set_mac_address_learning(const char *br, const char *port, unsigned long value, int LANnum);
+ extern int br_set_stp_state(const char *br, int stp_state);
+ extern int br_set_bridge_priority(const char *br, int bridge_priority);
+ extern int br_set_port_priority(const char *br, const char *p, 
+Index: bridge-utils-1.5/libbridge/libbridge_devif.c
+===================================================================
+--- bridge-utils-1.5.orig/libbridge/libbridge_devif.c	2019-12-14 23:51:49.503119316 +0800
++++ bridge-utils-1.5/libbridge/libbridge_devif.c	2019-12-15 00:10:52.830560900 +0800
+@@ -89,8 +89,8 @@
+ 	int i;
+ 	int ifindex = if_nametoindex(ifname);
+ 	int ifindices[MAX_PORTS];
+-	unsigned long args[4] = { BRCTL_GET_PORT_LIST,
+-				  (unsigned long)ifindices, MAX_PORTS, 0 };
++	unsigned long args[5] = { BRCTL_GET_PORT_LIST,
++				  (unsigned long)ifindices, MAX_PORTS, 0, 0};
+ 	struct ifreq ifr;
+ 
+ 	if (ifindex <= 0)
+@@ -120,8 +120,8 @@
+ int old_get_ifname(const char *brname, int portno, char *ifname)
+ {
+ 	int ifindices[MAX_PORTS];
+-	unsigned long args[4] = { BRCTL_GET_PORT_LIST,
+-				  (unsigned long)ifindices, MAX_PORTS, 0 };
++	unsigned long args[5] = { BRCTL_GET_PORT_LIST,
++				  (unsigned long)ifindices, MAX_PORTS, 0, 0};
+ 	struct ifreq ifr;
+ 
+ 	memset(ifindices, 0, sizeof(ifindices));
+@@ -144,8 +144,8 @@
+ {
+ 	struct ifreq ifr;
+ 	struct __bridge_info i;
+-	unsigned long args[4] = { BRCTL_GET_BRIDGE_INFO,
+-				  (unsigned long) &i, 0, 0 };
++	unsigned long args[5] = { BRCTL_GET_BRIDGE_INFO,
++				  (unsigned long) &i, 0, 0, 0};
+ 
+ 	memset(info, 0, sizeof(*info));
+ 	strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
+@@ -239,8 +239,8 @@
+ 	
+ 	else {
+ 		struct ifreq ifr;
+-		unsigned long args[4] = { BRCTL_GET_PORT_INFO,
+-					   (unsigned long) &i, index, 0 };
++		unsigned long args[5] = { BRCTL_GET_PORT_INFO,
++					   (unsigned long) &i, index, 0, 0};
+ 	
+ 		strncpy(ifr.ifr_name, brname, IFNAMSIZ);
+ 		ifr.ifr_data = (char *) &args;
+@@ -311,28 +311,44 @@
+ 
+ 
+ static int br_set(const char *bridge, const char *name,
+-		  unsigned long value, unsigned long oldcode)
++		  unsigned long value, unsigned long oldcode,int LAN_Num)
+ {
+ 	int ret;
+ 	char path[SYSFS_PATH_MAX];
+ 	FILE *f = NULL;
++	int found = 0;
++	if(oldcode != BRCTL_SET_BR_MAC_LEARNING){
++		if(name){
++			snprintf(path, SYSFS_PATH_MAX, SYSFS_CLASS_NET "%s/%s", bridge, name);
++			f = fopen(path, "w");
++		}
+ 
+-	if(name){
+-		snprintf(path, SYSFS_PATH_MAX, SYSFS_CLASS_NET "%s/%s", bridge, name);
+-		f = fopen(path, "w");
++		if (f) {
++			ret = fprintf(f, "%ld %d\n", value, LAN_Num);
++			found = 1;
++			fclose(f);
++		}
+ 	}
+-
+-	if (f) {
+-		ret = fprintf(f, "%ld\n", value);
+-		fclose(f);
+-	} else {
++	if(found == 0){
+ 		/* fallback to old ioctl */
+ 		struct ifreq ifr;
+-		unsigned long args[4] = { oldcode, value, 0, 0 };
+-		
+ 		strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
+-		ifr.ifr_data = (char *) &args;
+-		ret = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
++		if((strcmp(name,"0")!= 0) && (oldcode == BRCTL_SET_BR_MAC_LEARNING)){
++			int index = get_portno(bridge, name);
++			if (index < 0){
++				ret = index;
++			}
++			else{
++				unsigned long args[5] = { oldcode, value, LAN_Num, index, 0 };
++				ifr.ifr_data = (char *) &args;
++				ret = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
++			}
++		}
++		else{
++			unsigned long args[5] = { oldcode, value, LAN_Num, 0, 0 };
++			ifr.ifr_data = (char *) &args;
++			ret = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
++		}
+ 	}
+ 
+ 	return ret < 0 ? errno : 0;
+@@ -341,60 +357,56 @@
+ int br_set_bridge_forward_delay(const char *br, struct timeval *tv)
+ {
+ 	return br_set(br, "forward_delay", __tv_to_jiffies(tv),
+-		      BRCTL_SET_BRIDGE_FORWARD_DELAY);
++		      BRCTL_SET_BRIDGE_FORWARD_DELAY, 0);
+ }
+ 
+ int br_set_bridge_hello_time(const char *br, struct timeval *tv)
+ {
+ 	return br_set(br, "hello_time", __tv_to_jiffies(tv),
+-		      BRCTL_SET_BRIDGE_HELLO_TIME);
++		      BRCTL_SET_BRIDGE_HELLO_TIME, 0);
+ }
+ 
+ int br_set_bridge_max_age(const char *br, struct timeval *tv)
+ {
+ 	return br_set(br, "max_age", __tv_to_jiffies(tv),
+-		      BRCTL_SET_BRIDGE_MAX_AGE);
++		      BRCTL_SET_BRIDGE_MAX_AGE, 0);
+ }
+ 
+ int br_set_ageing_time(const char *br, struct timeval *tv)
+ {
+ 	return br_set(br, "ageing_time", __tv_to_jiffies(tv),
+-		      BRCTL_SET_AGEING_TIME);
++		      BRCTL_SET_AGEING_TIME, 0);
+ }
+ 
+-static int port_set(const char *, const char *, const char *, unsigned long, unsigned long);
+-int br_set_mac_address_learning(const char *br, const char *port, unsigned long value)
++static int port_set(const char *, const char *, const char *, unsigned long, unsigned long, int LAN_Num);
++int br_set_mac_address_learning(const char *br, const char *port, unsigned long value, int LAN_Num)
+ {
+ 	//printf("%s: port= %s\n", __FUNCTION__, port);
+-	if(*port == '0'){
+-		// no specific port
+-		return (brcmSdkVsion >= 50205) ? br_set(br, NULL, value, BRCTL_SET_BR_MAC_LEARNING) : ENOTSUP;
+-	}else{
+-		return port_set(br, port, "learning", value, 0);
+-	}
++	// no specific port
++	return (brcmSdkVsion >= 50205) ? br_set(br, port, value, BRCTL_SET_BR_MAC_LEARNING,LAN_Num) : ENOTSUP;
+ }
+ 
+ int br_set_stp_state(const char *br, int stp_state)
+ {
+-	return br_set(br, "stp_state", stp_state, BRCTL_SET_BRIDGE_STP_STATE);
++	return br_set(br, "stp_state", stp_state, BRCTL_SET_BRIDGE_STP_STATE, 0);
+ }
+ 
+ int br_set_bridge_priority(const char *br, int bridge_priority)
+ {
+ 	return br_set(br, "priority", bridge_priority, 
+-		      BRCTL_SET_BRIDGE_PRIORITY);
++		      BRCTL_SET_BRIDGE_PRIORITY, 0);
+ }
+ 
+ #if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ int br_set_local_switching_disable(const char *br, int disable_state)
+ {
+-	return br_set(br, "local_switching_disable", disable_state, BRCTL_GET_VERSION);
++	return br_set(br, "local_switching_disable", disable_state, BRCTL_GET_VERSION, 0);
+ }
+ #endif
+ 
+ static int port_set(const char *bridge, const char *ifname, 
+ 		    const char *name, unsigned long value, 
+-		    unsigned long oldcode)
++		    unsigned long oldcode, int LAN_Num)
+ {
+ 	int ret;
+ 	char path[SYSFS_PATH_MAX];
+@@ -403,7 +415,7 @@
+ 	snprintf(path, SYSFS_PATH_MAX, SYSFS_CLASS_NET "%s/brport/%s", ifname, name);
+ 	f = fopen(path, "w");
+ 	if (f) {
+-		ret = fprintf(f, "%ld\n", value);
++		ret = fprintf(f, "%ld %d\n", value, LAN_Num);
+ 		fclose(f);
+ 	} else {
+ 		int index = get_portno(bridge, ifname);
+@@ -412,9 +424,8 @@
+ 			ret = index;
+ 		else {
+ 			struct ifreq ifr;
+-			unsigned long args[4] = { oldcode, index, value, 0 };
+-			
+ 			strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
++			unsigned long args[5] = { oldcode, index, value, LAN_Num, 0 };
+ 			ifr.ifr_data = (char *) &args;
+ 			ret = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
+ 		}
+@@ -425,7 +436,7 @@
+ 
+ int br_set_port_priority(const char *bridge, const char *port, int priority)
+ {
+-	return port_set(bridge, port, "priority", priority, BRCTL_SET_PORT_PRIORITY);
++	return port_set(bridge, port, "priority", priority, BRCTL_SET_PORT_PRIORITY, 0);
+ }
+ 
+ #if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+@@ -549,7 +560,7 @@
+ 	struct ifreq   ifr;
+ 	int            ifIndex = if_nametoindex(ifName);
+ 	unsigned char  macAddr[6];
+-	unsigned long  args[4] = { BRCTL_ADD_FDB_ENTRIES, (unsigned long)&macAddr[0], 1, ifIndex };
++	unsigned long  args[5] = { BRCTL_ADD_FDB_ENTRIES, (unsigned long)&macAddr[0], 1, ifIndex, 0};
+ 	char          *mac1;
+ 	const char    *mac = pMac;
+ 	int            i;
+@@ -584,7 +595,7 @@
+ 	struct ifreq   ifr;
+ 	int            ifIndex = if_nametoindex(ifName);
+ 	unsigned char  macAddr[6];
+-	unsigned long  args[4] = { BRCTL_DEL_FDB_ENTRIES, (unsigned long)&macAddr[0], 1, ifIndex };
++	unsigned long  args[5] = { BRCTL_DEL_FDB_ENTRIES, (unsigned long)&macAddr[0], 1, ifIndex, 0};
+ 	char          *mac1;
+ 	const char    *mac = pMac;
+ 	int            i;
+@@ -618,7 +629,7 @@
+ 	int            err;
+ 	struct ifreq   ifr;
+ 	int            ifIndex = if_nametoindex(ifName);
+-	unsigned long  args[2] = { BRCTL_DEL_DYN_FDB_ENTRIES, ifIndex };
++	unsigned long  args[5] = { BRCTL_DEL_DYN_FDB_ENTRIES, ifIndex, 0, 0, 0};
+ 
+ 	if (ifIndex == 0) 
+ 		return ENODEV;
+@@ -638,7 +649,7 @@
+ 	struct ifreq   ifr;
+ 	int            rxifIndex = if_nametoindex(rxifName);
+ 	int            txifIndex = if_nametoindex(txifName);
+-	unsigned long  args[3] = { BRCTL_SET_FLOWS, rxifIndex, txifIndex };
++	unsigned long  args[5] = { BRCTL_SET_FLOWS, rxifIndex, txifIndex, 0, 0};
+ 
+ 	if (rxifIndex == 0 || txifIndex == 0) 
+ 		return ENODEV;
+@@ -655,12 +666,12 @@
+ 
+ int br_set_path_cost(const char *bridge, const char *port, int cost)
+ {
+-	return port_set(bridge, port, "path_cost", cost, BRCTL_SET_PATH_COST);
++	return port_set(bridge, port, "path_cost", cost, BRCTL_SET_PATH_COST, 0);
+ }
+ 
+ int br_set_hairpin_mode(const char *bridge, const char *port, int hairpin_mode)
+ {
+-	return port_set(bridge, port, "hairpin_mode", hairpin_mode, 0);
++	return port_set(bridge, port, "hairpin_mode", hairpin_mode, 0, 0);
+ }
+ 
+ static inline void __copy_fdb(struct fdb_entry *ent, 
+@@ -692,9 +703,9 @@
+ 		fclose(f);
+ 	} else {
+ 		/* old kernel, use ioctl */
+-		unsigned long args[4] = { BRCTL_GET_FDB_ENTRIES,
++		unsigned long args[5] = { BRCTL_GET_FDB_ENTRIES,
+ 					  (unsigned long) fe,
+-					  num, offset };
++					  num, offset, 0};
+ 		struct ifreq ifr;
+ 		int retries = 0;
+ 
+Index: bridge-utils-1.5/libbridge/libbridge_if.c
+===================================================================
+--- bridge-utils-1.5.orig/libbridge/libbridge_if.c	2011-03-29 08:52:54.000000000 +0800
++++ bridge-utils-1.5/libbridge/libbridge_if.c	2019-12-15 00:11:41.019461700 +0800
+@@ -82,7 +82,7 @@
+ 	if (err < 0)
+ #endif
+ 	{
+-		unsigned long args[4] = { BRCTL_ADD_IF, ifindex, 0, 0 };
++		unsigned long args[5] = { BRCTL_ADD_IF, ifindex, 0, 0, 0};
+ 					  
+ 		ifr.ifr_data = (char *) args;
+ 		err = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
+@@ -107,7 +107,7 @@
+ 	if (err < 0)
+ #endif		
+ 	{
+-		unsigned long args[4] = { BRCTL_DEL_IF, ifindex, 0, 0 };
++		unsigned long args[5] = { BRCTL_DEL_IF, ifindex, 0, 0, 0};
+ 					  
+ 		ifr.ifr_data = (char *) args;
+ 		err = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);

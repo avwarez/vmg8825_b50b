@@ -1,0 +1,11 @@
+menu "Configuration"
+    depends on PACKAGE_net-snmp && ZYXEL_MODSW_ZYEE
+
+config NETSNMP_MODSW
+    bool "net-snmp-modsw"
+    default n
+    help
+        If enable the feature, the net-snmp package would NOT
+        be installed into rootfs. If unsure, choose the default N.
+
+endmenu

@@ -1,0 +1,31 @@
+Index: linux-4.1.52/net/core/blog.c
+===================================================================
+--- linux-4.1.52.orig/net/core/blog.c	2018-02-13 17:41:26.024052827 +0800
++++ linux-4.1.52/net/core/blog.c	2018-02-13 17:41:26.352052816 +0800
+@@ -44,9 +44,13 @@
+ #include <linux/blog_net.h>
+ #include <linux/nbuff.h>
+ #include <linux/skbuff.h>
++#if defined(ZCFG_USED)
++#include <skb_defines.h>
++#else
+ #if defined(CONFIG_BCM_KF_SKB_DEFINES)
+ #include <linux/bcm_skb_defines.h>
+ #endif
++#endif
+ #include <linux/notifier.h>
+ #include <net/netevent.h>
+ #if defined(CONFIG_XFRM) 
+Index: linux-4.1.52/include/uapi/linux/types.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/types.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/uapi/linux/types.h	2018-02-13 18:39:58.311635434 +0800
+@@ -6,7 +6,7 @@
+ #ifndef __ASSEMBLY__
+ #ifndef	__KERNEL__
+ #ifndef __EXPORTED_HEADERS__
+-#warning "Attempt to use kernel headers from user space, see http://kernelnewbies.org/KernelHeaders"
++//#warning "Attempt to use kernel headers from user space, see http://kernelnewbies.org/KernelHeaders"
+ #endif /* __EXPORTED_HEADERS__ */
+ #endif
+ 

@@ -1,0 +1,191 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-10-21 09:08:38.406731856 +0000
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-10-21 09:08:38.490728345 +0000
+@@ -4600,8 +4600,13 @@
+                 /* Not support ETHWAN */
+                 if (zyutil_cofw_modelNameGet() == MODEL_VMG1312_T20A)
+                 {
++#if 0//IChia 20190829
+                     zcfgFeJsonObjFree(pramJobj);
+                     zcfgFeJsonObjFree(ipIfObj);
++#else
++                    ipIfObj = NULL;//ichia test 20190829
++                    zcfgFeJsonObjFree(pramJobj);
++#endif
+ 					freeAllObjects();
+                     continue;
+                 }
+@@ -4616,9 +4621,13 @@
+ 				if(index == count){
+ 					json_object_object_add(pramJobj, "ShowDetail", json_object_new_boolean(true));
+ 					json_object_array_add(Jarray, JSON_OBJ_COPY(pramJobj));
+-
++#if 0//IChia 20190829
+ 					zcfgFeJsonObjFree(pramJobj);
+ 					zcfgFeJsonObjFree(ipIfObj);
++#else
++					ipIfObj = NULL;//ichia test 20190829
++					zcfgFeJsonObjFree(pramJobj);
++#endif
+ 					freeAllObjects();
+ 					break;
+ 				}
+@@ -4628,8 +4637,13 @@
+ 			    json_object_array_add(Jarray, JSON_OBJ_COPY(pramJobj));
+             }
+ 		}
++#if 0//IChia 20190829
+ 		zcfgFeJsonObjFree(pramJobj);
+ 		zcfgFeJsonObjFree(ipIfObj);
++#else
++		ipIfObj = NULL;//ichia test 20190829
++		zcfgFeJsonObjFree(pramJobj);
++#endif
+ 		freeAllObjects();
+ 	}
+ 
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wmm.c	2019-10-21 09:08:38.474729013 +0000
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c	2019-10-21 09:08:38.490728345 +0000
+@@ -60,12 +60,23 @@
+ 
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_RADIO, &iid, &wifiRadioObj) == ZCFG_SUCCESS){
++#if 0 //IChia 20190906
+ 		if(iid.idx[0] == 1){
+ 			wirelessMode24G = JSON_OBJ_COPY(json_object_object_get(wifiRadioObj, "X_ZYXEL_Wireless_Mode"));
+ 		}else if(iid.idx[0] == 2){
+ 			wirelessMode5G = JSON_OBJ_COPY(json_object_object_get(wifiRadioObj, "X_ZYXEL_Wireless_Mode"));
+ 		}
+ 		zcfgFeJsonObjFree(wifiRadioObj);
++#else
++		if(iid.idx[0] == 1)
++		{
++			wirelessMode24G = json_object_new_string(json_object_get_string(json_object_object_get(wifiRadioObj, "X_ZYXEL_Wireless_Mode")));
++		}else if(iid.idx[0] == 2)
++		{
++			wirelessMode5G = json_object_new_string(json_object_get_string(json_object_object_get(wifiRadioObj, "X_ZYXEL_Wireless_Mode")));
++		}
++		zcfgFeJsonObjFree(wifiRadioObj);
++#endif
+ 	}
+ 
+ 	// get ssid obj
+@@ -86,8 +97,14 @@
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &iid, &obj) == ZCFG_SUCCESS){
+ 		paramJobj = json_object_new_object();
+ 		json_object_object_add(paramJobj, "Index", json_object_new_int(count));
++#if 0 //IChia 20190906
+ 		json_object_object_add(paramJobj, "WMMEnable", JSON_OBJ_COPY(json_object_object_get(obj,"WMMEnable")));
+ 		json_object_object_add(paramJobj, "UAPSDEnable", JSON_OBJ_COPY(json_object_object_get(obj,"UAPSDEnable")));
++#else
++		json_object_object_add(paramJobj, "WMMEnable",	json_object_new_boolean(json_object_get_boolean(json_object_object_get(obj,"WMMEnable"))));
++		json_object_object_add(paramJobj, "UAPSDEnable", json_object_new_boolean(json_object_get_boolean(json_object_object_get(obj,"UAPSDEnable"))));
++#endif
++#if 0 //IChia 20190906
+ 		if(iid.idx[0] <= TOTAL_INTERFACE_24G){
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", wirelessMode24G);
+ 		}
+@@ -96,11 +113,29 @@
+ 		}else{
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", json_object_new_string(""));
+ 		}
++#else
++		if(iid.idx[0] <= TOTAL_INTERFACE_24G){
++			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", json_object_new_string(json_object_get_string(wirelessMode24G)));
++		}
++#if defined(BUILD_SONIQ) || defined(ZYXEL_EASYMESH)
++		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G - 2)) //-2 :exclude MultyPro & EasyMesh
++#else
++		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G))
++#endif
++		{
++			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", json_object_new_string(json_object_get_string(wirelessMode5G)));
++		}else{
++			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", json_object_new_string(""));
++		}
++#endif
+ 		json_object_array_add(Jarray, paramJobj);
+ 		count++;
+ 		zcfgFeJsonObjFree(obj);
+ 	}
+-	
++#if 1 //IChia 20190906
++	zcfgFeJsonObjFree(wirelessMode24G);
++	zcfgFeJsonObjFree(wirelessMode5G);
++#endif
+ 	return ret;
+ }
+ 
+Index: libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_acl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/firewall/zcfg_fe_dal_firewall_acl.c	2019-10-21 09:08:37.570766800 +0000
++++ libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_acl.c	2019-10-21 09:08:38.490728345 +0000
+@@ -250,12 +250,23 @@
+ 		}
+ 
+ 		if(ret == ZCFG_SUCCESS){
++#if 0//IChia 20190918
+ 			json_object_object_foreach(Jobj, key, val){
+ 				if(!strcmp(key, "Index")){
+ 					continue;
+ 				}
+ 				json_object_object_add(aclObj, key, val);
+ 			}
++#else
++			json_object_object_foreach(Jobj, key, val)
++			{
++				if(!strcmp(key, "Index"))
++				{
++					continue;
++				}
++				json_object_object_add(aclObj, key, JSON_OBJ_COPY(val));
++			}
++#endif
+ 			
+ 			if((paramObj = json_object_object_get(Jobj, "IPVersion")) != NULL){
+ 				charVal = json_object_get_string(paramObj);
+@@ -446,12 +457,23 @@
+ 			}
+ 		}
+ 		if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_FIREWALL_CHAIN_RULE, &aclIid, &aclObj)) == ZCFG_SUCCESS){
++#if 0 //IChia 20190917
+ 			json_object_object_foreach(Jobj, key, val){
+ 				if(!strcmp(key, "Index")){
+ 					continue;
+ 				}
+ 				json_object_object_add(aclObj, key, val);
+ 			}
++#else
++			json_object_object_foreach(Jobj, key, val)
++			{
++				if(!strcmp(key, "Index"))
++				{
++					continue;
++				}
++				json_object_object_add(aclObj, key, JSON_OBJ_COPY(val));
++			}
++#endif
+ 			if((paramObj = json_object_object_get(Jobj, "IPVersion")) != NULL){
+ 				charVal = json_object_get_string(paramObj);
+ 				if(!strcmp(charVal, "IPv4"))
+Index: libzcfg_fe_dal-1.0/security/URLFilter/zcfg_fe_dal_URLFilter.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/URLFilter/zcfg_fe_dal_URLFilter.c	2019-10-21 09:08:37.714760781 +0000
++++ libzcfg_fe_dal-1.0/security/URLFilter/zcfg_fe_dal_URLFilter.c	2019-10-21 09:15:03.966615097 +0000
+@@ -75,8 +75,13 @@
+ 		pramJobj = json_object_new_object();
+ 		json_object_object_add(pramJobj, "Name",JSON_OBJ_COPY(json_object_object_get(URLFilterJobj, "Name")));
+ 		json_object_object_add(pramJobj, "Description",JSON_OBJ_COPY(json_object_object_get(URLFilterJobj, "Description")));
++#if 0 //ICHIA 20191021
+ 		json_object_object_add(pramJobj, "Enable",json_object_object_get(URLFilterJobj, "Enable"));
+ 		json_object_object_add(pramJobj, "FilterIndex",json_object_object_get(URLFilterJobj, "FilterIndex"));
++#else
++		json_object_object_add(pramJobj, "Enable",JSON_OBJ_COPY(json_object_object_get(URLFilterJobj, "Enable")));
++		json_object_object_add(pramJobj, "FilterIndex",JSON_OBJ_COPY(json_object_object_get(URLFilterJobj, "FilterIndex")));
++#endif
+ 		if(json_object_object_get(Jobj, "Index")) {
+ 			if(index == json_object_get_int(json_object_object_get(Jobj, "Index"))) {
+ 				json_object_array_add(Jarray, pramJobj);

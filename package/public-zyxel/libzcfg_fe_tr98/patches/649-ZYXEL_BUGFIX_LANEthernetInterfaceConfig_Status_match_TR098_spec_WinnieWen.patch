@@ -1,0 +1,42 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-10-09 05:57:31.291937796 +0000
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-10-09 06:32:51.716285283 +0000
+@@ -4330,7 +4330,26 @@
+ 	while(paramList->name != NULL) {
+ 		paramValue = json_object_object_get(ethIntfJobj, paramList->name);
+ 		if(paramValue != NULL) {
+-			json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			if(!strcmp(paramList->name, "Status"))
++			{
++				const char *paramObjStr = json_object_get_string(paramValue);
++				const bool *paramObjBool = json_object_get_boolean(json_object_object_get(ethIntfJobj, "Enable"));
++				if(!strcmp(paramObjStr, "Down"))
++				{
++					if(!paramObjBool)
++						json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Disabled"));
++					else
++						json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("NoLink"));
++				}
++				else
++				{
++					json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Up"));
++				}
++			}
++			else
++			{
++				json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			}
+ 			paramList++;
+ 			continue;
+ 		}
+@@ -4340,7 +4359,8 @@
+ 		paramList++;
+ 	}
+ 
+-	json_object_put(ethIntfJobj);	
++	// Remove excess release
++	//json_object_put(ethIntfJobj);	
+ 	return ZCFG_SUCCESS;
+ }
+ 

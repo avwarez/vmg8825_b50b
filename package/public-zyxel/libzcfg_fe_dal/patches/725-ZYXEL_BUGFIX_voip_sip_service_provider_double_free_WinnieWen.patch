@@ -1,0 +1,34 @@
+Index: libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_provider.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/voip/sip/zcfg_fe_dal_sip_provider.c	2019-12-12 07:44:03.989807905 +0000
++++ libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_provider.c	2019-12-12 07:45:06.619467145 +0000
+@@ -199,6 +199,8 @@
+ struct json_object *profFaxT38Obj; //Amber.20170914: Add for Content of  RTP-RTCP, RTP-REDUNDANCY, FAX_T38 won’t be created in config while adding new SIP provider via GUI/CLI
+ struct json_object *singleProObj;
+ 
++bool free_multiJobj = true;
++
+ unsigned int flag1;
+ 
+ objIndex_t cFlagIid = {0};
+@@ -310,7 +312,7 @@
+ }
+ 
+ void freeAllProfObjects(){
+-	if(multiJobj) json_object_put(multiJobj);
++	if(multiJobj && free_multiJobj) json_object_put(multiJobj);
+ 	if(guiCustObj) json_object_put(guiCustObj);
+ 	if(profObj) json_object_put(profObj);
+ 	if(profSipObj) json_object_put(profSipObj);
+@@ -1241,9 +1243,11 @@
+ 	sprintf(path,"VoiceProfile.%d",profIid.idx[1]);
+ 	json_object_object_add(Jobj, "AddPath", json_object_new_string(path));
+ 	ret = zcfgFeDalVoipLineAdd(Jobj, multiJobj, NULL);
++	free_multiJobj = false;
+ 
+ exit:
+ 	freeAllProfObjects();
++	free_multiJobj = true;
+ 	//printf("%s(): Exit..ret(%d) \n ",__FUNCTION__, ret);
+ 	return ret;
+ }

@@ -1,0 +1,90 @@
+Index: libzyutil-1.0/ECONET/libzyutil_econet_wrapper.h
+===================================================================
+--- libzyutil-1.0.orig/ECONET/libzyutil_econet_wrapper.h	2019-12-17 14:47:15.784611407 +0800
++++ libzyutil-1.0/ECONET/libzyutil_econet_wrapper.h	2019-12-17 14:47:15.880610200 +0800
+@@ -44,4 +44,8 @@
+ #define ECONET_BOARDFEATURES_PROC_PATH "/proc/tc3162/prtype"
+ #define ECONET_BOARDFEATURES_PRNAME_PATH "/proc/tc3162/prname"
+ 
++#if defined (ZYXEL_BOARD_DETECT_BY_GPIO)
++#define ECONET_COFW_PRODUCT_NAME_PATH "/proc/zyxel/mrd_product_name"
++#endif
++
+ #endif
+Index: libzyutil-1.0/ECONET/libzyutil_wrapper.c
+===================================================================
+--- libzyutil-1.0.orig/ECONET/libzyutil_wrapper.c	2019-12-17 14:47:15.872610300 +0800
++++ libzyutil-1.0/ECONET/libzyutil_wrapper.c	2019-12-17 14:47:15.880610200 +0800
+@@ -229,12 +229,44 @@
+ 		}
+ 	}
+ #endif
++
++#if defined (ZYXEL_BOARD_DETECT_BY_GPIO)
++	char cofw_prname[MRD_PRODUCT_NAME_LEN] = {0};
++	int cofw_prnameLen = MRD_PRODUCT_NAME_LEN;
++    if (zyUtilGetCoFwProductName(cofw_prname, cofw_prnameLen) > 0)
++    {
++        if(strcmp(mrd->PRODUCT_NAME, cofw_prname))
++        {
++			//cut the last line feed char
++            strncpy(mrd->PRODUCT_NAME, cofw_prname, strlen(cofw_prname)-1);
++            //printf("%s,%d, %s\n", __FUNCTION__, __LINE__, mrd->PRODUCT_NAME);
++        }
++    }
++#endif
++
+ 	dumpMRDinfo(mrd);
+ 	fclose(fptr);
+ 	unlink(filename);
+ 	return ZCFG_SUCCESS;
+ }
+ 
++#if defined (ZYXEL_BOARD_DETECT_BY_GPIO)
++int zyUtilGetCoFwProductName(char *prname, int prnameLen)
++{
++   FILE *pf = fopen(ECONET_COFW_PRODUCT_NAME_PATH, "r");
++
++   if(!pf || !prname){
++     return -1;
++   }
++   
++   int n = fread(prname, 1, prnameLen-1, pf);
++
++   fclose(pf);
++
++   return n;
++}
++#endif
++
+ zcfgRet_t zyUtilSetMrdInfo(PMRD_DATA mrd)
+ {
+ 	char sysCmd[128] = {0};
+Index: libzyutil-1.0/zyutil_cofw.c
+===================================================================
+--- libzyutil-1.0.orig/zyutil_cofw.c	2019-12-17 14:47:15.844610652 +0800
++++ libzyutil-1.0/zyutil_cofw.c	2019-12-17 14:47:15.880610200 +0800
+@@ -44,6 +44,10 @@
+ 			return MODEL_PX7501_B0;
+ 		}else if (strstr(modelName,"AX7501-B0") != NULL){
+ 			return MODEL_AX7501_B0;
++		}else if (strstr(modelName,"PMG5817-T20A") != NULL){
++		   	return MODEL_PMG5817_T20A;
++		}else if (strstr(modelName,"PMG5917-T20A") != NULL){
++		   	return MODEL_PMG5917_T20A;
+ 		}else if (strstr(modelName,"VMG8825-B50B") != NULL){
+ 			return MODEL_VMG8825_B50B;
+ 		}else if (strstr(modelName,"AM3100-B0") != NULL){
+Index: libzyutil-1.0/zyutil_cofw.h
+===================================================================
+--- libzyutil-1.0.orig/zyutil_cofw.h	2019-12-17 14:47:15.844610652 +0800
++++ libzyutil-1.0/zyutil_cofw.h	2019-12-17 14:48:29.534101347 +0800
+@@ -17,6 +17,8 @@
+     MODEL_EMG6726_B10A,
+     MODEL_PX7501_B0,
+     MODEL_AX7501_B0,
++    MODEL_PMG5817_T20A,
++    MODEL_PMG5917_T20A,
+     MODEL_VMG8825_B50B,
+     MODEL_AM3100_B0
+ } model_name_t;

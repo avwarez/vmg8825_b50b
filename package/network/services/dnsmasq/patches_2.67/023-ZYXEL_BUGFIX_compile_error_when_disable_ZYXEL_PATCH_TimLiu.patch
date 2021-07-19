@@ -1,0 +1,20 @@
+Index: dnsmasq-2.67/src/rfc2131.c
+===================================================================
+--- dnsmasq-2.67.orig/src/rfc2131.c	2019-07-22 00:11:45.985995664 +0800
++++ dnsmasq-2.67/src/rfc2131.c	2019-07-22 00:15:55.627833291 +0800
+@@ -304,6 +304,7 @@
+       emac = extended_hwaddr(mess->htype, mess->hlen, mess->chaddr, clid_len, clid, &emac_len);
+     }
+ 
++#ifdef ZYXEL_PATCH
+ 	for (ifname = daemon->dhcp_ifnames; ifname; ifname = ifname->next){
+ 
+ 		if(find_ifname(mess->chaddr, mess->hlen, ifname->ifname, iface_name)){
+@@ -311,6 +312,7 @@
+ 			netid = &ifname->netid;
+ 		}
+ 	}
++#endif
+ 
+   for (mac = daemon->dhcp_macs; mac; mac = mac->next)
+     if (mac->hwaddr_len == mess->hlen &&

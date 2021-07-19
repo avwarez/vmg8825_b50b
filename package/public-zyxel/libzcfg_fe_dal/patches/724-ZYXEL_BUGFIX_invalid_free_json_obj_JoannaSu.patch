@@ -1,0 +1,30 @@
+Index: libzcfg_fe_dal-1.0/network/routing/zcfg_fe_dal_rip.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/routing/zcfg_fe_dal_rip.c	2019-12-12 09:37:22.277391240 +0800
++++ libzcfg_fe_dal-1.0/network/routing/zcfg_fe_dal_rip.c	2019-12-12 09:37:30.657391240 +0800
+@@ -215,7 +215,9 @@
+ 				printf("%s:(ERROR) fail to set object %d\n", __FUNCTION__, RDM_OID_ROUTING_RIP_INTF_SET);
+ 				return ZCFG_INTERNAL_ERROR;
+ 			}
++			#if 0 /* <JoannaSu>, <20191211>, <Avoid the invalid free as obj gets from json_object_array_get_idx> */
+ 			zcfgFeJsonObjFree(reqObject);
++			#endif
+ 		}
+ 		return ret;
+ 	}
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_loginprivilege.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_loginprivilege.c	2019-12-12 09:37:29.841391240 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_loginprivilege.c	2019-12-12 09:39:43.245391240 +0800
+@@ -156,9 +156,10 @@
+ 		}
+ #endif
+ 	}
+-	
++#if 0 /* <JoannaSu>, <20191211>, <Avoid the invalid free as obj gets from json_object_array_get_idx> */	
+ 	zcfgFeJsonObjFree(reqObjectindex);
+ 	zcfgFeJsonObjFree(reqObject);
++#endif
+ 	zcfgFeJsonObjFree(loginPrivilegeObj);
+ 	return ret;
+ 

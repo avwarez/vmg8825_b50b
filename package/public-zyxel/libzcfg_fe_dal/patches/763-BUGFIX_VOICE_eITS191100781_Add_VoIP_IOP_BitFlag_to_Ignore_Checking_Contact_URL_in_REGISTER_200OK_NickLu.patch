@@ -1,0 +1,58 @@
+Index: libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_provider.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/voip/sip/zcfg_fe_dal_sip_provider.c	2020-03-19 15:18:48.922941531 +0800
++++ libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_provider.c	2020-03-19 17:54:13.695155319 +0800
+@@ -28,6 +28,7 @@
+ 	{"VoipIOPFlags",							dalType_int,	0,	0,	NULL,	NULL,	dalcmd_Forbid},	// need modify, change two parameter of GUI, type: bool //close
+ 	{"ReplaceDialDigit",						dalType_boolean,0,	0,	NULL},	// new parameter for VoipIOPFlag
+ 	{"RemoveRouteHeader",						dalType_boolean,0,	0,	NULL},	// new parameter for VoipIOPFlag
++	{"VoipSigIOPFlags",							dalType_int,	0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{"BoundIfName",								dalType_string,	0,	0,	NULL, "Any_WAN|Multi_WAN"},
+ 	{"BoundIfList",								dalType_MultiRtWanWWan,	0,	0,	NULL},
+ 	{"OutboundProxy",							dalType_string,	0,	0,	NULL},
+@@ -128,6 +129,7 @@
+ bool DigitMapEnable;
+ const char* DigitMap;
+ unsigned int X_ZYXEL_VoipIOPFlags;
++unsigned int X_ZYXEL_VoipSigIOPFlags;
+ bool ReplaceDialDigit;
+ bool RemoveRouteHeader;
+ const char* X_ZYXEL_FaxMode;
+@@ -370,7 +372,9 @@
+ 			origVoipIOPFlags &= ~(1<<2);
+ 		X_ZYXEL_VoipIOPFlags = origVoipIOPFlags;
+ 	}
+-	
++
++	if(json_object_object_get(Jobj, "VoipSigIOPFlags"))
++		X_ZYXEL_VoipSigIOPFlags = json_object_get_int(json_object_object_get(Jobj, "VoipSigIOPFlags"));
+ 	
+ 	X_ZYXEL_FaxMode = json_object_get_string(json_object_object_get(Jobj, "FaxMode"));
+ 	//FAXPassThrough = json_object_get_string(json_object_object_get(Jobj, "FAXPassThrough"));
+@@ -610,6 +614,10 @@
+ 		}
+ 		if(json_object_object_get(Jobj, "VoipIOPFlags") != NULL || (json_object_object_get(Jobj, "ReplaceDialDigit") && json_object_object_get(Jobj, "RemoveRouteHeader")))
+ 			json_object_object_add(profObj, "X_ZYXEL_VoipIOPFlags", json_object_new_int(X_ZYXEL_VoipIOPFlags));
++
++		if(json_object_object_get(Jobj, "VoipSigIOPFlags") != NULL)
++			json_object_object_add(profObj, "X_ZYXEL_VoipSigIOPFlags", json_object_new_int(X_ZYXEL_VoipSigIOPFlags));
++
+ 		if(json_object_object_get(Jobj, "FaxMode") != NULL)
+ 			json_object_object_add(profObj, "X_ZYXEL_FaxMode", json_object_new_string(X_ZYXEL_FaxMode));
+ 			json_object_object_add(profObj, "FAXPassThrough", json_object_new_string(FAXPassThrough));
+@@ -1307,6 +1315,7 @@
+ 		DigitMap = json_object_get_string(json_object_object_get(profObj, "DigitMap"));
+ 	}
+ 	X_ZYXEL_VoipIOPFlags = json_object_get_int(json_object_object_get(profObj, "X_ZYXEL_VoipIOPFlags"));
++	X_ZYXEL_VoipSigIOPFlags = json_object_get_int(json_object_object_get(profObj, "X_ZYXEL_VoipSigIOPFlags"));
+ 	X_ZYXEL_FaxMode = json_object_get_string(json_object_object_get(profObj, "X_ZYXEL_FaxMode"));
+ 	FAXPassThrough = json_object_get_string(json_object_object_get(profObj, "FAXPassThrough"));
+ 	ModemPassThrough = json_object_get_string(json_object_object_get(profObj, "ModemPassThrough"));
+@@ -1325,6 +1334,7 @@
+ 		json_object_object_add(paserobj, "DigitMap", json_object_new_string(DigitMap));
+ 	}
+ 	json_object_object_add(paserobj, "X_ZYXEL_VoipIOPFlags", json_object_new_int(X_ZYXEL_VoipIOPFlags));
++	json_object_object_add(paserobj, "X_ZYXEL_VoipSigIOPFlags", json_object_new_int(X_ZYXEL_VoipSigIOPFlags));
+ 	json_object_object_add(paserobj, "X_ZYXEL_FaxMode", json_object_new_string(X_ZYXEL_FaxMode));
+ 	json_object_object_add(paserobj, "FAXPassThrough", json_object_new_string(FAXPassThrough));
+ 	json_object_object_add(paserobj, "ModemPassThrough", json_object_new_string(ModemPassThrough));

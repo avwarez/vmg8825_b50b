@@ -1,0 +1,97 @@
+Index: dropbear-2018.76/svr-auth.c
+===================================================================
+--- dropbear-2018.76.orig/svr-auth.c	2020-08-25 09:40:09.663876942 +0800
++++ dropbear-2018.76/svr-auth.c	2020-08-25 09:47:10.791566918 +0800
+@@ -345,6 +345,32 @@
+ #endif //ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT
+ 
+ #ifdef ZYXEL_REMOTE_ACCESS_PRIVILEGE
++
++bool beCheckLANLinkLocalAddr(char *remoteAddr)
++{
++	char cmd[256]={0};
++	FILE *fp = NULL;
++	char *lst = calloc(128, sizeof(char));
++	int ret = 0; //set ip addr from wan by default
++
++	sprintf(cmd, "ip -6 neigh | grep '%s' | grep br > /tmp/CheckLANLinkLocalResult", remoteAddr);
++	system(cmd);
++
++	fp = fopen("/tmp/CheckLANLinkLocalResult", "r");
++	if(fp != NULL){
++		if( fgets (lst, 128, fp)!=NULL ) {
++			if(strstr(lst, "br") != 0)
++				ret = 1; //LAN
++   		}
++		fclose(fp);
++	}
++	
++	unlink("/tmp/CheckLANLinkLocalResult");
++	
++	free(lst);
++	return ret;	
++}
++
+ void checkClientFromLANWAN(char *remoaddr, char *remoAddr_Type)
+ {
+ 	int addrType = 0;
+@@ -357,6 +383,7 @@
+ 	char lanip[64] = {0};
+ 	char perfix[8] = {0};
+ 	bool found = false;
++	int fromLAN = 0;
+ 	
+ 	addrType = ipType(remoaddr);
+ 	if (addrType != AF_INET && addrType != AF_INET6) {
+@@ -395,6 +422,24 @@
+ 					}
+ 					zcfgFeObjStructFree(ipv6Obj);
+ 				}
++				//check if login account from link-local address
++				if(!found){
++					fromLAN = beCheckLANLinkLocalAddr(remoaddr);
++					if(!fromLAN){
++						//this address not come from LAN, no need to check with device linklocal addr
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}						
++					if( strcmp(ipObj->X_ZYXEL_IPv6LocalAddress, "") == 0 ){
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++					if (checkCidrBlock(ipObj->X_ZYXEL_IPv6LocalAddress, "64", remoaddr) == 1) {
++						found = true;
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++				}					
+ 			}
+ 		}
+ 		zcfgFeObjStructFree(ipObj);
+@@ -454,7 +499,7 @@
+ 	uid_t uid;
+ 	char *sshaddr = NULL;
+ 	char *tmpPtr = NULL;
+-	char remoAddr[64]; 
++	char remoAddr[64]={0}, hostip[64]={0}; 
+ 	int authGpPrivilege = 1 ;
+ 
+ #ifdef ZLD_APPS_ENABLE_CENTRALIZELOG /* Modified by ZyXEL */
+@@ -466,10 +511,15 @@
+ 		return DROPBEAR_FAILURE;
+ 	}
+ 
+-	strcpy(remoAddr,svr_ses.addrstring);
+-	tmpPtr = strrchr(remoAddr,':');
++	strncpy(hostip,svr_ses.addrstring,sizeof(hostip));
++	tmpPtr = strrchr(hostip,':');
+ 	*tmpPtr = '\0';
+ 
++	if(strstr(hostip, "%") != 0)
++		sscanf(hostip, "%[^%]", remoAddr);
++	else
++		sscanf(hostip, "%s", remoAddr);
++
+ 	if (strlen(username) != userlen) {
+ 		dropbear_exit("Attempted username with a null byte from %s",
+ 			svr_ses.addrstring);

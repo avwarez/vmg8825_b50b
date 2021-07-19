@@ -1,0 +1,23 @@
+Index: libzcfg_fe_tr98-1.0/zyExt_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt_parameter.h	2020-05-13 19:14:36.992798131 +0800
++++ libzcfg_fe_tr98-1.0/zyExt_parameter.h	2020-05-13 19:22:19.406091508 +0800
+@@ -449,6 +449,7 @@
+ tr98Parameter_t para_GUI_Customization[] = {
+ 	{ "Flag1", PARAMETER_ATTR_WRITE, 0, json_type_int},
+ 	{ "Flag2", PARAMETER_ATTR_WRITE, 0, json_type_int},
++	{ "Flag3", PARAMETER_ATTR_WRITE, 0, json_type_int},
+ 	{ "BlockSpecialChar", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "BlockChar", PARAMETER_ATTR_WRITE, 128, json_type_string},
+ 	{ "AllowFilter", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+@@ -466,8 +467,8 @@
+ };
+ #endif //#ifdef ZYXEL_ONESSID
+ 
+-
+-tr98Parameter_t para_DSL[] =
++
++tr98Parameter_t para_DSL[] =
+ {
+ 	{ "X_ZYXEL_ModemLabID", PARAMETER_ATTR_WRITE, 13, json_type_string},
+ 	{ NULL, 0, 0, 0}

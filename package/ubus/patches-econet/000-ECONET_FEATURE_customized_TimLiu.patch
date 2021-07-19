@@ -1,0 +1,949 @@
+Index: ubus-2015-05-25/CMakeLists.txt
+===================================================================
+--- ubus-2015-05-25.orig/CMakeLists.txt	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/CMakeLists.txt	2019-07-18 18:12:22.164747696 +0800
+@@ -3,9 +3,9 @@
+ PROJECT(ubus C)
+ ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations)
+ 
+-OPTION(BUILD_LUA "build Lua plugin" ON)
+-OPTION(BUILD_EXAMPLES "build examples" ON)
+-OPTION(ENABLE_SYSTEMD "systemd support" ON)
++#OPTION(BUILD_LUA "build Lua plugin" ON)
++#OPTION(BUILD_EXAMPLES "build examples" ON)
++#OPTION(ENABLE_SYSTEMD "systemd support" ON)
+ 
+ SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+ SET(UBUS_UNIX_SOCKET "/var/run/ubus.sock")
+@@ -14,10 +14,10 @@
+ ADD_DEFINITIONS( -DUBUS_UNIX_SOCKET="${UBUS_UNIX_SOCKET}")
+ ADD_DEFINITIONS( -DUBUS_MAX_MSGLEN=${UBUS_MAX_MSGLEN})
+ 
+-IF(APPLE)
+-  INCLUDE_DIRECTORIES(/opt/local/include)
+-  LINK_DIRECTORIES(/opt/local/lib)
+-ENDIF()
++#IF(APPLE)
++#  INCLUDE_DIRECTORIES(/opt/local/include)
++#  LINK_DIRECTORIES(/opt/local/lib)
++#ENDIF()
+ 
+ ADD_LIBRARY(ubus SHARED libubus.c libubus-io.c libubus-obj.c libubus-sub.c libubus-req.c)
+ TARGET_LINK_LIBRARIES(ubus ubox)
+@@ -25,15 +25,10 @@
+ ADD_EXECUTABLE(ubusd ubusd.c ubusd_id.c ubusd_obj.c ubusd_proto.c ubusd_event.c)
+ TARGET_LINK_LIBRARIES(ubusd ubox)
+ 
+-find_library(json NAMES json-c json)
+-ADD_EXECUTABLE(cli cli.c)
+-SET_TARGET_PROPERTIES(cli PROPERTIES OUTPUT_NAME ubus)
+-TARGET_LINK_LIBRARIES(cli ubus ubox blobmsg_json ${json})
++ADD_EXECUTABLE(msg msg.c)
++TARGET_LINK_LIBRARIES(msg ubus ubox)
+ 
+-ADD_SUBDIRECTORY(lua)
+-ADD_SUBDIRECTORY(examples)
+-
+-INSTALL(TARGETS ubus cli
++INSTALL(TARGETS ubus msg
+ 	LIBRARY DESTINATION lib
+ 	RUNTIME DESTINATION bin
+ )
+@@ -42,15 +37,3 @@
+ )
+ 
+ INSTALL(FILES ubusmsg.h ubus_common.h libubus.h DESTINATION include)
+-
+-# FIXME: this works but certainly can be done better:
+-SET(UBUSD_BINARY "${CMAKE_INSTALL_PREFIX}/sbin/ubusd")
+-
+-# do this after the installs so we have the proper paths
+-IF(ENABLE_SYSTEMD)
+-  INCLUDE(FindPkgConfig)
+-  PKG_CHECK_MODULES(SYSTEMD systemd)
+-  IF(SYSTEMD_FOUND)
+-    ADD_SUBDIRECTORY(systemd)
+-  ENDIF()
+-ENDIF()
+Index: ubus-2015-05-25/cli.c
+===================================================================
+--- ubus-2015-05-25.orig/cli.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/cli.c	2019-07-18 18:12:22.164747696 +0800
+@@ -106,7 +106,7 @@
+ static int ubus_cli_call(struct ubus_context *ctx, int argc, char **argv)
+ {
+ 	uint32_t id;
+-	int ret;
++//	int ret;
+ 
+ 	if (argc < 2 || argc > 3)
+ 		return -2;
+@@ -118,9 +118,13 @@
+ 		return -1;
+ 	}
+ 
+-	ret = ubus_lookup_id(ctx, argv[0], &id);
+-	if (ret)
+-		return ret;
++//	ret = ubus_lookup_id(ctx, argv[0], &id);
++//	if (ret)
++//		return ret;
++
++	id = atoi(argv[0]);
++
++	printf("ubus_cli_call: id = %d \n",id);
+ 
+ 	return ubus_invoke(ctx, id, argv[1], b.head, receive_call_result_data, NULL, timeout * 1000);
+ }
+Index: ubus-2015-05-25/libubus-io.c
+===================================================================
+--- ubus-2015-05-25.orig/libubus-io.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/libubus-io.c	2019-07-18 18:12:22.164747696 +0800
+@@ -325,6 +325,20 @@
+ 	ubus_handle_data(&ctx->sock, ULOOP_READ);
+ }
+ 
++int ubus_loop_poll(struct ubus_context *ctx, int timeout);
++int ubus_loop_poll(struct ubus_context *ctx, int timeout)
++{
++	struct pollfd pfd = {
++		.fd = ctx->sock.fd,
++		.events = POLLIN | POLLERR,
++	};
++
++	poll(&pfd, 1, timeout);
++	ubus_handle_data(&ctx->sock, ULOOP_READ);
++
++	return 0;
++}
++
+ static void
+ ubus_refresh_state(struct ubus_context *ctx)
+ {
+Index: ubus-2015-05-25/libubus-obj.c
+===================================================================
+--- ubus-2015-05-25.orig/libubus-obj.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/libubus-obj.c	2019-07-18 18:12:22.164747696 +0800
+@@ -49,7 +49,7 @@
+ 	struct ubus_request_data req = {
+ 		.fd = -1,
+ 	};
+-	int method;
++	int method,len;
+ 	int ret;
+ 	bool no_reply = false;
+ 
+@@ -71,11 +71,15 @@
+ 	req.object = obj->id;
+ 
+ 	for (method = 0; method < obj->n_methods; method++)
+-		if (!obj->methods[method].name ||
+-		    !strcmp(obj->methods[method].name,
+-		            blob_data(attrbuf[UBUS_ATTR_METHOD])))
+-			goto found;
++	{
++		if(obj->methods[method].name)
++			len = strlen(obj->methods[method].name);
++		else
++			len = 0;
+ 
++		if (!obj->methods[method].name || !strcmp(obj->methods[method].name, blob_data(attrbuf[UBUS_ATTR_METHOD])) || len == 0)
++			goto found;
++	}
+ 	/* not found */
+ 	ret = UBUS_STATUS_METHOD_NOT_FOUND;
+ 	goto send;
+@@ -200,6 +204,8 @@
+ 			blob_put_int32(&b, UBUS_ATTR_OBJTYPE, obj->type->id);
+ 		else if (!ubus_push_object_type(obj->type))
+ 			return UBUS_STATUS_INVALID_ARGUMENT;
++	}else if (obj->id > 0){
++		blob_put_int32(&b, UBUS_ATTR_OBJID, obj->id);
+ 	}
+ 
+ 	if (ubus_start_request(ctx, &req, b.head, UBUS_MSG_ADD_OBJECT, 0) < 0)
+Index: ubus-2015-05-25/libubus.h
+===================================================================
+--- ubus-2015-05-25.orig/libubus.h	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/libubus.h	2019-07-18 18:12:22.164747696 +0800
+@@ -285,6 +285,8 @@
+ int ubus_send_reply(struct ubus_context *ctx, struct ubus_request_data *req,
+ 		    struct blob_attr *msg);
+ 
++int ubus_send_status(struct ubus_context *ctx, struct ubus_request_data *req,int status);
++
+ static inline void ubus_defer_request(struct ubus_context *ctx,
+ 				      struct ubus_request_data *req,
+ 				      struct ubus_request_data *new_req)
+Index: ubus-2015-05-25/ubusd.c
+===================================================================
+--- ubus-2015-05-25.orig/ubusd.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/ubusd.c	2019-07-18 18:12:22.164747696 +0800
+@@ -355,6 +355,8 @@
+ 	return 1;
+ }
+ 
++int debug = 0;
++
+ int main(int argc, char **argv)
+ {
+ 	const char *ubus_socket = UBUS_UNIX_SOCKET;
+@@ -365,11 +367,14 @@
+ 
+ 	uloop_init();
+ 
+-	while ((ch = getopt(argc, argv, "s:")) != -1) {
++	while ((ch = getopt(argc, argv, "s:d:")) != -1) {
+ 		switch (ch) {
+ 		case 's':
+ 			ubus_socket = optarg;
+ 			break;
++		case 'd':
++			debug = atoi(optarg);
++			break;
+ 		default:
+ 			return usage(argv[0]);
+ 		}
+Index: ubus-2015-05-25/ubusd_event.c
+===================================================================
+--- ubus-2015-05-25.orig/ubusd_event.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/ubusd_event.c	2019-07-18 18:12:22.164747696 +0800
+@@ -66,18 +66,30 @@
+ 
+ 	blobmsg_parse(evr_policy, EVREG_LAST, attr, blob_data(msg), blob_len(msg));
+ 	if (!attr[EVREG_OBJECT] || !attr[EVREG_PATTERN])
++	{
++		printf("ubusd_alloc_event_pattern: param error \n");
+ 		return UBUS_STATUS_INVALID_ARGUMENT;
++	}
+ 
+ 	id = blobmsg_get_u32(attr[EVREG_OBJECT]);
+ 	if (id < UBUS_SYSTEM_OBJECT_MAX)
++	{
++		printf("ubusd_alloc_event_pattern: id = %d \n",id);
+ 		return UBUS_STATUS_PERMISSION_DENIED;
++	}
+ 
+ 	obj = ubusd_find_object(id);
+ 	if (!obj)
++	{
++		printf("ubusd_alloc_event_pattern: no found  \n");
+ 		return UBUS_STATUS_NOT_FOUND;
++	}
+ 
+ 	if (obj->client != cl)
++	{
++		printf("ubusd_alloc_event_pattern: obj id = %d \n",obj->id.id);
+ 		return UBUS_STATUS_PERMISSION_DENIED;
++	}
+ 
+ 	pattern = blobmsg_data(attr[EVREG_PATTERN]);
+ 
+@@ -90,7 +102,10 @@
+ 
+ 	ev = calloc(1, sizeof(*ev) + len + 1);
+ 	if (!ev)
++	{
++		printf("ubusd_alloc_event_pattern: alloc error \n");
+ 		return UBUS_STATUS_NO_DATA;
++	}
+ 
+ 	list_add(&ev->list, &obj->events);
+ 	ev->obj = obj;
+Index: ubus-2015-05-25/ubusd_obj.c
+===================================================================
+--- ubus-2015-05-25.orig/ubusd_obj.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/ubusd_obj.c	2019-07-18 18:12:22.164747696 +0800
+@@ -131,13 +131,17 @@
+ {
+ 	struct ubus_object *obj;
+ 	struct ubus_object_type *type = NULL;
++	uint32_t id = 0;
+ 
+ 	if (attr[UBUS_ATTR_OBJTYPE])
+ 		type = ubus_get_obj_type(blob_get_u32(attr[UBUS_ATTR_OBJTYPE]));
+ 	else if (attr[UBUS_ATTR_SIGNATURE])
+ 		type = ubus_create_obj_type(attr[UBUS_ATTR_SIGNATURE]);
+ 
+-	obj = ubusd_create_object_internal(type, 0);
++	if (attr[UBUS_ATTR_OBJID])
++		id = blob_get_u32(attr[UBUS_ATTR_OBJID]);
++
++	obj = ubusd_create_object_internal(type, id);
+ 	if (type)
+ 		ubus_unref_object_type(type);
+ 
+Index: ubus-2015-05-25/ubusd_proto.c
+===================================================================
+--- ubus-2015-05-25.orig/ubusd_proto.c	2016-08-19 16:32:17.000000000 +0800
++++ ubus-2015-05-25/ubusd_proto.c	2019-07-18 18:12:22.168747696 +0800
+@@ -227,12 +227,20 @@
+ 	ubus_send_msg_from_blob(obj->client, ub, UBUS_MSG_INVOKE);
+ }
+ 
++extern int debug;
++
+ static int ubusd_handle_invoke(struct ubus_client *cl, struct ubus_msg_buf *ub, struct blob_attr **attr)
+ {
+ 	struct ubus_object *obj = NULL;
+ 	struct ubus_id *id;
+ 	const char *method;
+ 
++	if (debug)
++	{
++		fprintf(stderr,"ubusd_handle_invoke: OID(%u)  Meth(%s)  Data(%u) \n",attr[UBUS_ATTR_OBJID] ? *((int*)blob_data(attr[UBUS_ATTR_OBJID])) :0,
++			attr[UBUS_ATTR_METHOD] ? (char*)blob_data(attr[UBUS_ATTR_METHOD]) : "NULL",attr[UBUS_ATTR_DATA] ? blob_len(attr[UBUS_ATTR_DATA]) : 0);
++	}
++
+ 	if (!attr[UBUS_ATTR_METHOD] || !attr[UBUS_ATTR_OBJID])
+ 		return UBUS_STATUS_INVALID_ARGUMENT;
+ 
+@@ -318,6 +326,12 @@
+ {
+ 	struct ubus_object *obj;
+ 
++	if (debug)
++	{
++		fprintf(stderr,"ubusd_handle_response: OID(%u)   Data(%u) \n",attr[UBUS_ATTR_OBJID] ? *((int*)blob_data(attr[UBUS_ATTR_OBJID])) :0,
++			attr[UBUS_ATTR_DATA] ? blob_len(attr[UBUS_ATTR_DATA]) : 0);
++	}
++
+ 	if (!attr[UBUS_ATTR_OBJID] ||
+ 	    (ub->hdr.type == UBUS_MSG_STATUS && !attr[UBUS_ATTR_STATUS]) ||
+ 	    (ub->hdr.type == UBUS_MSG_DATA && !attr[UBUS_ATTR_DATA]))
+Index: ubus-2015-05-25/msg_ext.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ ubus-2015-05-25/msg_ext.h	2019-07-18 18:12:22.168747696 +0800
+@@ -0,0 +1,310 @@
++
++/***************************************************************
++Copyright Statement:
++
++This software/firmware and related documentation (EcoNet Software) 
++are protected under relevant copyright laws. The information contained herein 
++is confidential and proprietary to EcoNet (HK) Limited (EcoNet) and/or 
++its licensors. Without the prior written permission of EcoNet and/or its licensors, 
++any reproduction, modification, use or disclosure of EcoNet Software, and 
++information contained herein, in whole or in part, shall be strictly prohibited.
++
++EcoNet (HK) Limited  EcoNet. ALL RIGHTS RESERVED.
++
++BY OPENING OR USING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY 
++ACKNOWLEDGES AND AGREES THAT THE SOFTWARE/FIRMWARE AND ITS 
++DOCUMENTATIONS (ECONET SOFTWARE) RECEIVED FROM ECONET 
++AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON AN AS IS 
++BASIS ONLY. ECONET EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES, 
++WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED 
++WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, 
++OR NON-INFRINGEMENT. NOR DOES ECONET PROVIDE ANY WARRANTY 
++WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTIES WHICH 
++MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE ECONET SOFTWARE. 
++RECEIVER AGREES TO LOOK ONLY TO SUCH THIRD PARTIES FOR ANY AND ALL 
++WARRANTY CLAIMS RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES 
++THAT IT IS RECEIVERS SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD 
++PARTY ALL PROPER LICENSES CONTAINED IN ECONET SOFTWARE.
++
++ECONET SHALL NOT BE RESPONSIBLE FOR ANY ECONET SOFTWARE RELEASES 
++MADE TO RECEIVERS SPECIFICATION OR CONFORMING TO A PARTICULAR 
++STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND 
++ECONET'S ENTIRE AND CUMULATIVE LIABILITY WITH RESPECT TO THE ECONET 
++SOFTWARE RELEASED HEREUNDER SHALL BE, AT ECONET'S SOLE OPTION, TO 
++REVISE OR REPLACE THE ECONET SOFTWARE AT ISSUE OR REFUND ANY SOFTWARE 
++LICENSE FEES OR SERVICE CHARGES PAID BY RECEIVER TO ECONET FOR SUCH 
++ECONET SOFTWARE.
++***************************************************************/
++
++#ifndef __SVCHOST_EVENT_H
++#define __SVCHOST_EVENT_H
++
++#define EVT_CFG_INTERNAL         		"cfg.internal"
++#define EVT_CFG_EXTERNAL				"cfg.external"
++#define EVT_PON_INTERNAL        		"pon.internal"
++#define EVT_PON_EXTERNAL				"pon.external"
++#define EVT_WAN_INTERNAL                "wan.internal"
++#define EVT_WAN_EXTERNAL				"wan.external"
++#define EVT_WAN_RELATED_INTERNAL		"wanrelated.internal"
++#define EVT_WAN_RELATED_EXTERNAL		"wanrelated.external"
++#define EVT_WLAN_INTERNAL        		"wlan.internal"
++#define EVT_WLAN_EXTERNAL				"wlan.external"
++#define EVT_CENTRAL_CTRL_EXTERNAL		"central.ctrl.external"
++#define EVT_CENTRAL_CTRL_INTERNAL		"central.ctrl.internal"
++#define EVT_OTHER_INTERNAL				"other.internal"
++#define EVT_OTHER_EXTERNAL				"other.external"
++#define EVT_VOIP_INTERNAL				"voip.internal"
++#define EVT_VOIP_EXTERNAL				"voip.external"
++#define EVT_MESH_INTERNAL				"mesh.internal"
++#define EVT_MESH_EXTERNAL				"mesh.external"
++
++#define EVT_BUF_LENGTH					(64)
++#define EVT_TYPE_LENGTH				    (32)
++
++typedef enum evt_pon_ext_id{
++	EVT_PON_TRAFFIC_STATUS = 1,
++	EVT_ETHER_WAN_STATUS = 2,
++}evt_pon_ext_id_t;
++
++enum _evt_type_
++{
++	EVT_WAN_INTERNAL_TYPE  = 1,
++	EVT_WAN_EXTERNAL_TYPE  = 2,
++	EVT_VOIP_INTERNAL_TYPE = 3,
++	EVT_VOIP_EXTERNAL_TYPE = 4,
++	EVT_MESH_INTERNAL_TYPE = 5,
++	EVT_MESH_EXTERNAL_TYPE = 6,
++};
++
++/*evt id takeoff in 0x40 units*/
++enum _evt_id_
++{ 
++	/*WAN Internal event, Notcie 3~6 can't change, msg send_ext use*/
++	EVT_CFG_WAN_ENTRY_DELETE    = 0x1,
++	EVT_CFG_WAN_ENTRY_UPDATE    = 0x2,
++	EVT_WAN_CONN_GETV4          = 0x3,
++	EVT_WAN_CONN_LOSTV4         = 0x4,
++	EVT_WAN_CONN_GETV6          = 0x5,
++	EVT_WAN_CONN_LOSTV6         = 0x6,
++	EVT_CFG_WAN_ENTRY_BOOT      = 0x7,
++	EVT_CFG_WAN_VLANBIND_UPDATE	= 0x8,
++	EVT_CFG_WAN_VETHPAIR_UPDATE	= 0x9,
++	EVT_WAN_RELEASE6			= 0xa,
++	EVT_WAN_RENEW6				= 0xb,
++
++	/*WAN external event*/
++	EVT_WAN_ENTRY_DELETE 	    = 0x40,  /*64*/
++	EVT_WAN_ENTRY_UPDATE 	    = 0x41,  /*65*/
++	EVT_WAN_IPV4_UP 		    = 0x42,  /*66*/
++	EVT_WAN_IPV4_DOWN 		    = 0x43,  /*67*/
++	EVT_WAN_IPV6_UP 		    = 0x44,  /*68*/
++	EVT_WAN_IPV6_DOWN 		    = 0x45,  /*69*/
++	EVT_WAN_BRIDGE_UP 		    = 0x46,  /*70*/
++	EVT_WAN_BRIDGE_DOWN		    = 0x47,  /*71*/
++	EVT_WAN_UPDATE_CONNREQ_PORT = 0x48,  /*72*/
++	EVT_WAN_UPDATE_DNSINFO 		= 0x49,  /*73*/
++	EVT_WAN_XPON_UP 			= 0x4a,  /*74*/
++	EVT_WAN_XPON_DOWN			= 0x4b,  /*75*/
++
++	/*xpon evt*/
++	EVT_XPON_UP 	 		    = 0x80,  /*128*/
++	EVT_XPON_DOWN 	 		    = 0x81,  /*129*/
++
++
++	/*WAN_RELATED Internal event*/
++	EVT_CFG_WAN_RELATED_FIREWALL_UPDATE			= 0xC0,
++	EVT_CFG_WAN_RELATED_IPSEC_UPDATE,
++	EVT_CFG_WAN_RELATED_ACL_UPDATE,
++	EVT_CFG_WAN_RELATED_ACL_BOOT,
++	EVT_CFG_WAN_RELATED_TIMEZONE_UPDATE,
++	EVT_CFG_WAN_RELATED_APPFILTER_UPDATE,
++	EVT_CFG_WAN_RELATED_QOS_UPDATE,
++	EVT_CFG_WAN_RELATED_QOS_BOOT,
++	EVT_CFG_WAN_RELATED_PPPOESIMULATE,
++	EVT_CFG_WAN_RELATED_CUCPING,
++	EVT_CFG_WAN_RELATED_URLFILTER_UPDATE,
++	EVT_CFG_WAN_RELATED_DNSMASKRESTART,
++	EVT_CFG_WAN_RELATED_DDNS_UPDATE,
++	EVT_CFG_WAN_RELATED_IPMACFILTER_UPDATE,
++	EVT_CFG_WAN_RELATED_IGMPPROXY_UPDATE,
++	EVT_CFG_WAN_RELATED_MLDPROXY_UPDATE,
++	EVT_CFG_WAN_RELATED_DDNS_BOOT,
++	EVT_CFG_WAN_RELATED_INCOMINGFILTER_BOOT,
++	EVT_CFG_WAN_RELATED_INCOMINGFILTER_UPDATE,
++	EVT_CFG_WAN_RELATED_DNSFILTER_UPDATE,
++	EVT_CFG_WAN_RELATED_VIRSERVER_UPDATE,
++	EVT_CFG_WAN_RELATED_VIRSERVER_ENTRY_UPDATE,
++	EVT_CFG_WAN_RELATED_VIRSERVER_ENTRY_DELETE,
++	EVT_CFG_WAN_RELATED_VIRSERVER_BOOT,
++	EVT_CFG_WAN_RELATED_ATTACH_UPDATE,
++	EVT_CFG_WAN_RELATED_VPN_BOOT,
++	EVT_CFG_WAN_RELATED_VPN_UPDATE,
++	EVT_CFG_WAN_RELATED_DEVICE_ACCOUNT_UPDATE,
++	EVT_CFG_WAN_RELATED_DEVICE_ACCOUNT_BOOT,
++
++	/*WAN_RELATED external event*/
++	EVT_WLAN_UPDATE								= 0x100,
++	EVT_WLAN_BOOT,
++	EVT_WLAN11AC_BOOT,
++	EVT_CFG_WAN_RELATED_IPMACFILTER_BOOT,
++	EVT_CFG_WAN_RELATED_URLFILTER_BOOT,
++	EVT_WLAN_BNDSTRG_UPDATE,
++	EVT_WLAN_MONITOR_UPDATE,
++	EVT_WLAN_MACBLACKLIST_UPDATE,
++	EVT_WLAN_MACWHITELIST_UPDATE,
++	EVT_WLAN_ROAM11K_UPDATE,
++	EVT_WLAN_ROAM11V_UPDATE,
++	EVT_WLAN_ROAM,
++	EVT_WLAN11AC_ROAM,
++	EVT_WLAN_PROBEVSIE_UPDATE,
++	EVT_WLAN_COLLECT_INFO,
++	EVT_WLAN_ACS_UPDATE,
++	EVT_WLAN11AC_ACS_UPDATE,
++	EVT_WLAN_RATEPRIORITY_UPDATE,
++	EVT_WLAN11AC_RATEPRIORITY_UPDATE,
++
++	/*Other Internal event*/
++	EVT_CFG_OTHER_LAN_UPDATE					= 0x140,
++	EVT_CFG_OTHER_SAMBA_UPDATE,
++	EVT_CFG_OTHER_ARP_RULE_CHG,
++	EVT_CFG_OTHER_LAN_BOOT,
++	EVT_CFG_OTHER_SAMBA_BOOT,
++	EVT_CFG_OTHER_SNMPD_UPDATE,
++	EVT_CFG_OTHER_SNMPD_BOOT,
++	EVT_CFG_OTHER_UPNPD_UPDATE,
++	EVT_CFG_OTHER_UPNPD_BOOT,
++	EVT_CFG_OTHER_RADVD_BOOT,
++	EVT_CFG_OTHER_RADVD_UPDATE,
++	EVT_CFG_OTHER_DHCP6S_BOOT,
++	EVT_CFG_OTHER_DHCP6S_UPDATE,
++	EVT_CFG_OTHER_DHCPD_BOOT,
++	EVT_CFG_OTHER_DHCPD_UPDATE,
++	EVT_CFG_OTHER_DHCP_RELAY_BOOT,
++	EVT_CFG_OTHER_DHCP_RELAY_UPDATE,
++	EVT_CFG_OTHER_PARENTAL_BOOT,
++	EVT_CFG_OTHER_PARENTAL_UPDATE,
++	EVT_CFG_OTHER_PARENTAL_MAC_BOOT,
++	EVT_CFG_OTHER_PARENTAL_MAC_UPDATE,
++	EVT_CFG_OTHER_TRAFFICDETAIL_BOOT,
++	EVT_CFG_OTHER_TRAFFICDETAIL_UPDATE,
++	EVT_CFG_OTHER_TRAFFICMONITOR_BOOT,
++	EVT_CFG_OTHER_TRAFFICMONITOR_UPDATE,
++	EVT_CFG_OTHER_TRAFFICMIRROR_BOOT,
++	EVT_CFG_OTHER_TRAFFICMIRROR_UPDATE,
++	EVT_CFG_BEACONVSIE_START,
++	EVT_CFG_BEACONVSIE_UPDATE,
++	EVT_CFG_OTHER_SPEEDTEST_START,
++	EVT_CFG_OTHER_LANHOST2_BOOT,
++	EVT_CFG_OTHER_LANHOST2_UPDATE,
++	EVT_CFG_OTHER_ACCOUNT_UPDATE,
++	EVT_CFG_OTHER_ACCOUNT_BOOT,
++	EVT_CFG_OTHER_PROCESS_UPDATE,
++	EVT_CFG_OTHER_SNMP_SIGNAL,
++
++	/*Other external event*/
++	EVT_CFG_OTHER_VOIP_RESTART					= 0x180,
++
++	/*voip internal event*/
++	EVT_CFG_VOIP_SIP_NORMAL_UPDATE				= 0x1C0,
++	EVT_CFG_VOIP_H248_NORMAL_UPDATE,
++	EVT_CFG_VOIP_SIP_SIMULATE_UPDATE,
++	EVT_CFG_VOIP_H248_SIMULATE_UPDATE,
++	EVT_VOIP_IAD_START,
++
++	/*voip external event*/
++	EVT_VOIP_LINE_STATE							= 0x200, 
++	EVT_VOIP_REG_STATE_UNREGED,
++	EVT_VOIP_REG_STATE_REGED,
++	EVT_VOIP_SIMULATE_COMPLETE,
++	EVT_VOIP_IAD_COMPLETE,
++
++	/*mesh internal evt*/
++	EVT_CFG_UPDATE_DAT							= 0x300, /*768*/
++	EVT_CFG_UPDATE_COMMON						= 0x301, /*769*/
++	EVT_CFG_UPDATE_MAP							= 0x302, /*770*/
++	EVT_CFG_UPDATE_MAPD							= 0x303, /*771*/
++	EVT_CFG_UPDATE_STEER						= 0x304, /*772*/
++	EVT_CFG_UPDATE_RADIO						= 0x305, /*773*/
++	EVT_CFG_ACTION								= 0x306, /*774*/
++	EVT_CFG_MESH_BOOT      				        = 0x307, /*775*/
++	EVT_TRIGGER_MESH_REINIT						= 0x308, /*776*/
++	
++	/*mesh external evt*/
++	EVT_UPDATE_DAT								= 0x340, /*832*/
++	EVT_RENEW_BSSINFO							= 0x341, /*833*/
++
++	/*debug*/
++	EVT_WAN_SRV_DEBUG_LEVEL						= 0x400, /*1024*/
++	EVT_DUMP_WAN_SRV_ENTRY_DEV					= 0x401, /*1025*/
++	EVT_DUMP_WAN_SRV_ENTRY_PATH					= 0x402, /*1026*/
++	EVT_DUMP_WAN_SRV_ALL_ENTRY					= 0x403, /*1027*/
++	EVT_WAN_SRV_READY_IPV6_GATEWAY				= 0x404, /*1028*/
++
++	/*voip debug*/
++	EVT_VOIP_SRV_DEBUG_LEVEL					= 0x420, /*1056*/
++
++	/*mesh debug*/
++	EVT_MESH_SRV_DEBUG_LEVEL					= 0x430, /*1072*/
++
++	/*cfg internal event*/
++	EVT_CFG_TCAPI_SAVE							= 0X480,
++	EVT_CFG_UPGRADE_FIRMWARE						= 0X481,
++	EVT_CFG_BOOT						= 0X482,
++	
++	/*cfg external event*/
++	EVT_CFG_LOAD_UPDATE	 		    			= 0x500,  
++	EVT_CFG_TIMER_BOOT,
++	EVT_CFG_TIMER_UPDATE,
++};
++
++typedef struct _wan_evt_t
++{
++	char buf[EVT_BUF_LENGTH];
++
++}wan_evt_t, *pt_wan_evt;
++
++typedef struct _wan_related_evt_t
++{
++	char buf[EVT_BUF_LENGTH];
++
++}wan_related_evt_t, *pt_wan_related_evt;
++typedef struct _wlan__evt_t
++{
++	char buf[EVT_BUF_LENGTH];
++
++}wlan_evt_t, *pt_wlan_evt;
++
++typedef struct _other_evt_t
++{
++	char buf[EVT_BUF_LENGTH];
++	int flag;
++
++}other_evt_t, *pt_other_evt_t;
++typedef struct _cfg_evt_t
++{
++	char buf[EVT_BUF_LENGTH];
++
++}cfg_evt_t, *pt_cfg_evt;
++
++
++typedef struct voip_evt_t
++{
++	int  prevSipStatus;
++	int  registResult;
++	int  registReason;
++	int  voipLineIdx;
++	long currentTime;
++	char buf[EVT_BUF_LENGTH];
++}voip_evt_t, *pt_voip_evt;
++
++typedef struct _mesh_evt_t
++{
++	char buf[EVT_BUF_LENGTH];
++
++}mesh_evt_t, *pt_mesh_evt;
++
++#define SAMBA_SERVER_SAMBA_COMMIT_FLAG 1
++#define SAMBA_SERVER_ACCOUNT_COMMIT_FLAG 2
++
++#endif
++
+Index: ubus-2015-05-25/msg.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ ubus-2015-05-25/msg.c	2019-03-29 16:30:36.000000000 +0800
+@@ -0,0 +1,316 @@
++/*
++ * Copyright (C) 2011 Felix Fietkau <nbd@openwrt.org>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License version 2.1
++ * as published by the Free Software Foundation
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <unistd.h>
++#include <arpa/inet.h>
++
++#include "libubus.h"
++
++#include "msg_ext.h"
++
++static struct blob_buf b;
++static int timeout = 30;
++static bool simple_output = false;
++
++
++static void receive_call_result_data(struct ubus_request *req, int type, struct blob_attr *msg)
++{
++	return;
++}
++
++static void receive_event(struct ubus_context *ctx, struct ubus_event_handler *ev,
++			  const char *type, struct blob_attr *msg)
++{
++	printf("event = %s\n", type);
++	fflush(stdout);
++}
++
++
++
++static int ubus_cli_call(struct ubus_context *ctx, int argc, char **argv)
++{
++	uint32_t id;
++
++	if (argc < 2 || argc > 3)
++		return -2;
++
++	blob_buf_init(&b, 0);
++
++	
++	if (argc == 3)
++		blob_put_string(&b,1,argv[2]);
++
++	id = atoi(argv[0]);
++
++//	printf("ubus_cli_call: id = %d \n",id);
++	
++	return ubus_invoke(ctx, id, argv[1], b.head, receive_call_result_data, NULL, timeout * 1000);
++}
++
++static int ubus_cli_listen(struct ubus_context *ctx, int argc, char **argv)
++{
++	static struct ubus_event_handler listener;
++	const char *event;
++	int ret = 0;
++
++	memset(&listener, 0, sizeof(listener));
++	listener.cb = receive_event;
++
++	if (argc > 0) {
++		event = argv[0];
++	} else {
++		event = "*";
++		argc = 1;
++	}
++
++	do {
++		ret = ubus_register_event_handler(ctx, &listener, event);
++		if (ret)
++			break;
++
++		argv++;
++		argc--;
++		if (argc <= 0)
++			break;
++
++		event = argv[0];
++	} while (1);
++
++	if (ret) {
++		if (!simple_output)
++			fprintf(stderr, "Error while registering for event '%s': %s\n",
++				event, ubus_strerror(ret));
++		return -1;
++	}
++
++	uloop_init();
++	ubus_add_uloop(ctx);
++	uloop_run();
++	uloop_done();
++
++	return 0;
++}
++
++static int ubus_cli_send(struct ubus_context *ctx, int argc, char **argv)
++{
++	if (argc < 1 || argc > 2)
++		return -2;
++
++	blob_buf_init(&b, 0);
++
++	if (argc == 2)
++		blob_put_string(&b,1,argv[1]);
++	
++	return ubus_send_event(ctx, argv[0], b.head);
++}
++
++static int ubus_cli_send_ext(struct ubus_context *ctx, int argc, char **argv)
++{
++	int        type = 0;
++	unsigned int evt_id = 0;
++	wan_evt_t wan_evt;
++	voip_evt_t voip_evt;
++	mesh_evt_t mesh_evt;
++	char evt_type[EVT_TYPE_LENGTH];
++	
++	if(3 != argc)
++	{
++		return -2;
++	}
++
++	memset(&wan_evt, 0, sizeof(wan_evt));
++	memset(&voip_evt, 0, sizeof(voip_evt));
++	memset(&mesh_evt, 0, sizeof(mesh_evt));
++	memset(evt_type, 0, sizeof(evt_type));
++	type = atoi(argv[0]);
++	switch (type)
++	{
++		case EVT_WAN_INTERNAL_TYPE :
++		{
++			strcpy(evt_type, EVT_WAN_INTERNAL);
++			break;
++		}
++		case EVT_WAN_EXTERNAL_TYPE:
++		{
++			strcpy(evt_type, EVT_WAN_EXTERNAL);
++			break;
++		}
++		case EVT_VOIP_INTERNAL_TYPE:
++		{
++			strcpy(evt_type, EVT_VOIP_INTERNAL);
++			break;
++		}
++		case EVT_MESH_INTERNAL_TYPE:
++		{
++			snprintf(evt_type, sizeof(evt_type), "%s", EVT_MESH_INTERNAL);
++			break;
++		}
++		default:
++		{
++			return -2;
++		}
++	}
++	evt_id = atoi(argv[1]);
++	switch (evt_id)
++	{
++		case EVT_CFG_WAN_ENTRY_DELETE :
++		case EVT_CFG_WAN_ENTRY_UPDATE :
++		case EVT_WAN_CONN_GETV4 :
++		case EVT_WAN_CONN_LOSTV4 :
++		case EVT_WAN_CONN_GETV6 :
++		case EVT_WAN_CONN_LOSTV6 :
++		case EVT_DUMP_WAN_SRV_ENTRY_DEV:  
++		case EVT_DUMP_WAN_SRV_ENTRY_PATH:  
++		case EVT_DUMP_WAN_SRV_ALL_ENTRY:  
++		case EVT_WAN_SRV_READY_IPV6_GATEWAY:  
++		case EVT_WAN_SRV_DEBUG_LEVEL:
++		case EVT_XPON_UP:
++		case EVT_XPON_DOWN:
++		case EVT_WAN_ENTRY_DELETE :
++		case EVT_WAN_ENTRY_UPDATE :
++		case EVT_WAN_IPV4_UP :
++		case EVT_WAN_IPV4_DOWN :
++		case EVT_WAN_IPV6_UP :
++		case EVT_WAN_IPV6_DOWN :
++		case EVT_WAN_BRIDGE_UP:  
++		case EVT_WAN_BRIDGE_DOWN:  
++		case EVT_WAN_UPDATE_CONNREQ_PORT: 
++		{
++			strcpy(wan_evt.buf, argv[2]);
++			blob_buf_init(&b, 0);
++			blob_put_u32(&b, 1, htonl(evt_id));
++			blob_put(&b, 2, &wan_evt, sizeof(wan_evt));
++			break;
++		}
++		case EVT_VOIP_SRV_DEBUG_LEVEL :
++		{
++			strcpy(voip_evt.buf, argv[2]);
++			blob_buf_init(&b, 0);
++			blob_put_u32(&b, 1, htonl(evt_id));
++			blob_put(&b, 2, &voip_evt, sizeof(voip_evt));
++			break;
++		}
++		case EVT_MESH_SRV_DEBUG_LEVEL:
++		case EVT_CFG_MESH_BOOT:
++		case EVT_CFG_UPDATE_DAT:
++		case EVT_CFG_UPDATE_MAP:
++		case EVT_CFG_UPDATE_COMMON:
++		case EVT_CFG_UPDATE_MAPD:
++		case EVT_CFG_UPDATE_STEER:
++		case EVT_CFG_UPDATE_RADIO:
++		case EVT_CFG_ACTION:
++		case EVT_TRIGGER_MESH_REINIT:
++		{
++			snprintf(mesh_evt.buf, sizeof(mesh_evt.buf), "%s", argv[2]);
++			blob_buf_init(&b, 0);
++			blob_put(&b, 1, &evt_id, sizeof(evt_id));
++			blob_put(&b, 2, &mesh_evt, sizeof(mesh_evt));
++			break;
++		}
++		default:
++		{
++			return -2;
++		}
++	}
++
++	return ubus_send_event(ctx, evt_type, b.head);
++}
++
++
++
++static int usage(const char *prog)
++{
++	fprintf(stderr,
++		"Usage: %s [<options>] <command> [arguments...]\n"
++		"Options:\n"
++		" -s <socket>:		Set the unix domain socket to connect to\n"
++		" -t <timeout>:		Set the timeout (in seconds) for a command to complete\n"
++		"\n"
++		"Commands:\n"
++		" - call <path> <method> [<message>]	Call an object method\n"
++		" - listen [<path>...]			Listen for events\n"
++		" - send  <type> [<message>]		Send an event\n"
++		" - send_ext [type 1 wan internal / 2 wan external / 3 voip internal / 5 mesh internal] [evt_id ] [message] send an evt\n"
++		"\n", prog);
++	return 1;
++}
++
++
++struct {
++	const char *name;
++	int (*cb)(struct ubus_context *ctx, int argc, char **argv);
++} commands[] = {
++	{ "call", ubus_cli_call },
++	{ "listen", ubus_cli_listen },
++	{ "send", ubus_cli_send },
++	{ "send_ext", ubus_cli_send_ext },
++	
++};
++
++int main(int argc, char **argv)
++{
++	const char *progname, *ubus_socket = NULL;
++	static struct ubus_context *ctx;
++	char *cmd;
++	int ret = 0;
++	int i, ch;
++
++	progname = argv[0];
++
++	while ((ch = getopt(argc, argv, "vs:t:S")) != -1) {
++		switch (ch) {
++		case 's':
++			ubus_socket = optarg;
++			break;
++		case 't':
++			timeout = atoi(optarg);
++			break;
++		default:
++			return usage(progname);
++		}
++	}
++
++	argc -= optind;
++	argv += optind;
++
++	cmd = argv[0];
++	if (argc < 1)
++		return usage(progname);
++
++	ctx = ubus_connect(ubus_socket);
++	if (!ctx) {
++		if (!simple_output)
++			fprintf(stderr, "Failed to connect to ubus\n");
++		return -1;
++	}
++
++	argv++;
++	argc--;
++
++	ret = -2;
++	for (i = 0; i < ARRAY_SIZE(commands); i++) {
++		if (strcmp(commands[i].name, cmd) != 0)
++			continue;
++
++		ret = commands[i].cb(ctx, argc, argv);
++		break;
++	}
++
++	if (ret > 0 && !simple_output)
++		fprintf(stderr, "Command failed: %s\n", ubus_strerror(ret));
++	else if (ret == -2)
++		usage(progname);
++
++	ubus_free(ctx);
++	return ret;
++}

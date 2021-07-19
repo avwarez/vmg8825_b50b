@@ -1,0 +1,162 @@
+Index: linux-4.1.52/include/linux/netfilter/nf_conntrack_sip.h
+===================================================================
+--- linux-4.1.52.orig/include/linux/netfilter/nf_conntrack_sip.h	2018-01-25 13:14:42.615122636 +0800
++++ linux-4.1.52/include/linux/netfilter/nf_conntrack_sip.h	2018-01-30 14:40:42.686810404 +0800
+@@ -9,6 +9,25 @@
+ #define SIP_PORT	5060
+ #define SIP_TIMEOUT	3600
+ 
++/******************************************For Linux Native SIP ALG*********************************************/
++/* Zyxel
++ * If an de-register packet with remove all binding contact. It will return NF_ACCEPT without update cseq from here.
++ * This will cause the 200 OK response of this packet not be accept in SIP ALG, thus the expect of signaling will not be remove.
++ * Now we will Try to parsing Contact with remove all binding when parsing Contact header failed.
++ * Steve 2017-11-16
++ */
++#define ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING 1
++
++
++
++/* Zyxel
++ * Only SIP traffic which be NATed will into SIP ALG.
++ */
++#define ZYXEL_SIP_ALG_IGNORE_LOCAL_TRAFFIC 1
++
++#define ZYXEL_SIP_ALG_DEFAULT_DIRECT_SIGNALLING 0 //sip_direct_signalling, original is 1 use this macro to define new
++#define ZYXEL_SIP_ALG_DEFAULT_DIRECT_MEDIA 0 //sip_direct_media, original is 1 use this macro to define new
++/******************************************For Linux Native SIP ALG (END)****************************************/
+ 
+ struct nf_ct_sip_master {
+ 	unsigned int	register_cseq;
+@@ -93,6 +112,9 @@
+ 	SIP_HDR_FROM,
+ 	SIP_HDR_TO,
+ 	SIP_HDR_CONTACT,
++#ifdef ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING
++	SIP_HDR_CONTACT_RM_ALL_BINDING,
++#endif //#ifdef ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING
+ 	SIP_HDR_VIA_UDP,
+ 	SIP_HDR_VIA_TCP,
+ 	SIP_HDR_EXPIRES,
+Index: linux-4.1.52/net/netfilter/nf_conntrack_sip.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nf_conntrack_sip.c	2018-01-25 13:14:42.703122632 +0800
++++ linux-4.1.52/net/netfilter/nf_conntrack_sip.c	2018-01-30 14:40:59.266810282 +0800
+@@ -46,12 +46,12 @@
+ module_param(sip_timeout, uint, 0600);
+ MODULE_PARM_DESC(sip_timeout, "timeout for the master SIP session");
+ 
+-static int sip_direct_signalling __read_mostly = 1;
++static int sip_direct_signalling __read_mostly = ZYXEL_SIP_ALG_DEFAULT_DIRECT_SIGNALLING; //original is 1 use this macro to define new
+ module_param(sip_direct_signalling, int, 0600);
+ MODULE_PARM_DESC(sip_direct_signalling, "expect incoming calls from registrar "
+ 					"only (default 1)");
+ 
+-static int sip_direct_media __read_mostly = 1;
++static int sip_direct_media __read_mostly = ZYXEL_SIP_ALG_DEFAULT_DIRECT_MEDIA; //original is 1 use this macro to define new
+ module_param(sip_direct_media, int, 0600);
+ MODULE_PARM_DESC(sip_direct_media, "Expect Media streams between signalling "
+ 				   "endpoints only (default 1)");
+@@ -82,6 +82,31 @@
+ 	return len;
+ }
+ 
++#ifdef ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING
++/* Zyxel
++ * Use to parsing remove all binding de-register packat
++ * Can accept following case:
++ * 1. "Contact:{any}*"
++ * 2. "Contact:{any}*  " n space followup the *
++ */
++static int contact_asterisk(const struct nf_conn *ct, const char *dptr,
++		      const char *limit, int *shift)
++{
++
++	while(*dptr == ' ') //bypass space
++	{
++		dptr++;
++	}
++
++	if(*dptr == '\r' && *(dptr+1) == '\n'){ //is line end
++		return 1;
++	}else{
++		return 0;
++	}
++
++}
++#endif
++
+ static int iswordc(const char c)
+ {
+ 	if (isalnum(c) || c == '!' || c == '"' || c == '%' ||
+@@ -293,15 +318,18 @@
+  * equivalent to multiple headers.
+  */
+ static const struct sip_header ct_sip_hdrs[] = {
+-	[SIP_HDR_CSEQ]			= SIP_HDR("CSeq", NULL, NULL, digits_len),
+-	[SIP_HDR_FROM]			= SIP_HDR("From", "f", "sip:", skp_epaddr_len),
+-	[SIP_HDR_TO]			= SIP_HDR("To", "t", "sip:", skp_epaddr_len),
+-	[SIP_HDR_CONTACT]		= SIP_HDR("Contact", "m", "sip:", skp_epaddr_len),
+-	[SIP_HDR_VIA_UDP]		= SIP_HDR("Via", "v", "UDP ", epaddr_len),
+-	[SIP_HDR_VIA_TCP]		= SIP_HDR("Via", "v", "TCP ", epaddr_len),
+-	[SIP_HDR_EXPIRES]		= SIP_HDR("Expires", NULL, NULL, digits_len),
+-	[SIP_HDR_CONTENT_LENGTH]	= SIP_HDR("Content-Length", "l", NULL, digits_len),
+-	[SIP_HDR_CALL_ID]		= SIP_HDR("Call-Id", "i", NULL, callid_len),
++	[SIP_HDR_CSEQ]						= SIP_HDR("CSeq", NULL, NULL, digits_len),
++	[SIP_HDR_FROM]						= SIP_HDR("From", "f", "sip:", skp_epaddr_len),
++	[SIP_HDR_TO]						= SIP_HDR("To", "t", "sip:", skp_epaddr_len),
++	[SIP_HDR_CONTACT]					= SIP_HDR("Contact", "m", "sip:", skp_epaddr_len),
++#ifdef ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING
++	[SIP_HDR_CONTACT_RM_ALL_BINDING]	= SIP_HDR("Contact", "m", "*", contact_asterisk),
++#endif
++	[SIP_HDR_VIA_UDP]					= SIP_HDR("Via", "v", "UDP ", epaddr_len),
++	[SIP_HDR_VIA_TCP]					= SIP_HDR("Via", "v", "TCP ", epaddr_len),
++	[SIP_HDR_EXPIRES]					= SIP_HDR("Expires", NULL, NULL, digits_len),
++	[SIP_HDR_CONTENT_LENGTH]			= SIP_HDR("Content-Length", "l", NULL, digits_len),
++	[SIP_HDR_CALL_ID]					= SIP_HDR("Call-Id", "i", NULL, callid_len),
+ };
+ 
+ static const char *sip_follow_continuation(const char *dptr, const char *limit)
+@@ -1287,7 +1315,27 @@
+ 		nf_ct_helper_log(skb, ct, "cannot parse contact");
+ 		return NF_DROP;
+ 	} else if (ret == 0)
++    {
++#ifdef ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING
++	/* Zyxel
++	 * If an de-register packet with remove all binding contact. It will return NF_ACCEPT without update cseq from here.
++	 * This will cause the 200 OK response of this packet not be accept in SIP ALG, thus the expect of signaling will not be remove.
++	 * Now we will Try to parsing Contact with remove all binding when parsing Contact header failed.
++	 * Steve 2017-11-16
++	 */
++		if(expires == 0) //maybe an de-register packet
++		{
++			ret = ct_sip_get_header(ct, *dptr, 0, *datalen,
++					SIP_HDR_CONTACT_RM_ALL_BINDING, &matchoff, &matchlen);
++
++			if( ret == 1)
++			{
++				goto store_cseq;
++			}
++		}
++#endif //ZYXEL_SIP_ALG_SUPPORT_RM_ALL_BINDING
+ 		return NF_ACCEPT;
++    }
+ 
+ 	/* We don't support third-party registrations */
+ 	if (!nf_inet_addr_cmp(&ct->tuplehash[dir].tuple.src.u3, &daddr))
+@@ -1540,6 +1588,14 @@
+ 	const struct nf_nat_sip_hooks *hooks;
+ 	int ret;
+ 
++#ifdef ZYXEL_SIP_ALG_IGNORE_LOCAL_TRAFFIC
++	/* Zyxel
++	 * Only SIP traffic which be NATed will into SIP ALG.
++	 */
++	if (!(ct->status & IPS_SRC_NAT))
++		return NF_ACCEPT;
++#endif //#ifdef ZYXEL_SIP_ALG_IGNORE_LOCAL_TRAFFIC
++
+ 	if (strncasecmp(*dptr, "SIP/2.0 ", strlen("SIP/2.0 ")) != 0)
+ 		ret = process_sip_request(skb, protoff, dataoff, dptr, datalen);
+ 	else

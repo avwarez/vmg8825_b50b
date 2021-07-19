@@ -1,0 +1,207 @@
+Index: libzcfg_fe_tr98-1.0/wanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev.c	2019-09-09 10:39:39.221688668 +0800
++++ libzcfg_fe_tr98-1.0/wanDev.c	2019-09-09 10:58:27.576309071 +0800
+@@ -1570,6 +1570,127 @@
+ 	return ZCFG_SUCCESS;
+ }
+ 
++/*  
++	InternetGatewayDevice.WANDevice.i.WANDSLInterfaceConfig.Stats.QuarterHour
++	// /tmp/quarterHours/totalin15mins
++ */
++zcfgRet_t WANDSLIfaceCfgStQHObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)
++{
++	FILE *qh = NULL, *ptm = NULL, *atm = NULL;
++	char tr98PathName[512] = {0};
++	int idx = 0;
++	char line[512]={0};
++	unsigned int ReceiveBlocks = 0;
++	unsigned int TransmitBlocks = 0;
++	unsigned int CellDelin = 0;
++	unsigned int LinkRetrain = 0;
++	unsigned int InitErrors = 0;
++	unsigned int InitTimeouts = 0;
++	unsigned int LossOfFraming = 0;
++	unsigned int LOF = 0;
++	unsigned int ErroredSecs = 0;
++	unsigned int SeverelyErroredSecs = 0;
++	unsigned int CRCErrors = 0;
++	unsigned int HECErrors = 0;
++	unsigned int FECErrors = 0;
++
++	strcpy(tr98PathName, tr98FullPathName);
++	sscanf(tr98PathName, "InternetGatewayDevice.WANDevice.%u.WANDSLInterfaceConfig.Stats.QuarterHour", &idx);
++	system("/usr/etc/checkXdsl.sh");
++	atm = fopen("/tmp/WAN_ATM", "r");
++	ptm = fopen("/tmp/WAN_PTM", "r");
++	if ((idx == 2 && atm != NULL) || (idx == 3 && ptm != NULL)) {
++		if (atm) fclose(atm);
++		if (ptm) fclose(ptm);
++		system("rm /tmp/WAN_ATM");
++		system("rm /tmp/WAN_PTM");
++	}
++	else {
++		if (atm) fclose(atm);
++		if (ptm) fclose(ptm);
++		system("rm /tmp/WAN_ATM");
++		system("rm /tmp/WAN_PTM");
++		return ZCFG_NO_SUCH_OBJECT;
++	}
++
++	system("cp /tmp/quarterHours/totalin15mins /tmp/quarterHours/totalin15mins_TR69");
++	if((qh = fopen("/tmp/quarterHours/totalin15mins_TR69", "r")) == NULL){
++		printf("%s(%d): fail to open /tmp/quarterHours/totalin15mins_TR69.\n",__FUNCTION__,__LINE__);
++		return ZCFG_INTERNAL_ERROR;
++	}
++	*tr98Jobj = json_object_new_object();
++	while (fgets(line, sizeof(line), qh)) {
++		if (sscanf(line, "ReceiveBlocks: %u\n", &ReceiveBlocks)) {
++			json_object_object_add(*tr98Jobj, "ReceiveBlocks", json_object_new_int(ReceiveBlocks));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "TransmitBlocks: %u\n", &TransmitBlocks)) {
++			json_object_object_add(*tr98Jobj, "TransmitBlocks", json_object_new_int(TransmitBlocks));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "CellDelin: %u\n", &CellDelin)) {
++			json_object_object_add(*tr98Jobj, "CellDelin", json_object_new_int(CellDelin));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "LinkRetrain: %u\n", &LinkRetrain)) {
++			json_object_object_add(*tr98Jobj, "LinkRetrain", json_object_new_int(LinkRetrain));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "InitErrors: %u\n", &InitErrors)) {
++			json_object_object_add(*tr98Jobj, "InitErrors", json_object_new_int(InitErrors));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "InitTimeouts: %u\n", &InitTimeouts)) {
++			json_object_object_add(*tr98Jobj, "InitTimeouts", json_object_new_int(InitTimeouts));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "LossOfFraming: %u\n", &LossOfFraming)) {
++			json_object_object_add(*tr98Jobj, "LossOfFraming", json_object_new_int(LossOfFraming));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "LOF: %u\n", &LOF)) {
++			json_object_object_add(*tr98Jobj, "LOF", json_object_new_int(LOF));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "ErroredSecs: %u\n", &ErroredSecs)) {
++			json_object_object_add(*tr98Jobj, "ErroredSecs", json_object_new_int(ErroredSecs));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "SeverelyErroredSecs: %u\n", &SeverelyErroredSecs)) {
++			json_object_object_add(*tr98Jobj, "SeverelyErroredSecs", json_object_new_int(SeverelyErroredSecs));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "CRCErrors: %u\n", &CRCErrors)) {
++			json_object_object_add(*tr98Jobj, "CRCErrors", json_object_new_int(CRCErrors));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "HECErrors: %u\n", &HECErrors)) {
++			json_object_object_add(*tr98Jobj, "HECErrors", json_object_new_int(HECErrors));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++		if (sscanf(line, "FECErrors: %u\n", &FECErrors)) {
++			json_object_object_add(*tr98Jobj, "FECErrors", json_object_new_int(FECErrors));
++			memset(line, 0, sizeof(line));
++			continue;
++		}
++	}
++	fclose(qh);
++	system("rm /tmp/quarterHours/totalin15mins_TR69");
++	return ZCFG_SUCCESS;
++}
++
+ /*  InternetGatewayDevice.WANDevice.i.WANEthernetInterfaceConfig.Stats
+ 
+     Related object in TR181:
+Index: libzcfg_fe_tr98-1.0/wanDev.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev.h	2019-09-09 10:39:37.925688705 +0800
++++ libzcfg_fe_tr98-1.0/wanDev.h	2019-09-09 11:00:44.912628250 +0800
+@@ -9,6 +9,7 @@
+ extern tr98Parameter_t para_WANDslIfaceCfgStatSt[];
+ extern tr98Parameter_t para_WANDslIfaceCfgStatObjs[];
+ extern tr98Parameter_t para_WANEthIntfConf[];
++extern tr98Parameter_t para_WAN_QTR_HR[];
+ extern tr98Parameter_t para_WANEthIntfConfStat[];
+ extern tr98Parameter_t para_WANDslLinkConf[];
+ extern tr98Parameter_t para_WANPtmLinkConf[];
+@@ -83,6 +84,8 @@
+ extern zcfgRet_t WANDslIfaceCfgStObjGet(char *, int, struct json_object **, bool);
+ extern zcfgRet_t WANDslIfaceCfgStatsSubObjGet(char *, int , struct json_object **, bool );
+ 
++extern zcfgRet_t WANDSLIfaceCfgStQHObjGet(char *, int, struct json_object **, bool);
++
+ extern zcfgRet_t WANEthIfaceCfgObjGet(char *, int, struct json_object **, bool);
+ extern zcfgRet_t WANEthIfaceCfgObjSet(char *, int, struct json_object *, struct json_object *);
+ 
+Index: libzcfg_fe_tr98-1.0/wanDev_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev_parameter.h	2019-09-09 10:39:39.301688665 +0800
++++ libzcfg_fe_tr98-1.0/wanDev_parameter.h	2019-09-09 11:01:16.599142175 +0800
+@@ -333,6 +333,23 @@
+ 	{ NULL, 0, 0, 0}
+ };
+ 
++tr98Parameter_t para_WAN_QTR_HR[] = {
++	{ "ReceiveBlocks", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "TransmitBlocks", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "CellDelin", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "LinkRetrain", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "InitErrors", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "InitTimeouts", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "LossOfFraming", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "LOF", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "ErroredSecs", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "SeverelyErroredSecs", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "CRCErrors", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "HECErrors", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ "FECErrors", PARAMETER_ATTR_READONLY, 0, json_type_int},
++	{ NULL, 0, 0, 0}
++};
++
+ tr98Parameter_t para_WANEthIntfConf[] = {
+ 	{ "Enable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "Status", PARAMETER_ATTR_READONLY, 10, json_type_string},
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.c	2019-09-09 10:39:39.301688665 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c	2019-09-09 11:02:06.892698576 +0800
+@@ -210,7 +210,7 @@
+ {e_TR98_ST                      , &tr98Obj[e_TR98_ST                      -e_TR98_START]},
+ //{e_TR98_LST_SHOWTIME            , &tr98Obj[e_TR98_LST_SHOWTIME            -e_TR98_START]},
+ {e_TR98_CURRENT_DAY             , &tr98Obj[e_TR98_CURRENT_DAY             -e_TR98_START]},
+-//{e_TR98_QTR_HR                  , &tr98Obj[e_TR98_QTR_HR                  -e_TR98_START]},
++{e_TR98_QTR_HR                  , &tr98Obj[e_TR98_QTR_HR                  -e_TR98_START]},
+ {e_TR98_WAN_ETH_INTF_CONF       , &tr98Obj[e_TR98_WAN_ETH_INTF_CONF       -e_TR98_START]},
+ {e_TR98_WAN_ETH_INTF_CONF_STAT  , &tr98Obj[e_TR98_WAN_ETH_INTF_CONF_STAT  -e_TR98_START]},
+ {e_TR98_WAN_DSL_DIAG            , &tr98Obj[e_TR98_WAN_DSL_DIAG            -e_TR98_START]},
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98_handle.h	2019-09-09 10:39:39.217688668 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h	2019-09-09 11:02:51.905482845 +0800
+@@ -523,7 +523,7 @@
+ {TR98_ST,                       0,              para_WANDslIfaceCfgStatObjs,     WANDslIfaceCfgStatsSubObjGet,                    NULL,                   NULL,             NULL,            NULL},
+ //{TR98_LST_SHOWTIME,             0,              NULL,                   NULL,                    NULL,                   NULL,             NULL,            NULL},
+ {TR98_CURRENT_DAY,              0,              para_WANDslIfaceCfgStatObjs,   WANDslIfaceCfgStatsSubObjGet,                    NULL,                   NULL,             NULL,            NULL, NULL, NULL},
+-//{TR98_QTR_HR,                   0,              NULL,                   NULL,                    NULL,                   NULL,             NULL,            NULL},
++{TR98_QTR_HR,                   0,              para_WAN_QTR_HR,        WANDSLIfaceCfgStQHObjGet,                    NULL,                   NULL,             NULL,            NULL},
+ {TR98_WAN_ETH_INTF_CONF,        0,              para_WANEthIntfConf,    WANEthIfaceCfgObjGet,	 WANEthIfaceCfgObjSet,   NULL,             NULL,            NULL},
+ {TR98_WAN_ETH_INTF_CONF_STAT,   0,              para_WANEthIntfConfStat,WANEthIfaceCfgStObjGet,  NULL,                   NULL,             NULL,            NULL},
+ {TR98_WAN_DSL_DIAG,             0,              para_WANDslDiag,        WANDslDiagObjGet,        WANDslDiagObjSet,       NULL,             NULL,            NULL},

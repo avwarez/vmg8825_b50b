@@ -1,0 +1,310 @@
+Index: json-c-0.13.1/arraylist.c
+===================================================================
+--- json-c-0.13.1.orig/arraylist.c	2019-08-27 10:18:22.854887728 +0800
++++ json-c-0.13.1/arraylist.c	2019-08-27 10:18:22.902887728 +0800
+@@ -83,11 +83,11 @@
+   free(arr);
+ }
+ 
+-void *array_list_pull_idx(struct array_list *arr, int i)
++void *array_list_pull_idx(struct array_list *arr, size_t i)
+ {
+   void *arrayidx = NULL;
+ 
+-  if(i >= arr->length || i < 0) return NULL;
++  if(i >= arr->length) return NULL;
+ 
+   arrayidx = arr->array[i];
+   arr->array[i] = NULL;
+@@ -98,7 +98,7 @@
+ void*
+ array_list_get_idx(struct array_list *arr, size_t i)
+ {
+-  if(i >= arr->length || i < 0) return NULL;
++  if(i >= arr->length) return NULL;
+   return arr->array[i];
+ }
+ 
+@@ -184,7 +184,7 @@
+ 
+ #if 1 /* zyxel, john */
+ #include "json_object.h"
+-int array_list_delete_idx(struct array_list *arr, int idx)
++int array_list_delete_idx(struct array_list *arr, size_t idx)
+ {
+ 	if(idx > arr->length) return -1;
+ 
+Index: json-c-0.13.1/arraylist.h
+===================================================================
+--- json-c-0.13.1.orig/arraylist.h	2019-08-27 10:18:22.854887728 +0800
++++ json-c-0.13.1/arraylist.h	2019-08-27 10:18:22.902887728 +0800
+@@ -47,7 +47,7 @@
+ extern void*
+ array_list_get_idx(struct array_list *al, size_t i);
+ 
+-extern void *array_list_pull_idx(struct array_list *, int);
++extern void *array_list_pull_idx(struct array_list *, size_t);
+ 
+ extern int
+ array_list_put_idx(struct array_list *al, size_t i, void *data);
+@@ -69,7 +69,7 @@
+ array_list_del_idx(struct array_list *arr, size_t idx, size_t count);
+ 
+ extern int
+-array_list_delete_idx(struct array_list *arr, int idx);
++array_list_delete_idx(struct array_list *arr, size_t idx);
+ 
+ #ifdef __cplusplus
+ }
+Index: json-c-0.13.1/json_object.c
+===================================================================
+--- json-c-0.13.1.orig/json_object.c	2019-08-27 10:18:22.894887728 +0800
++++ json-c-0.13.1/json_object.c	2019-08-27 10:18:22.902887728 +0800
+@@ -474,8 +474,7 @@
+ 
+ 	jso->_delete = &json_object_object_delete;
+ 	jso->_to_json_string = &json_object_object_to_json_string;
+-	jso->o.c_object = lh_kchar_table_new(table_entries,
+-                     NULL, &json_object_lh_entry_free);
++	jso->o.c_object = lh_kchar_table_new(table_entries, &json_object_lh_entry_free);
+ 	return jso;
+ }
+ 
+@@ -532,30 +531,31 @@
+ 
+ struct json_object *json_object_object_pull(struct json_object *j, const char *k)
+ {
+-   struct lh_entry *e = j ? lh_table_lookup_entry(j->o.c_object, k) : NULL;
+-   struct json_object *v = NULL;
++    struct lh_entry *e = j ? lh_table_lookup_entry(j->o.c_object, k) : NULL;
++    struct json_object *v = NULL;
+ 
+-   if(e){
+-       v = (struct json_object *)e->v;
+-       e->v = NULL;
+-       return v;
+-   }else
+-       return NULL;
++    if(e){
++        v = lh_entry_v(e);
++        e->v = NULL;
++        return v;
++    }else
++    return NULL;
+ }
+ 
+ struct json_object *json_object_object_pull_and_empty(struct json_object *j, const char *k)
+ {
+-   struct lh_entry *e = j ? lh_table_lookup_entry(j->o.c_object, k) : NULL;
+-   struct json_object *v = NULL;
++    struct lh_entry *e = j ? lh_table_lookup_entry(j->o.c_object, k) : NULL;
++    struct json_object *v = NULL;
+ 
+-   if(e){
+-       v = (struct json_object *)e->v;
+-       e->v = NULL;
+-       lh_table_delete_entry(j->o.c_object, e);
+-   }
++    if(e){
++        v = lh_entry_v(e);
++        e->v = NULL;
++        lh_table_delete_entry(j->o.c_object, e);
++    }
+ 
+-   return v;
++    return v;
+ }
++
+                                                                                            
+ int json_object_object_add(struct json_object* jso, const char *key,
+                            struct json_object *val)
+@@ -732,7 +732,7 @@
+   }
+ }
+ #else
+-int64_t json_object_get_int(struct json_object *jso)
++int64_t json_object_get_int(const struct json_object *jso)
+ {
+ 	int64_t cint;
+ 	
+@@ -745,7 +745,13 @@
+ 	case json_type_boolean:
+ 	  return jso->o.c_boolean;
+ 	case json_type_string:
+-	  if (json_parse_int64(jso->o.c_string.str, &cint) == 0) return cint;
++		if(jso->o.c_string.len < LEN_DIRECT_STRING_DATA){
++		   if (json_parse_int64((jso->o.c_string.str.data), &cint) == 0) return cint;
++		}
++		else{
++			if (json_parse_int64((jso->o.c_string.str.ptr), &cint) == 0) return cint;
++		}
++		  
+ 	default:
+ 	  return 0;
+ 	}
+@@ -1251,12 +1257,26 @@
+     jso->o.c_int64 = (int32_t)atoi(v);
+     break;
+   case json_type_string:
+-    if(jso->o.c_string.str) {
+-		free(jso->o.c_string.str);
+-		jso->o.c_string.str = NULL;
+-		jso->o.c_string.len = 0;
+-	}
+-	jso->o.c_string.str = strdup(v);
++    if(jso->o.c_string.len < LEN_DIRECT_STRING_DATA)
++    {
++        if(jso->o.c_string.str.data)
++        {
++            free(jso->o.c_string.str.data);
++            jso->o.c_string.str.data[0] = '\0';
++            jso->o.c_string.len = 0;
++        }
++        strncpy(jso->o.c_string.str.data, strdup(v), sizeof(jso->o.c_string.str.data));
++    }
++    else
++    {
++        if(jso->o.c_string.str.ptr)
++        {
++            free(jso->o.c_string.str.ptr);
++            jso->o.c_string.str.ptr = NULL;
++            jso->o.c_string.len = 0;
++        }
++        jso->o.c_string.str.ptr = strdup(v);
++    }
+     jso->o.c_string.len = strlen(v);
+     break;
+   case json_type_double:
+@@ -1267,8 +1287,7 @@
+   return 0;
+ }
+ #if 1 /* zyxel, john */
+-int json_object_array_delete_idx(struct json_object *jso,
+-					      int idx)
++int json_object_array_delete_idx(struct json_object *jso, size_t idx)
+ {
+   return array_list_delete_idx(jso->o.c_array, idx);
+ }
+@@ -1361,7 +1380,7 @@
+ 	return array_list_del_idx(jso->o.c_array, idx, count);
+ }
+ 
+-struct json_object *json_object_array_pull_idx(struct json_object *jso, int idx)
++struct json_object *json_object_array_pull_idx(struct json_object *jso, size_t idx)
+ {
+   return array_list_pull_idx(jso->o.c_array, idx);
+ }
+@@ -1452,6 +1471,9 @@
+ 
+ 		case json_type_null:
+ 			return 1;
++
++		default:
++		    break;
+ 	};
+ 
+ 	return 0;
+Index: json-c-0.13.1/json_object.h
+===================================================================
+--- json-c-0.13.1.orig/json_object.h	2019-08-27 10:18:22.894887728 +0800
++++ json-c-0.13.1/json_object.h	2019-08-27 10:18:22.902887728 +0800
+@@ -43,20 +43,6 @@
+ #include "json_inttypes.h"
+ #include "printbuf.h"
+ 
+-
+-#if 1 /* zyxel, john */
+-
+-/** Delete the element at specificed index of the array (a json_object of type json_type_array)
+- * @param obj the json_object array
+- * @param idx the index of the deteled element
+- * @returns 0
+- */
+-extern int json_object_array_delete_idx(struct json_object *jso,
+-					      int idx);
+-#endif
+-
+-int json_object_set_param(struct json_object *obj, char *v);
+-
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+@@ -435,8 +421,8 @@
+  */
+ JSON_C_CONST_FUNCTION(JSON_EXPORT size_t json_c_object_sizeof(void));
+ 
+-extern struct json_object *json_object_object_pull(struct json_object *j, const char *k);
+-extern struct json_object *json_object_object_pull_and_empty(struct json_object *j, const char *k);
++extern  struct json_object *json_object_object_pull(struct json_object *j, const char *k);
++extern  struct json_object *json_object_object_pull_and_empty(struct json_object *j, const char *k);
+ 
+ /** Add an object field to a json_object of type json_type_object
+  *
+@@ -674,7 +660,7 @@
+ JSON_EXPORT int json_object_array_put_idx(struct json_object *obj, size_t idx,
+ 				     struct json_object *val);
+ 
+-extern struct json_object *json_object_array_pull_idx(struct json_object *obj, int idx);
++extern struct json_object *json_object_array_pull_idx(struct json_object *obj, size_t idx);
+ 
+ /** Get the element at specificed index of the array (a json_object of type json_type_array)
+  * @param obj the json_object instance
+@@ -1080,6 +1066,19 @@
+  */
+ 
+ JSON_EXPORT int json_object_deep_copy(struct json_object *src, struct json_object **dst, json_c_shallow_copy_fn *shallow_copy); 
++
++#if 1 /* zyxel, john */
++
++/** Delete the element at specificed index of the array (a json_object of type json_type_array)
++ * @param obj the json_object array
++ * @param idx the index of the deteled element
++ * @returns 0
++ */
++extern int json_object_array_delete_idx(struct json_object *jso, size_t idx);
++#endif
++
++int json_object_set_param(struct json_object *obj, char *v);
++
+ #ifdef __cplusplus
+ }
+ #endif
+Index: json-c-0.13.1/json.h
+===================================================================
+--- json-c-0.13.1.orig/json.h	2017-12-06 12:53:57.000000000 +0800
++++ json-c-0.13.1/json.h	2019-08-27 10:18:22.902887728 +0800
+@@ -21,6 +21,7 @@
+ extern "C" {
+ #endif
+ 
++#include "bits.h"
+ #include "debug.h"
+ #include "linkhash.h"
+ #include "arraylist.h"
+Index: json-c-0.13.1/Makefile.am
+===================================================================
+--- json-c-0.13.1.orig/Makefile.am	2019-08-27 10:18:22.834887728 +0800
++++ json-c-0.13.1/Makefile.am	2019-08-27 10:18:22.902887728 +0800
+@@ -33,7 +33,8 @@
+ 	json_util.h \
+ 	json_visit.h \
+ 	linkhash.h \
+-	printbuf.h
++	printbuf.h \
++	json_object_private.h
+ 
+ noinst_HEADERS=\
+ 	json_object_private.h \
+Index: json-c-0.13.1/json_tokener.c
+===================================================================
+--- json-c-0.13.1.orig/json_tokener.c	2019-08-27 10:18:22.866887728 +0800
++++ json-c-0.13.1/json_tokener.c	2019-08-27 10:19:07.342358995 +0800
+@@ -853,7 +853,7 @@
+       break;
+ 
+     case json_tokener_state_array_add:
+-      if( json_object_array_add(current, obj) != 0 )
++      if( json_object_array_add(current, obj) < 0 ) //I-Chia 20190827
+         goto out;
+       saved_state = json_tokener_state_array_sep;
+       state = json_tokener_state_eatws;

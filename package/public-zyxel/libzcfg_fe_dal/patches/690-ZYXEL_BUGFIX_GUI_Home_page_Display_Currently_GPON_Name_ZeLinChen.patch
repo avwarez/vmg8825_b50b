@@ -1,0 +1,124 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-10-03 16:37:09.254430624 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-10-03 16:38:20.751459866 +0800
+@@ -360,6 +360,11 @@
+ CFLAGS += -DZYXEL_SECOND_LAN_IP_ALIAS
+ endif
+ 
++#Support PON
++ifeq ($(CONFIG_XPON_SUPPORT),y)
++CFLAGS += -DXPON_SUPPORT
++endif
++
+ LDFLAGS += $(LIB_PATH) $(LINK_LIB)
+ CFLAGS += $(INC_PATH) -std=gnu99
+ 
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2019-10-03 16:37:09.070430624 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2019-10-03 16:38:18.832324946 +0800
+@@ -651,7 +651,7 @@
+ 	objIndex_t iid;	
+ 	struct json_object *devInfoObj = NULL, *sysInfoObj = NULL, *hostObj = NULL; 
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-    char RdpaWanType[16] = {0};
++    char WanType[16] = {0};
+     char psp_wantype[16] = {0};
+     char psp_wanrate[16] = {0};
+     char WanRate_RX[8] = {0};
+@@ -707,7 +707,7 @@
+             {
+                 if (strncmp(psp_wantype, "XGS", 3) == 0)
+                 {
+-                    strcpy(RdpaWanType, "XGSPON");
++                    strcpy(WanType, "XGSPON");
+                 }
+ 
+                 if (strncmp(psp_wanrate, "1010", 4) == 0)
+@@ -718,9 +718,9 @@
+             }
+         }
+ 
+-        if(strlen(RdpaWanType) == 0)
++        if(strlen(WanType) == 0)
+         {
+-            strcpy(RdpaWanType, "Unknown");
++            strcpy(WanType, "Unknown");
+         }
+ 
+         if(strlen(WanRate_RX) == 0)
+@@ -728,8 +728,10 @@
+             strcpy(WanRate_RX, "-1");
+             strcpy(WanRate_TX, "-1");
+         }
+-#else
+-    strcpy(RdpaWanType, "");
++#elif defined(ECONET_PLATFORM) && defined(XPON_SUPPORT)
++    strcpy(WanType, "GPON");
++#else 
++    strcpy(WanType, "");
+     strcpy(WanRate_RX, "-1");
+     strcpy(WanRate_TX, "-1");
+ #endif
+@@ -826,7 +828,7 @@
+ 	json_object_object_add(statusJobj, "VoipProfInfo", voipProfJarray);
+ 	json_object_object_add(statusJobj, "VoipProfSIPInfo", voipProSIPfJarray);
+ 	json_object_object_add(statusJobj, "VoipLineInfo", voipLineJarray);
+-    Jadds (statusJobj, "RdpaWanType", RdpaWanType);
++    Jadds (statusJobj, "WanType", WanType);
+     Jadds (statusJobj, "WanRate_RX", WanRate_RX);
+     Jadds (statusJobj, "WanRate_TX", WanRate_TX);
+ 	
+@@ -869,7 +871,7 @@
+                *guestOperatingFrequencyBand = NULL, *mainOperatingFrequencyBand = NULL,
+                *optStatus = NULL;
+ 	char ethConnectionStatus[16] = {0};  
+-    char RdpaWanType[16] = {0};
++    char WanType[16] = {0};
+     char psp_wantype[16] = {0};
+     char psp_wanrate[16] = {0};
+     char WanRate_RX[8] = {0};
+@@ -927,7 +929,7 @@
+             {
+                 if (strncmp(psp_wantype, "XGS", 3) == 0)
+                 {
+-                    strcpy(RdpaWanType, "XGSPON");
++                    strcpy(WanType, "XGSPON");
+                 }
+ 
+                 if (strncmp(psp_wanrate, "1010", 4) == 0)
+@@ -938,9 +940,9 @@
+             }
+         }
+ 
+-        if(strlen(RdpaWanType) == 0)
++        if(strlen(WanType) == 0)
+         {
+-            strcpy(RdpaWanType, "Unknown");
++            strcpy(WanType, "Unknown");
+         }
+ 
+         if(strlen(WanRate_RX) == 0)
+@@ -948,8 +950,10 @@
+             strcpy(WanRate_RX, "-1");
+             strcpy(WanRate_TX, "-1");
+         }
+-#else
+-    strcpy(RdpaWanType, "");
++#elif defined(ECONET_PLATFORM) && defined(XPON_SUPPORT)
++    strcpy(WanType, "GPON");
++#else 
++    strcpy(WanType, "");
+     strcpy(WanRate_RX, "-1");
+     strcpy(WanRate_TX, "-1");
+ #endif
+@@ -1053,7 +1057,7 @@
+ 	json_object_object_add(statusJobj, "GponStatsInfo", gponstatusObj);
+ 	Jaddi(statusJobj,"partctlNum",count);
+ 	Jaddb(statusJobj,"GuestSSIDEnable",GuestSSIDEnable);
+-    Jadds (statusJobj, "RdpaWanType", RdpaWanType);
++    Jadds (statusJobj, "WanType", WanType);
+     Jadds (statusJobj, "WanRate_RX", WanRate_RX);
+     Jadds (statusJobj, "WanRate_TX", WanRate_TX);
+ 

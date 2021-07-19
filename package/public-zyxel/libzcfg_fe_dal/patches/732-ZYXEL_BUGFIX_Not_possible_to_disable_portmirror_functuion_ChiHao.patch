@@ -1,0 +1,21 @@
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_portmirror.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_portmirror.c	2019-12-24 14:27:36.099927711 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_portmirror.c	2019-12-24 14:28:52.129295634 +0800
+@@ -114,6 +114,7 @@
+ 		len = json_object_array_length(Jobj);
+ 		for(i=0; i<len-1; i++) {
+ 			obj = json_object_array_get_idx(Jobj, i);
++			index = json_object_get_int(json_object_object_get(obj, "Index"));
+ 			LanPort = json_object_get_string(json_object_object_get(obj, "LanPort"));
+ 			IID_INIT(ethIid);
+ 			while(zcfgFeObjJsonGetNext(RDM_OID_ETH_IFACE, &ethIid, &ethObj) == ZCFG_SUCCESS) {
+@@ -127,7 +128,7 @@
+ 			}
+ 			status = json_object_get_boolean(json_object_object_get(obj, "Status"));
+ 			portMirrorIid.level = 1;
+-			portMirrorIid.idx[0] = i + 1;
++			portMirrorIid.idx[0] = index;
+ 			if(zcfgFeObjJsonGet(RDM_OID_PORT_MIRROR, &portMirrorIid, &portMirrorObj) == ZCFG_SUCCESS) {
+ 				json_object_object_add(portMirrorObj, "MirrorInterface", json_object_new_string(buff));
+ 				json_object_object_add(portMirrorObj, "Status", json_object_new_boolean(status));

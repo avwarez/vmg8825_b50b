@@ -1,0 +1,122 @@
+Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/diagnostic/zcfg_fe_dal_8021ag.c	2020-08-20 16:59:54.117448307 +0800
++++ libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8021ag.c	2020-08-20 16:55:13.281214100 +0800
+@@ -40,6 +40,8 @@
+ 
+ objIndex_t ieee8021agIid;
+ 
++uint32_t flag1 = 0;
++
+ bool EthOAM_TMS;
+ unsigned int type;
+ bool Enabled;
+@@ -252,10 +254,15 @@
+ 	char *atm_Ifname_p = NULL;
+ 	char atm_nasIfname[10];
+ #endif //ECONET_PLATFORM
++
++	bool atmHas = true, ptmHas = true, ethHas = true;
++	atmHas = (flag1 & HIDE_DSL) ? !atmHas : atmHas;
++	ptmHas = (flag1 & HIDE_DSL) ? !ptmHas : ptmHas;
++
+ 	interfaceList = json_object_new_object();
+ 
+ 	IID_INIT(objIid);
+-	while(ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ATM_LINK, &objIid, &obj)){
++	while(atmHas && ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ATM_LINK, &objIid, &obj)){
+ 		sprintf(pathString, "ATM.Link.%d", objIid.idx[0]);
+ #ifdef ECONET_PLATFORM
+ 		/*
+@@ -277,7 +284,7 @@
+ 		json_object_put(obj);
+ 	}
+ 	IID_INIT(objIid);
+-	while(ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_PTM_LINK, &objIid, &obj)){
++	while(ptmHas && ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_PTM_LINK, &objIid, &obj)){
+ 		sprintf(pathString, "PTM.Link.%d",  objIid.idx[0]);
+ 		json_object_object_add(interfaceList, pathString, json_object_new_string(json_object_get_string(json_object_object_get(obj, "X_ZYXEL_IfName"))) );
+ 		json_object_put(obj);
+@@ -310,10 +317,21 @@
+ zcfgRet_t zcfgFe8021ag(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *guiCustomObj;
++	objIndex_t iid;
++
+ 
+ 	if(!method || !Jobj)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
++	if(!flag1){
++		IID_INIT(iid);
++		if(zcfgFeObjJsonGet(RDM_OID_GUI_CUSTOMIZATION, &iid, &guiCustomObj) == ZCFG_SUCCESS){
++			flag1 = json_object_get_int(json_object_object_get(guiCustomObj, "Flag1"));
++			json_object_put(guiCustomObj);
++		}
++	}
++
+ 	if(!strcmp(method, "PUT")) {
+ 		ret = zcfgFeDal8021agEdit(Jobj, NULL);
+ 	}
+Index: libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/diagnostic/zcfg_fe_dal_8023ah.c	2020-08-20 16:59:54.117448307 +0800
++++ libzcfg_fe_dal-1.0/maintenance/diagnostic/zcfg_fe_dal_8023ah.c	2020-08-20 16:55:57.498214100 +0800
+@@ -28,6 +28,8 @@
+ 
+ objIndex_t ieee8023ahIid;
+ 
++extern uint32_t flag1;
++
+ void freeAll8023ahObjects(){
+ 	if(ieee8023ahobj) json_object_put(ieee8023ahobj);
+ 
+@@ -124,10 +126,14 @@
+ 	char atm_nasIfname[10];
+ #endif //ECONET_PLATFORM
+ 
++	bool atmHas = true, ptmHas = true, ethHas = true;
++	atmHas = (flag1 & HIDE_DSL) ? !atmHas : atmHas;
++	ptmHas = (flag1 & HIDE_DSL) ? !ptmHas : ptmHas;
++
+ 	interfaceList = json_object_new_object();
+ 
+ 	IID_INIT(objIid);
+-	while(ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ATM_LINK, &objIid, &obj)){
++	while(atmHas && ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ATM_LINK, &objIid, &obj)){
+ 		 sprintf(pathString, "ATM.Link.%d", objIid.idx[0]);
+ #ifdef ECONET_PLATFORM
+ 		/*
+@@ -148,8 +154,9 @@
+ #endif //#if ECONET_PLATFORM
+ 		json_object_put(obj);
+ 	}
++
+ 	IID_INIT(objIid);
+-	while(ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_PTM_LINK, &objIid, &obj)){
++	while(ptmHas && ZCFG_SUCCESS == zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_PTM_LINK, &objIid, &obj)){
+ 		sprintf(pathString, "PTM.Link.%d",  objIid.idx[0]);
+ 		json_object_object_add(interfaceList, pathString, json_object_new_string(json_object_get_string(json_object_object_get(obj, "X_ZYXEL_IfName"))) );
+ 		json_object_put(obj);
+@@ -182,10 +189,20 @@
+ zcfgRet_t zcfgFe8023ah(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *guiCustomObj;
++	objIndex_t iid;
+ 
+ 	if(!method || !Jobj)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
++	if(!flag1){
++		IID_INIT(iid);
++		if(zcfgFeObjJsonGet(RDM_OID_GUI_CUSTOMIZATION, &iid, &guiCustomObj) == ZCFG_SUCCESS){
++			flag1 = json_object_get_int(json_object_object_get(guiCustomObj, "Flag1"));
++			json_object_put(guiCustomObj);
++		}
++	}
++
+ 	if(!strcmp(method, "PUT")) {
+ 		ret = zcfgFeDal8023ahEdit(Jobj, NULL);
+ 	}

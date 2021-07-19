@@ -1,0 +1,36 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-11-29 09:14:21.961868002 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-11-29 09:14:21.965870001 +0800
+@@ -5026,7 +5026,6 @@
+ 	const char *tr98ParmStr_1 = NULL, *tr98ParmStr_2 = NULL;
+ 	const char *tr181AuthStr = NULL, *tr98Auth11iStr = NULL, *tr98AuthWPAStr = NULL;
+ 	int modifyAuth = 0, tr181Auth = 0, tr98Auth11i = 0, tr98AuthWPA = 0;
+-
+ 	strcpy(type, json_object_get_string(beaconType));
+ 
+ 	if(!strcmp(type, "Basic")) {
+@@ -5585,7 +5584,6 @@
+ 		json_object_put(ssidJobj);
+ 		return ZCFG_NO_MORE_INSTANCE;
+ 	}
+-
+ 	// Sync with WebGUI
+ 	IID_INIT(wpsIid);
+ 	wpsIid.level = apIid.level;
+@@ -7871,7 +7869,6 @@
+ 	tr98Parameter_t *paramList = NULL;
+ 
+ 	sscanf(tr98FullPathName, "%*[^.].%*[^.].%*d.%*[^.].%*d.WEPKey.%d", &idx);
+-
+ 	/*There should be only one WEPKey Object*/
+ 	if(idx > 4)
+ 		return ZCFG_NO_MORE_INSTANCE;
+@@ -7926,6 +7923,7 @@
+ 				if((5 == keylength) || (10 == keylength)){
+ 					json_object_object_add(apSecJobj, wepKey64ParmName, JSON_OBJ_COPY(paramValue));
+ 					json_object_object_add(apSecJobj, "X_ZYXEL_WepModeSelect", json_object_new_string("WEP-64"));
++					json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("WEP-64"));
+ 					paramList++;
+ 					continue;
+ 				}else if((13 == keylength) || (26 == keylength)){

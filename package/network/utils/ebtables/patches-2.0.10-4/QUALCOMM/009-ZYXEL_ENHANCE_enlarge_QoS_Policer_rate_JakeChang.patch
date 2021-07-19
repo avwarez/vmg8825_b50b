@@ -1,0 +1,72 @@
+Index: ebtables-v2.0.10-4/extensions/ebt_policer.c
+===================================================================
+--- ebtables-v2.0.10-4.orig/extensions/ebt_policer.c	2019-07-25 19:15:34.079084179 +0800
++++ ebtables-v2.0.10-4/extensions/ebt_policer.c	2019-07-26 10:20:59.428494900 +0800
+@@ -9,7 +9,8 @@
+ 
+ #define EBT_POLICER_RATE_KBPS        10       /* Policer default rate in kbps. */
+ #define EBT_POLICER_BURST_KBYTE      10       /* Policer default burst in kbyte. */
+-#define EBT_POLICER_MAX_INPUT_VALUE  1000000  /* Max rate value user can input in kbps or mbps. */
++#define EBT_POLICER_MAX_INPUT_VALUE  10000000 /* Max rate value user can input in kbps or mbps. */
++#define EBT_POLICER_MAX_BURST_SIZE   20000    /* Max burst size value user can input in kbytes. */
+ 
+ #if 1//__MSTC__, Jones For compilation
+ #define FLAG_MODE          0x01
+@@ -62,10 +63,10 @@
+ 	    "tbf mode: \n"
+ 	    "--policer rate			max data rate match, default %ukbps\n"
+ 	    "                                [Bits per second followed by kbps or mbps.\n"
+-	    "                                Support 1kbps to 1000000kbps or 1mbps to 1000000mbps.] \n"   
++	    "                                Support 1kbps to 10000000kbps or 1mbps to 10000mbps.] \n"   
+ 	    "--policer-burst size		size to match in a burst, default %ukb\n"
+ 	    "                                [Kilo-bytes followed by kb.\n"
+-	    "                                Support 1kb to 1000kb.]\n" 
++	    "                                Support 1kb to 20000kb.]\n" 
+ 	    "srtcm mode: \n"
+ 	    "The nfmark field of red packet is marked as 0x10000, \n"
+ 	    "yellow packet is 0x20000 and green packet is 0x30000.\n"
+@@ -235,7 +236,7 @@
+ 			}
+ 			str1 = optarg;
+ 			r->burst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->burst > 1000 || r->burst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->burst > EBT_POLICER_MAX_BURST_SIZE || r->burst <= 0) {
+ 				ebt_print_error("bad --policer-burst `%s'", optarg);
+ 			}
+ 			break;
+@@ -271,7 +272,7 @@
+ 			}
+ 			str1 = optarg;
+ 			r->burst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->burst > 1000 || r->burst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->burst > EBT_POLICER_MAX_BURST_SIZE || r->burst <= 0) {
+ 				ebt_print_error("bad --cbs-burst `%s'", optarg);
+ 			}
+ 			break;
+@@ -310,7 +311,7 @@
+ 			}
+ 			str1 = optarg;
+ 			r->pbsBurst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > 1000 || r->pbsBurst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > EBT_POLICER_MAX_BURST_SIZE || r->pbsBurst <= 0) {
+ 				ebt_print_error("bad --pbs-burst `%s'", optarg);
+ 			}
+ 			break;
+@@ -329,7 +330,7 @@
+ 			}
+ 			str1 = optarg;
+ 			r->pbsBurst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > 1000 || r->pbsBurst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > EBT_POLICER_MAX_BURST_SIZE || r->pbsBurst <= 0) {
+ 				ebt_print_error("bad --ebs-burst `%s'", optarg);
+ 			}
+ 			break;
+@@ -375,7 +376,7 @@
+ 
+ 		str1 = optarg;
+ 		r->burst = strtol(str1, &remainder, 0);
+-		if (strcmp(remainder, "kb") != 0 || r->burst > 1000 || r->burst <= 0) {
++		if (strcmp(remainder, "kb") != 0 || r->burst > EBT_POLICER_MAX_BURST_SIZE || r->burst <= 0) {
+ 			print_error("bad --policer-burst `%s'", optarg);
+ 		}
+ 		break;

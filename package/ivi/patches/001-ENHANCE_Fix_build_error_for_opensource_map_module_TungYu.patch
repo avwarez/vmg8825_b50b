@@ -1,0 +1,97 @@
+Index: ivi-1.0/ivi_nf.c
+===================================================================
+--- ivi-1.0.orig/ivi_nf.c	2019-12-11 08:13:49.096207600 +0000
++++ ivi-1.0/ivi_nf.c	2019-12-11 08:25:17.010033010 +0000
+@@ -39,41 +39,47 @@
+ 
+ static int running;
+ 
+-unsigned int nf_hook4(unsigned int hooknum, struct sk_buff *skb,
++static unsigned int nf_hook4(const struct nf_hook_ops *ops, struct sk_buff *skb,
+ 		const struct net_device *in, const struct net_device *out,
+ 		int (*okfn)(struct sk_buff *)) {
++	unsigned int ret;
+ 
+ 	if ((!running) || (in != v4_dev)) {
+ 		return NF_ACCEPT;
+ 	}
+ 
+-	if (ivi_v4v6_xmit(skb) == 0) {
++	ret = ivi_v4v6_xmit(skb);
++
++	if (ret == 0)
+ 		return NF_DROP;
+-	}
+-	else {
++	else if (ret == NF_STOLEN)
++		return NF_STOLEN;
++	else
+ 		return NF_ACCEPT;
+ }
+-}
+ 
+-unsigned int nf_hook6(unsigned int hooknum, struct sk_buff *skb,
++static unsigned int nf_hook6(const struct nf_hook_ops *ops, struct sk_buff *skb,
+ 		const struct net_device *in, const struct net_device *out,
+ 		int (*okfn)(struct sk_buff *)) {
++	unsigned int ret;
+ 	
+ 	if ((!running) || (in != v6_dev)) {
+ 		return NF_ACCEPT;
+ 	}
+ 
+-	if (ivi_v6v4_xmit(skb) == 0) {
++	ret = ivi_v6v4_xmit(skb);
++
++	if (ret == 0)
+ 		return NF_DROP;
+-	}
+-	else {
++	else if (ret == NF_STOLEN)
++		return NF_STOLEN;
++	else
+ 		return NF_ACCEPT;
+ }
+-}
+ 
+ struct nf_hook_ops v4_ops = {
+ 	list	:	{ NULL, NULL },
+-	hook	:	nf_hook4,
++	hook	:	(nf_hookfn *)nf_hook4,
+ 	owner	:	THIS_MODULE,
+ 	pf	:	PF_INET,
+ 	hooknum	:	NF_INET_PRE_ROUTING,
+@@ -82,7 +88,7 @@
+ 
+ struct nf_hook_ops v6_ops = {
+ 	list	:	{ NULL, NULL },
+-	hook	:	nf_hook6,
++	hook	:	(nf_hookfn *)nf_hook6,
+ 	owner	:	THIS_MODULE,
+ 	pf	:	PF_INET6,
+ 	hooknum	:	NF_INET_PRE_ROUTING,
+Index: ivi-1.0/ivi_rule.c
+===================================================================
+--- ivi-1.0.orig/ivi_rule.c	2019-12-11 08:13:57.186207600 +0000
++++ ivi-1.0/ivi_rule.c	2019-12-11 08:25:09.222358543 +0000
+@@ -624,7 +624,7 @@
+ 			last = p;
+ 		}
+ 		if (last)
+-			hlist_add_after(&last->node, &li->node);
++			hlist_add_behind(&last->node, &li->node);
+ 		else
+ 			hlist_add_before(&li->node, &p->node);
+ 	}
+Index: ivi-1.0/Makefile
+===================================================================
+--- ivi-1.0.orig/Makefile	2019-12-11 08:14:02.140207600 +0000
++++ ivi-1.0/Makefile	2019-12-11 08:24:59.722755635 +0000
+@@ -1,6 +1,6 @@
+ obj-m		+=	ivi.o
+ ivi-objs	:=	ivi_rule.o ivi_rule6.o ivi_map.o ivi_map_tcp.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o
+-KERNELDIR	:=	/lib/modules/$(shell uname -r)/build
++#KERNELDIR	:=	/lib/modules/$(shell uname -r)/build
+ PWD		:=	$(shell pwd)
+ 
+ all:

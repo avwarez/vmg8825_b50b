@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 11:20:29.602262300 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 11:29:20.310327800 +0800
+@@ -1383,7 +1383,7 @@
+ 		//v4 fwd
+ 		if(v4FwdObj){
+             //json_object_object_add(v4FwdObj, "StaticRoute", json_object_new_boolean(true)); //readonly parameter, cant set from front end.
+-			if(strcmp(GatewayIPAddress, CurrGatewayIPAddress)){
++			if( (strlen(GatewayIPAddress) >0) && strcmp(GatewayIPAddress, CurrGatewayIPAddress)){
+ 				//json_object_object_add(v4FwdObj, "Interface", json_object_new_string(ipIfacePath));
+ 				json_object_object_add(v4FwdObj, "GatewayIPAddress", json_object_new_string(GatewayIPAddress));
+ 			}

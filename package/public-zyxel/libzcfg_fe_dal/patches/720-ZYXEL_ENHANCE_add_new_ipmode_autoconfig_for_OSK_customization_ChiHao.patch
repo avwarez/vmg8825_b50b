@@ -1,0 +1,181 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-11-22 14:24:08.192135032 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-11-22 14:29:16.014674596 +0800
+@@ -29,7 +29,11 @@
+ 	{"Type",				dalType_string,	3,	4,	NULL, "ATM|PTM|ETH|GPON", dal_Add | dal_Edit_ignore},
+ 	{"Mode",				dalType_string,	9,	10,	NULL, "IP_Routed|IP_Bridged", dal_Add},
+ 	{"Encapsulation",		dalType_string,	4,	5,	NULL, "IPoE|IPoA|PPPoE|PPPoA"},
++#ifdef ABUE_CUSTOMIZATION
++	{"ipMode",				dalType_string,	4,	10,	NULL, "IPv4|DualStack|IPv6|AutoConfig"},
++#else
+ 	{"ipMode",				dalType_string,	4,	9,	NULL, "IPv4|DualStack|IPv6"},
++#endif	
+ 	//atmLink
+ 	{"vpivci",				dalType_vpivci,	1,	256,	NULL}, // VPI/VCI
+ 	{"AtmEncapsulation",	dalType_string,	1,	6,	NULL},
+@@ -646,12 +650,15 @@
+ 			json_object_object_add(Jobj, "MaxMTUSize", json_object_new_int(1500));
+ 	}
+ 
+-	if(ipMode == NULL){//IPv4/DualStack/IPv6
++	if(ipMode == NULL){//IPv4/DualStack/IPv6/AutoConfig
+ 		json_object_object_add(Jobj, "ipMode", json_object_new_string("IPv4"));
+ 		ipMode = json_object_get_string(json_object_object_get(Jobj, "ipMode"));
+ 	}
+ 	else if(strcmp(ipMode, "IPv4") &&
+ 			strcmp(ipMode, "IPv6") &&
++#ifdef ABUE_CUSTOMIZATION			
++			strcmp(ipMode, "AutoConfig") &&
++#endif			
+ 			strcmp(ipMode, "DualStack")){
+ 		return ZCFG_INVALID_PARAM_VALUE;
+ 	}
+@@ -680,6 +687,15 @@
+ 		if(json_object_object_get(Jobj, "DSLiteRelayIPv6Addresses") == NULL)
+ 			json_object_object_add(Jobj, "DSLiteRelayIPv6Addresses", json_object_new_string(""));
+ 	}
++#ifdef ABUE_CUSTOMIZATION
++	if(!strcmp(ipMode, "AutoConfig")){//dslite
++		if(json_object_object_get(Jobj, "DSLiteType") == NULL)
++			json_object_object_add(Jobj, "DSLiteType", json_object_new_string("static"));
++				
++		if(json_object_object_get(Jobj, "DSLiteRelayIPv6Addresses") == NULL)
++			json_object_object_add(Jobj, "DSLiteRelayIPv6Addresses", json_object_new_string(""));
++	}
++#endif
+ 
+ 	return ZCFG_SUCCESS;
+ }
+@@ -2574,7 +2590,18 @@
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvManagedFlag_Manual", Jobj, "IPv6Manual_IANA");
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvOtherConfigFlag_Manual", Jobj, "IPv6Manual_IAPD");
+ 	}
+-
++#ifdef ABUE_CUSTOMIZATION
++	else if(!strcmp(ipMode, "AutoConfig")){
++		json_object_object_add(ipIfaceObj, "IPv4Enable", json_object_new_boolean(true));
++		json_object_object_add(ipIfaceObj, "IPv6Enable", json_object_new_boolean(true));
++		replaceParam(ipIfaceObj, "X_ZYXEL_Enable_DSLite", Jobj, "DSLiteEnable");
++		replaceParam(ipIfaceObj, "X_ZYXEL_DSLite_Type", Jobj, "DSLiteType");
++		replaceParam(ipIfaceObj, "X_ZYXEL_DSLiteRelayIPv6Addresses", Jobj, "DSLiteRelayIPv6Addresses");
++		/* __ZyXEL__, Albert, 20180209,Support IPv6 option IA_NA and IA_PD	*/
++		replaceParam(ipIfaceObj, "X_ZYXEL_AdvManagedFlag_Manual", Jobj, "IPv6Manual_IANA");
++		replaceParam(ipIfaceObj, "X_ZYXEL_AdvOtherConfigFlag_Manual", Jobj, "IPv6Manual_IAPD");
++	}
++#endif
+ 	json_object_object_add(ipIfaceObj, "X_ZYXEL_AccessDescription", json_object_new_string("AddSetIpIface"));
+ 
+ 	if(!strcmp(Encapsulation, "PPPoE") || !strcmp(Encapsulation, "PPPoA")){
+@@ -2684,7 +2711,19 @@
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvManagedFlag_Manual", Jobj, "IPv6Manual_IANA");
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvOtherConfigFlag_Manual", Jobj, "IPv6Manual_IAPD");      
+ 	}
+-
++#ifdef ABUE_CUSTOMIZATION	
++	else if(!strcmp(ipMode, "AutoConfig")){
++		json_object_object_add(ipIfaceObj, "IPv4Enable", json_object_new_boolean(true));
++		json_object_object_add(ipIfaceObj, "IPv6Enable", json_object_new_boolean(true));
++		json_object_object_add(ipIfaceObj, "X_ZYXEL_Enable_6RD", json_object_new_boolean(false));
++		replaceParam(ipIfaceObj, "X_ZYXEL_Enable_DSLite", Jobj, "DSLiteEnable");
++		replaceParam(ipIfaceObj, "X_ZYXEL_DSLite_Type", Jobj, "DSLiteType");
++		replaceParam(ipIfaceObj, "X_ZYXEL_DSLiteRelayIPv6Addresses", Jobj, "DSLiteRelayIPv6Addresses");
++		/* __ZyXEL__, Albert, 20180209,Support IPv6 option IA_NA and IA_PD	*/
++		replaceParam(ipIfaceObj, "X_ZYXEL_AdvManagedFlag_Manual", Jobj, "IPv6Manual_IANA");
++		replaceParam(ipIfaceObj, "X_ZYXEL_AdvOtherConfigFlag_Manual", Jobj, "IPv6Manual_IAPD");
++	}
++#endif
+ 	if(!strcmp(Encapsulation, "PPPoE") || !strcmp(Encapsulation, "PPPoA")){
+ 		ret = editPppIfaceObject(Jobj, ipIfaceObj, &ipIfaceIid);
+ 	}
+@@ -2947,6 +2986,9 @@
+ 	objIndex_t iid;
+ 	int count = 0;
+ 	bool v4enable, v6enable, Enable;
++#ifdef ABUE_CUSTOMIZATION	
++	bool Enable_DSLite;
++#endif	
+ 	const char *Interface;
+ 	const char *AddressingType;
+ 	const char *DestIPAddress;
+@@ -3175,9 +3217,18 @@
+     /* __ZyXEL__, Albert, 20180209,Support IPv6 option IA_NA and IA_PD  */
+     IPv6Manual_IANA = json_object_get_boolean(json_object_object_get(ipIfaceObj, "IPv6Manual_IANA"));
+     IPv6Manual_IAPD = json_object_get_boolean(json_object_object_get(ipIfaceObj, "IPv6Manual_IAPD"));
+-
++#ifdef ABUE_CUSTOMIZATION
++	Enable_DSLite = json_object_get_boolean(json_object_object_get(ipIfaceObj, "X_ZYXEL_Enable_DSLite"));
++#endif
++#ifdef ABUE_CUSTOMIZATION
++	if(v4enable && v6enable && !Enable_DSLite)
++		strcpy(CurrIpMode, "DualStack");
++	else if(v4enable && v6enable && Enable_DSLite)
++		strcpy(CurrIpMode, "AutoConfig");
++#else
+ 	if(v4enable && v6enable)
+ 		strcpy(CurrIpMode, "DualStack");
++#endif	
+ 	else if(v4enable)
+ 		strcpy(CurrIpMode, "IPv4");
+ 	else if(v6enable)
+@@ -4112,6 +4163,9 @@
+ static zcfgRet_t getWanInfo(struct json_object *pramJobj,objIndex_t ipIfaceIid, struct json_object *ipIfaceObj){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	bool v4enable, v6enable;
++#ifdef ABUE_CUSTOMIZATION
++	bool Enable_DSLite;
++#endif
+ 	const char *Interface;
+ 	const char *pppPassTh;
+ 	bool enable_6RD = false;
+@@ -4120,12 +4174,18 @@
+ 	if(!strcmp(CurrEncapsulation, "IPoE") || !strcmp(CurrEncapsulation, "IPoA")){
+ 		v4enable = json_object_get_boolean(json_object_object_get(ipIfaceObj, "IPv4Enable"));
+ 		v6enable = json_object_get_boolean(json_object_object_get(ipIfaceObj, "IPv6Enable"));
++#ifdef ABUE_CUSTOMIZATION
++		Enable_DSLite = json_object_get_boolean(json_object_object_get(ipIfaceObj, "X_ZYXEL_Enable_DSLite"));
++#endif
+ 		json_object_object_add(pramJobj, "MaxMTUSize",json_object_object_get(ipIfaceObj, "MaxMTUSize"));
+ 	}
+ 	else{ //PPPoE or PPPoA
+ 		v4enable = json_object_get_boolean(json_object_object_get(pppIfaceObj, "IPCPEnable"));
+ 		v6enable = json_object_get_boolean(json_object_object_get(pppIfaceObj, "IPv6CPEnable"));
+ 		pppPassTh = json_object_get_string(json_object_object_get(pppIfaceObj, "X_ZYXEL_ConnectionType"));
++#ifdef ABUE_CUSTOMIZATION
++		Enable_DSLite = json_object_get_boolean(json_object_object_get(pppIfaceObj, "X_ZYXEL_Enable_DSLite"));
++#endif
+ 
+ 		if(!strcmp(pppPassTh, "PPPoE_Bridged"))	
+ 			json_object_object_add(pramJobj, "pppoePassThrough",json_object_new_boolean(true));
+@@ -4138,9 +4198,15 @@
+ 		json_object_object_add(pramJobj, "pppPassword", JSON_OBJ_COPY(json_object_object_get(pppIfaceObj, "Password")));
+ 		json_object_object_add(pramJobj, "ConnectionTrigger", JSON_OBJ_COPY(json_object_object_get(pppIfaceObj, "ConnectionTrigger")));
+ 	}
+-
++#ifdef ABUE_CUSTOMIZATION
++	if(v4enable && v6enable && !Enable_DSLite)
++		strcpy(CurrIpMode, "DualStack");
++	else if(v4enable && v6enable && Enable_DSLite)
++		strcpy(CurrIpMode, "AutoConfig");
++#else
+ 	if(v4enable && v6enable)
+ 		strcpy(CurrIpMode, "DualStack");
++#endif	
+ 	else if(v4enable)
+ 		strcpy(CurrIpMode, "IPv4");
+ 	else if(v6enable)
+@@ -4193,7 +4259,13 @@
+ 		json_object_object_add(pramJobj, "DSLiteType",JSON_OBJ_COPY(json_object_object_get(ipIfaceObj, "X_ZYXEL_DSLite_Type")));
+ 		json_object_object_add(pramJobj, "DSLiteRelayIPv6Addresses",JSON_OBJ_COPY(json_object_object_get(ipIfaceObj, "X_ZYXEL_DSLiteRelayIPv6Addresses")));
+ 	}
+-
++#ifdef ABUE_CUSTOMIZATION	
++	if(!strcmp(CurrIpMode, "AutoConfig")){
++		json_object_object_add(pramJobj, "DSLiteEnable",JSON_OBJ_COPY(json_object_object_get(ipIfaceObj, "X_ZYXEL_Enable_DSLite")));
++		json_object_object_add(pramJobj, "DSLiteType",JSON_OBJ_COPY(json_object_object_get(ipIfaceObj, "X_ZYXEL_DSLite_Type")));
++		json_object_object_add(pramJobj, "DSLiteRelayIPv6Addresses",JSON_OBJ_COPY(json_object_object_get(ipIfaceObj, "X_ZYXEL_DSLiteRelayIPv6Addresses")));
++	}
++#endif
+ 	//NAT
+ 	if(natIntfObj) zcfgFeJsonObjFree(natIntfObj);
+ 	if (getSpecificObj(RDM_OID_NAT_INTF_SETTING, "Interface", json_type_string, ipIfacePath, &natIntfIid, &natIntfObj)) {

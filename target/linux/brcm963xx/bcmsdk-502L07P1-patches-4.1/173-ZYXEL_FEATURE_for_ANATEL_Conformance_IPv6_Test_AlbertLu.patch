@@ -1,0 +1,49 @@
+Index: linux-4.1.52/include/uapi/linux/netfilter_ipv6/ip6t_REJECT.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter_ipv6/ip6t_REJECT.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/uapi/linux/netfilter_ipv6/ip6t_REJECT.h	2018-01-30 10:28:46.544134068 +0800
+@@ -9,6 +9,9 @@
+ 	IP6T_ICMP6_NOT_NEIGHBOUR,
+ 	IP6T_ICMP6_ADDR_UNREACH,
+ 	IP6T_ICMP6_PORT_UNREACH,
++/* __ZyXEL__, Albert, 20170213, for ANATEL Conformance IPv6 Test  */
++	IP6T_ICMP6_POLICY_FAIL,
++	IP6T_ICMP6_REJECT_ROUTE,
+ 	IP6T_ICMP6_ECHOREPLY,
+ 	IP6T_TCP_RESET
+ };
+Index: linux-4.1.52/net/ipv6/addrconf.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/addrconf.c	2018-01-26 15:04:30.624731215 +0800
++++ linux-4.1.52/net/ipv6/addrconf.c	2018-01-30 10:36:05.656130828 +0800
+@@ -3574,7 +3574,11 @@
+ 	 * Optimistic nodes can start receiving
+ 	 * Frames right away
+ 	 */
++#if 1 // WenHsien.20160907: Force speed up DAD: insert global IP into routing table while starting DAD.
++    {
++#else
+ 	if (ifp->flags & IFA_F_OPTIMISTIC) {
++#endif
+ 		ip6_ins_rt(ifp->rt);
+ 		if (ipv6_use_optimistic_addr(idev)) {
+ 			/* Because optimistic nodes can use this address,
+Index: linux-4.1.52/net/ipv6/netfilter/ip6t_REJECT.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/netfilter/ip6t_REJECT.c	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/net/ipv6/netfilter/ip6t_REJECT.c	2018-01-30 10:47:40.240125704 +0800
+@@ -65,6 +65,14 @@
+ 	case IP6T_TCP_RESET:
+ 		nf_send_reset6(net, skb, par->hooknum);
+ 		break;
++#if 1 /* __ZyXEL__, Albert, 20170213, for ANATEL Conformance IPv6 Test  */
++	case IP6T_ICMP6_POLICY_FAIL:
++		nf_send_unreach6(net, skb, ICMPV6_POLICY_FAIL, par->hooknum);
++		break;
++	case IP6T_ICMP6_REJECT_ROUTE:
++		nf_send_unreach6(net, skb, ICMPV6_REJECT_ROUTE, par->hooknum);
++		break;
++#endif
+ 	default:
+ 		net_info_ratelimited("case %u not handled yet\n", reject->with);
+ 		break;

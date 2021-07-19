@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal_rdmacl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal_rdmacl.c	2019-12-14 23:45:29.595130276 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal_rdmacl.c	2019-12-14 23:49:55.282631900 +0800
+@@ -28,7 +28,7 @@
+ 		"SourceMACFromVendorClassIDMode", "SourceMACFromClientIDFilter", "X_ZYXEL_SourceMACFromVSIFilter", NULL};
+ const char *rdmACLClassifyParams[] = {"Name", NULL};
+ const char *rdmACLCategoryParams[] = {"Name", NULL};
+-const char *rdmACLMacAddressTableParams[] = {"Interface", "Upstream", "Type", "AddrList", NULL};
++const char *rdmACLMacAddressTableParams[] = {"Interface", "Mode", "Type", "AddrList", NULL};
+ 
+ //char *rdmACLObjectIid[] = {"1,2", "2"}; //[1,2,0,0,0,0], [2,0,0,0,0,0]
+ const char *rdmACLBridgingBrIid[] = {"1", NULL};

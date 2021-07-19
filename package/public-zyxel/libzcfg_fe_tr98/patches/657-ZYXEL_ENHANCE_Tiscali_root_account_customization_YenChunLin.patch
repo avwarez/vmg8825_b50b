@@ -1,0 +1,28 @@
+Index: libzcfg_fe_tr98-1.0/zyExt.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt.c	2019-12-16 17:05:46.287665508 +0800
++++ libzcfg_fe_tr98-1.0/zyExt.c	2019-12-16 17:09:20.612358881 +0800
+@@ -4160,7 +4160,7 @@
+ 	while(paramList->name != NULL) {
+ 		paramValue = json_object_object_get(loginCfgGpAccoutObj, paramList->name);
+ #ifdef TISCALI_CUSTOMIZATION
+-		if( loginCfgGpAccoutIid.idx[0] == 1 && loginCfgGpAccoutIid.idx[1] == 2){
++		if( loginCfgGpAccoutIid.idx[0] == 1 && (loginCfgGpAccoutIid.idx[1] == 1 || loginCfgGpAccoutIid.idx[1] == 2)){
+ 			if(!strcmp(paramList->name, "Password")){
+ 				default_password = json_object_to_json_string(paramValue);
+ 				if(strlen(default_password)==2){
+@@ -4213,6 +4213,14 @@
+ 		loginCfgGpAccoutObj = NULL;
+ 		loginCfgGpAccoutObj = zcfgFeJsonMultiObjAppend(loginCfgGpAccoutOid, &loginCfgGpAccoutIid, multiJobj, tmpObj);
+ 	}
++#ifdef TISCALI_CUSTOMIZATION
++				if( loginCfgGpAccoutIid.idx[0] == 1 && (loginCfgGpAccoutIid.idx[1] == 1 || loginCfgGpAccoutIid.idx[1] == 2)){
++					if(json_object_object_get(json_object_object_get(multiJobj,"spv"),"Password") || json_object_object_get(json_object_object_get(multiJobj,"spv"),"DefaultPassword")){
++						sprintf(paramfault, "Password of root or assistant shouldn't be changed!");
++						return ZCFG_INVALID_PARAM_VALUE;
++					}
++				}
++#endif
+ 
+ 	paramList = tr98Obj[handler].parameter;
+ 	while(paramList->name != NULL) {

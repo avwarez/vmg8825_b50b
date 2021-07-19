@@ -1,0 +1,12 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-11-29 09:18:39.970808001 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-11-29 09:18:39.982814002 +0800
+@@ -7933,6 +7933,7 @@
+ 						json_object_object_add(apSecJobj, paramList->name, JSON_OBJ_COPY(paramValue));
+ 					}
+ 					json_object_object_add(apSecJobj, "X_ZYXEL_WepModeSelect", json_object_new_string("WEP-128"));
++					json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("WEP-128"));
+ 					paramList++;
+ 					continue;
+ 				}

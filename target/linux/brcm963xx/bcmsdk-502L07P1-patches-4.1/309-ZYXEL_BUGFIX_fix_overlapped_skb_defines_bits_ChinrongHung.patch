@@ -1,0 +1,160 @@
+diff -urN linux-4.1.52.org/net/bridge/netfilter/ebt_policer.c linux-4.1.52/net/bridge/netfilter/ebt_policer.c
+--- linux-4.1.52.org/net/bridge/netfilter/ebt_policer.c	2019-11-25 15:39:15.312678800 +0800
++++ linux-4.1.52/net/bridge/netfilter/ebt_policer.c	2019-11-26 14:21:56.646836162 +0800
+@@ -25,6 +25,9 @@
+ #define MODE_TRTCM 2
+ #endif
+ static DEFINE_SPINLOCK(policer_lock);
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
+ #if 1//__MSTC__, Jones For compilation
+ static bool 
+ ebt_policer_match(const struct sk_buff *skb, struct xt_action_param *par)
+@@ -86,18 +89,33 @@
+ 		cost = (skb->len + skb->mac_len) * BITS_PER_BYTE;
+ 		tmp = (struct sk_buff *)skb;
+ 		if (r->credit >= cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++        	ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++        	ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , GREEN);    /* Green */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , GREEN);    /* Green */
++#endif
+ 			r->credit -= cost;
+ 		}
+ 		else if (r->pbsCredit >= cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++        	ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++        	ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#endif
+ 			r->pbsCredit -= cost;
+ 		}
+ 		else {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++        	ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++        	ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , RED);    /* Red */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , RED);    /* Red */
++#endif
+ 		}
+ 		spin_unlock_bh(&policer_lock);
+ 		return true;
+@@ -117,17 +135,32 @@
+ 		cost = (skb->len + skb->mac_len) * BITS_PER_BYTE;
+ 		tmp = (struct sk_buff *)skb;
+ 		if (r->pbsCredit < cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , RED);    /* Red */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , RED);    /* Red */
++#endif
+ 		}
+ 		else if (r->credit < cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#endif
+ 			r->pbsCredit -= cost;
+ 		}
+ 		else {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++            ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++            ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , GREEN);    /* Green */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , GREEN);    /* Green */
++#endif
+ 			r->pbsCredit -= cost;
+ 			r->credit -= cost;
+ 		}
+diff -urN linux-4.1.52.org/net/netfilter/xt_policer.c linux-4.1.52/net/netfilter/xt_policer.c
+--- linux-4.1.52.org/net/netfilter/xt_policer.c	2019-11-25 15:39:17.552678800 +0800
++++ linux-4.1.52/net/netfilter/xt_policer.c	2019-11-26 14:37:35.143122291 +0800
+@@ -21,6 +21,9 @@
+ #define MODE_SRTCM 1
+ #define MODE_TRTCM 2
+ #endif
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Herve Eychenne <rv@wallfire.org>");
+@@ -101,18 +104,33 @@
+ 		cost = (skb->len + skb->mac_len) * BITS_PER_BYTE;
+ 		tmp = (struct sk_buff *)skb;
+ 		if (r->credit >= cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , GREEN);    /* Green */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , GREEN);    /* Green */
++#endif
+ 			r->credit -= cost;
+ 		}
+ 		else if (r->pbsCredit >= cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++            ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++            ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#endif
+ 			r->pbsCredit -= cost;
+ 		}
+ 		else {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , RED);    /* Red */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , RED);    /* Red */
++#endif
+ 		}
+ 		spin_unlock_bh(&policer_lock);
+ 		return true;
+@@ -132,17 +150,32 @@
+ 		cost = (skb->len + skb->mac_len) * BITS_PER_BYTE;
+ 		tmp = (struct sk_buff *)skb;
+ 		if (r->pbsCredit < cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , RED);    /* Red */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , RED);    /* Red */
++#endif
+ 		}
+ 		else if (r->credit < cost) {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , YELLOW);    /* Yellow */
++#endif
+ 			r->pbsCredit -= cost;
+ 		}
+ 		else {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			ZLD_CB_DATA(tmp)->zextmark &= ~(SKBZEXTMARK_POLICER_M); /* Reset 2 color bit */
++			ZLD_CB_DATA(tmp)->zextmark |= SKBZEXTMARK_SET_POLICER(0 , GREEN);    /* Green */
++#else
+ 			tmp->mark &= ~(SKBMARK_POLICER_M); /* Reset 2 color bit */
+ 			tmp->mark |= SKBMARK_SET_POLICER(0 , GREEN);    /* Green */
++#endif
+ 			r->pbsCredit -= cost;
+ 			r->credit -= cost;
+ 		}

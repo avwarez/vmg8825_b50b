@@ -1,0 +1,27 @@
+Index: linux-4.1.52/include/linux/atmdev.h
+===================================================================
+--- linux-4.1.52.orig/include/linux/atmdev.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/linux/atmdev.h	2018-03-15 14:07:58.620550000 +0800
+@@ -1,7 +1,9 @@
+ /* atmdev.h - ATM device driver declarations and various related items */
+ #ifndef LINUX_ATMDEV_H
+ #define LINUX_ATMDEV_H
+-
++#if 1 /* ZyXEL, Trevor, 20180315 */
++#ifdef __KERNEL__ 
++#endif
+ 
+ #include <linux/wait.h> /* wait_queue_head_t */
+ #include <linux/time.h> /* struct timeval */
+@@ -11,6 +13,11 @@
+ #include <linux/uio.h>
+ #include <net/sock.h>
+ #include <linux/atomic.h>
++
++#if 1
++#endif /*__KERNEL__, ZyXEL, Trevor, 20180315 */
++#endif
++
+ #include <uapi/linux/atmdev.h>
+ 
+ #ifdef CONFIG_PROC_FS

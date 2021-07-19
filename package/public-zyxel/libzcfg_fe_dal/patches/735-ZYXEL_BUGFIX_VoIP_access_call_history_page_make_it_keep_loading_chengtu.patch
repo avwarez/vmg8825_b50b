@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/voip/callHistory/zcfg_fe_dal_call_history.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/voip/callHistory/zcfg_fe_dal_call_history.c	2020-01-09 10:35:04.988393315 +0800
++++ libzcfg_fe_dal-1.0/voip/callHistory/zcfg_fe_dal_call_history.c	2020-01-09 10:37:49.500006292 +0800
+@@ -97,7 +97,7 @@
+ 			printf("%-12s ",json_object_get_string(json_object_object_get(contentObj,"OutgoingNumber")));
+ 			printf("%-10s ",json_object_get_string(json_object_object_get(contentObj,"Duration")));
+ 			printf("\n");
+-			zcfgFeJsonObjFree(historyObj);
++			//zcfgFeJsonObjFree(historyObj);
+ 		}
+ 	}
+ 	printf("\n");

@@ -1,0 +1,36 @@
+Index: json-c-0.13.1/json_util.c
+===================================================================
+--- json-c-0.13.1.orig/json_util.c	2019-08-13 17:43:12.000000000 +0800
++++ json-c-0.13.1/json_util.c	2019-08-13 17:47:17.908162660 +0800
+@@ -133,12 +133,31 @@
+ }
+ 
+ /* extended "format and write to file" function */
++int cmsFile_isFilePresent(const char *filename)
++{
++   struct stat statbuf;
++   int rc;
++   rc = stat(filename, &statbuf);
++   if (rc == 0)
++   {
++       return 1;
++   }
++   else
++   {
++       return 0;
++   }
++}
+ 
+ int json_object_to_file_ext(const char *filename, struct json_object *obj, int flags)
+ {
+ 	int fd, ret;
+ 	int saved_errno;
+ 
++	if(cmsFile_isFilePresent("/tmp/ignoreSave")){
++		printf("ignore save config after restore default\n");
++		return -1;
++	}
++
+ 	if (!obj) {
+ 		_json_c_set_last_err("json_object_to_file: object is null\n");
+ 		return -1;

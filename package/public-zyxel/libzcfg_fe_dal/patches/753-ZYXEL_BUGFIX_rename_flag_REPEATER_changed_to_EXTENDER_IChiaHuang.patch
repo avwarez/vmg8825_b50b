@@ -1,0 +1,63 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-02-21 07:10:32.726089891 +0000
++++ libzcfg_fe_dal-1.0/Makefile	2020-02-21 07:13:05.374088435 +0000
+@@ -220,8 +220,8 @@
+     CFLAGS += -DZYXEL_EASYMESH
+ endif
+ 
+-ifeq ($(CONFIG_ZYXEL_OPAL_REPEATER),y)
+-	CFLAGS += -DZYXEL_OPAL_REPEATER
++ifeq ($(CONFIG_ZYXEL_OPAL_EXTENDER),y)
++	CFLAGS += -DZYXEL_OPAL_EXTENDER
+ endif
+ 
+ #SONiQ Steering
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c	2020-02-21 07:10:32.698089891 +0000
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c	2020-02-21 07:12:13.850088927 +0000
+@@ -1,4 +1,4 @@
+-#ifdef ZYXEL_OPAL_REPEATER
++#ifdef ZYXEL_OPAL_EXTENDER
+ #include <json/json.h>
+ #include "zcfg_common.h"
+ #include "zcfg_rdm_oid.h"
+@@ -179,4 +179,4 @@
+ 
+     return ret;
+ }
+-#endif
+\ No newline at end of file
++#endif
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-02-21 07:10:32.698089891 +0000
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-02-21 07:12:46.690088614 +0000
+@@ -60,7 +60,7 @@
+ extern dal_param_t WIFI_MACFILTER_param[];
+ extern dal_param_t WIFI_WPS_param[];
+ extern dal_param_t WIFI_WMM_param[];
+-#ifdef ZYXEL_OPAL_REPEATER
++#ifdef ZYXEL_OPAL_EXTENDER
+ extern dal_param_t WIFI_OperatingModes_param[];
+ #endif
+ #ifdef BUILD_SONIQ
+@@ -193,7 +193,7 @@
+ #ifdef ZYXEL_EASYMESH
+ extern zcfgRet_t zcfgFeDalWifiEasyMesh(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ #endif
+-#ifdef ZYXEL_OPAL_REPEATER
++#ifdef ZYXEL_OPAL_EXTENDER
+ extern zcfgRet_t zcfgFeDalOperatingModes(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ #endif
+ extern zcfgRet_t zcfgFeDalWlanScheduler(const char *method, struct json_object *Jobj, char *replyMsg);
+@@ -513,7 +513,7 @@
+ #ifdef ZYXEL_WEB_GUI_SHOW_ZYEE /* JoannaSu, 20191115, support ZyEE configuration */
+ {"ZYDUACT", ZYEE_DU_param, zcfgFeDalDUAction,  NULL,       "edit",             ""},
+ #endif
+-#ifdef ZYXEL_OPAL_REPEATER
++#ifdef ZYXEL_OPAL_EXTENDER
+ {"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes,  NULL,       "edit|get",             "Wireless"},
+ #endif
+ {NULL,				NULL,				NULL, 					NULL,						NULL,				 NULL}

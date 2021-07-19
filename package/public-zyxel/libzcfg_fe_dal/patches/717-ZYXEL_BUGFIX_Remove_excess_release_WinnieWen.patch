@@ -1,0 +1,142 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-10-08 07:18:49.696446381 +0000
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-10-08 07:49:43.139420704 +0000
+@@ -4372,8 +4382,12 @@
+ 	}
+ #endif
+ 
++#if 0 // winnie 20191007
+ 	if(vlanTermObj != NULL)
+ 		zcfgFeJsonObjFree(vlanTermObj);
++#else
++	vlanTermObj = NULL;
++#endif
+ 	return ret;
+ }
+ 
+@@ -4516,7 +4530,11 @@
+ 	IID_INIT(ethIfaceIid);
+ 	ethIfaceIid.level = 1;
+ 	ethIfaceIid.idx[0] = 4;
++#if 0 // winnie 20191007
+ 	if(ethIfaceObj) zcfgFeJsonObjFree(ethIfaceObj);
++#else
++	ethIfaceObj = NULL;
++#endif
+ 	if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ETH_IFACE, &ethIfaceIid, &ethIfaceObj)== ZCFG_SUCCESS){
+ 		lanport = json_object_get_string(json_object_object_get(ethIfaceObj, "X_ZYXEL_LanPort"));
+ 		if(!strcmp(lanport,"ETHWAN")){
+@@ -4605,7 +4623,11 @@
+ 	if(ipStatic){
+ 		//GatewayIPAddress
+ 		IID_INIT(v4FwdIid);
++#if 0 // winnie 20191007
+ 		if(v4FwdObj) zcfgFeJsonObjFree(v4FwdObj);
++#else
++		v4FwdObj = NULL;
++#endif
+ 		while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V4_FWD, &routerIid, &v4FwdIid, &v4FwdObj) == ZCFG_SUCCESS){
+ 			Interface = json_object_get_string(json_object_object_get(v4FwdObj, "Interface"));
+ 			DestIPAddress = Jgets(v4FwdObj, "DestIPAddress");
+@@ -4613,27 +4635,42 @@
+ 			if(!strcmp(Interface, ipIfacePath) && !strcmp(DestIPAddress, "") &&staticRoute == true){
+ 				GatewayIPAddress= json_object_get_string(json_object_object_get(v4FwdObj, "GatewayIPAddress"));
+ 				json_object_object_add(pramJobj, "GatewayIPAddress", json_object_new_string(GatewayIPAddress));
++#if 0 // winnie 20191007
+ 				zcfgFeJsonObjFree(v4FwdObj);
++#endif
+ 				break;
+ 			}
++#if 0 // winnie 20191007
+ 			zcfgFeJsonObjFree(v4FwdObj);
++#endif
+ 		}
+ 	}else{
+ 		//GatewayIPAddress
+ 		IID_INIT(v4FwdIid);
++#if 0 // winnie 20191007
+ 		if(v4FwdObj) zcfgFeJsonObjFree(v4FwdObj);
++#else
++		v4FwdObj = NULL;
++#endif
+ 		while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V4_FWD, &routerIid, &v4FwdIid, &v4FwdObj) == ZCFG_SUCCESS){
+ 			Interface = json_object_get_string(json_object_object_get(v4FwdObj, "Interface"));
+ 			DestIPAddress = Jgets(v4FwdObj, "DestIPAddress");
+ 			if(!strcmp(Interface, ipIfacePath) && !strcmp(DestIPAddress, "")){
+ 				GatewayIPAddress= json_object_get_string(json_object_object_get(v4FwdObj, "GatewayIPAddress"));
+ 				json_object_object_add(pramJobj, "GatewayIPAddress", json_object_new_string(GatewayIPAddress));
++#if 0 // winnie 20191007
+ 				zcfgFeJsonObjFree(v4FwdObj);
++#endif
+ 				break;
+ 			}
++#if 0 // winnie 20191007
+ 			zcfgFeJsonObjFree(v4FwdObj);
++#endif
+ 		}
+-		
++#if 1 // winnie 20191007
++		v4FwdObj = NULL;
++#endif
++
+ 		//DHCP REQ OPT
+ 		IID_INIT(iid);
+ 		while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_DHCPV4_REQ_OPT, &v4ClientIid, &iid, &obj) == ZCFG_SUCCESS){
+@@ -4647,7 +4684,11 @@
+ 				json_object_object_add(pramJobj, "option120Enable", json_object_new_boolean(opt));
+ 			else if(tag == 121 )
+ 				json_object_object_add(pramJobj, "option121Enable", json_object_new_boolean(opt));
+-			zcfgFeJsonObjFree(obj);                                                                                           
++#if 0 // winnie 20191007
++			zcfgFeJsonObjFree(obj);
++#else
++			obj = NULL;
++#endif
+    		}
+ 		//DHCP SENT OPT
+ 		IID_INIT(iid);
+@@ -4678,7 +4719,11 @@
+ 				json_object_object_add(pramJobj, "option125Enable", json_object_new_boolean(opt));
+ 				json_object_object_add(pramJobj, "option125Value", json_object_new_string(value));
+ 			}
++#if 0 // winnie 20191007
+ 			zcfgFeJsonObjFree(obj);
++#else
++			obj = NULL;
++#endif
+ 		}                                                                                                
+ 	}
+ 
+@@ -4711,7 +4756,11 @@
+ 	}
+ 
+ 	IID_INIT(v6FwdIid);
++#if 0 // winnie 20191007
+ 	if(v6FwdObj) zcfgFeJsonObjFree(v6FwdObj);
++#else
++	v6FwdObj = NULL;
++#endif
+ 	while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V6_FWD, &routerIid, &v6FwdIid, &v6FwdObj) == ZCFG_SUCCESS){
+ 		Interface = json_object_get_string(json_object_object_get(v6FwdObj, "Interface"));
+ 		// Origin = json_object_get_string(json_object_object_get(v6FwdObj, "Origin"));
+@@ -4719,12 +4768,19 @@
+ 		if(strstr(CurrEncapsulation, "IP")){
+ 			if(!strcmp(Interface, ipIfacePath) && (!strcmp(DestIPPrefix, "::/0") || !strcmp(DestIPPrefix, ""))){
+ 				json_object_object_add(pramJobj, "NextHop", JSON_OBJ_COPY(json_object_object_get(v6FwdObj, "NextHop")));
++#if 0 // winnie 20191007
+ 				zcfgFeJsonObjFree(v6FwdObj);
++#endif
+ 				break;
+ 			}
+ 		}
++#if 0 // winnie 20191007
+ 		zcfgFeJsonObjFree(v6FwdObj);
++#endif
+ 	}
++#if 1 // winnie 20191007
++	v6FwdObj = NULL;
++#endif
+ 
+ #ifdef CONFIG_TT_CUSTOMIZATION_TR069
+     objIndex_t tmpiid;

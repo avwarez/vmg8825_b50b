@@ -1,0 +1,24 @@
+Index: udhcp-0.9.8/Makefile
+===================================================================
+--- udhcp-0.9.8.orig/Makefile	2019-09-04 16:25:53.665973572 +0800
++++ udhcp-0.9.8/Makefile	2019-09-04 16:26:18.361078732 +0800
+@@ -14,8 +14,8 @@
+ #DEBUG=1
+ 
+ # Uncomment this to output messages to syslog, otherwise, messages go to stdout
+-CFLAGS += -DSYSLOG
+-
++CFLAGS += -DSYSLOG -I$(STAGING_DIR)/usr/include
++LDFLAGS += -L$(STAGING_DIR)/usr/lib 
+ #CROSS_COMPILE=arm-uclibc-
+ #CC = $(CROSS_COMPILE)gcc
+ #LD = $(CROSS_COMPILE)gcc
+@@ -28,7 +28,7 @@
+ 
+ #INC_PATH = -I$(USERSPACE_ZCFG_INCLUDE)
+ 
+-LINK_LIBS = -ljson -lzcfg_msg -lzcmd_tool -lzcfg_fe_rdm_access -lzcfg_fe_rdm_struct -lm 
++LINK_LIBS = -ljson -lzcfg_msg -lzcmd_tool -lzcfg_fe_rdm_access -lzcfg_fe_rdm_struct -lm -lzlog -lzos
+ 
+ OBJS_SHARED = options.o socket.o packet.o pidfile.o
+ DHCPD_OBJS = dhcpd.o arpping.o files.o leases.o serverpacket.o

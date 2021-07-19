@@ -1,0 +1,115 @@
+Index: json-c-0.13.1/arraylist.c
+===================================================================
+--- json-c-0.13.1.orig/arraylist.c	2019-08-13 16:08:28.975865999 +0800
++++ json-c-0.13.1/arraylist.c	2019-08-13 16:08:29.015886000 +0800
+@@ -53,6 +53,26 @@
+   return arr;
+ }
+ 
++struct array_list*
++array_list_new_list(int array_list_size, array_list_free_fn *free_fn)
++{
++  struct array_list *arr;
++
++  arr = (struct array_list*)calloc(1, sizeof(struct array_list));
++  if(!arr) return NULL;
++
++  array_list_size = (array_list_size > 0) ? array_list_size : ARRAY_LIST_DEFAULT_SIZE;
++
++  arr->size = array_list_size;
++  arr->length = 0;
++  arr->free_fn = free_fn;
++  if(!(arr->array = (void**)calloc(sizeof(void*), arr->size))) {
++    free(arr);
++    return NULL;
++  }
++  return arr;
++}
++
+ extern void
+ array_list_free(struct array_list *arr)
+ {
+Index: json-c-0.13.1/arraylist.h
+===================================================================
+--- json-c-0.13.1.orig/arraylist.h	2019-08-13 16:08:28.975865999 +0800
++++ json-c-0.13.1/arraylist.h	2019-08-13 16:08:29.015886000 +0800
+@@ -38,6 +38,9 @@
+ extern struct array_list*
+ array_list_new(array_list_free_fn *free_fn);
+ 
++extern struct array_list*
++array_list_new_list(int array_list_size, array_list_free_fn *free_fn);
++
+ extern void
+ array_list_free(struct array_list *al);
+ 
+Index: json-c-0.13.1/json_object.c
+===================================================================
+--- json-c-0.13.1.orig/json_object.c	2019-08-13 16:08:28.000000000 +0800
++++ json-c-0.13.1/json_object.c	2019-08-13 16:15:51.915938066 +0800
+@@ -458,6 +458,20 @@
+ 	return jso;
+ }
+ 
++struct json_object* json_object_new_c_object(int table_entries)
++{
++	struct json_object *jso = json_object_new(json_type_object);
++	if(!jso) return NULL;
++
++	if(table_entries <= 0) table_entries = JSON_OBJECT_DEF_HASH_ENTRIES;
++
++	jso->_delete = &json_object_object_delete;
++	jso->_to_json_string = &json_object_object_to_json_string;
++	jso->o.c_object = lh_kchar_table_new(table_entries,
++                     NULL, &json_object_lh_entry_free);
++	return jso;
++}
++
+ struct lh_table* json_object_get_object(const struct json_object *jso)
+ {
+ 	if (!jso)
+@@ -1214,6 +1228,16 @@
+ 	return jso;
+ }
+ 
++struct json_object* json_object_new_array_list(int array_list_size)
++{
++	struct json_object *jso = json_object_new(json_type_array);
++	if(!jso) return NULL;
++	jso->_delete = &json_object_array_delete;
++	jso->_to_json_string = &json_object_array_to_json_string;
++	jso->o.c_array = array_list_new_list(array_list_size, &json_object_array_entry_free);
++	return jso;
++}
++
+ struct array_list* json_object_get_array(const struct json_object *jso)
+ {
+ 	if (!jso)
+Index: json-c-0.13.1/json_object.h
+===================================================================
+--- json-c-0.13.1.orig/json_object.h	2019-08-13 16:08:28.999877999 +0800
++++ json-c-0.13.1/json_object.h	2019-08-13 16:08:29.019888000 +0800
+@@ -408,6 +408,11 @@
+  */
+ JSON_EXPORT struct json_object* json_object_new_object(void);
+ 
++/** Create a new empty object and set table entries num
++ * @returns a json_object of type json_type_object
++ */
++extern struct json_object* json_object_new_c_object(int table_entries);
++
+ /** Get the hashtable of a json_object of type json_type_object
+  * @param obj the json_object instance
+  * @returns a linkhash
+@@ -580,6 +585,11 @@
+  */
+ JSON_EXPORT struct json_object* json_object_new_array(void);
+ 
++/** Create a new empty json_object of type json_type_array and set its item num
++ * @returns a json_object of type json_type_array
++ */
++extern struct json_object* json_object_new_array_list(int array_list_size);
++
+ /** Get the arraylist of a json_object of type json_type_array
+  * @param obj the json_object instance
+  * @returns an arraylist

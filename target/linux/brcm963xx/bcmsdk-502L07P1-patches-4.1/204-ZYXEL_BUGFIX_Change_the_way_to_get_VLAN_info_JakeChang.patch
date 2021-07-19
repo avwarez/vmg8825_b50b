@@ -1,0 +1,168 @@
+Index: linux-4.1.52/net/bridge/netfilter/ebt_vlan.c
+===================================================================
+--- linux-4.1.52.orig/net/bridge/netfilter/ebt_vlan.c	2018-09-07 16:52:13.368821000 +0800
++++ linux-4.1.52/net/bridge/netfilter/ebt_vlan.c	2018-09-07 17:02:56.900411195 +0800
+@@ -34,6 +34,11 @@
+ #define GET_BITMASK(_BIT_MASK_) info->bitmask & _BIT_MASK_
+ #define EXIT_ON_MISMATCH(_MATCH_,_MASK_) {if (!((info->_MATCH_ == _MATCH_)^!!(info->invflags & _MASK_))) return false; }
+ 
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++#define GET_SKBVLAN_ID(VTAG) (VTAG & VLAN_VID_MASK)
++#define GET_SKBVLAN_PRIO(VTAG) ((VTAG & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT)
++#endif
++
+ static bool
+ ebt_vlan_mt(const struct sk_buff *skb, struct xt_action_param *par)
+ {
+@@ -48,27 +53,40 @@
+ 	const struct vlan_hdr *fp;
+ 	struct vlan_hdr _frame;
+ 
+-    if(ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_encapsulated_proto) == 0){
+-	fp = skb_header_pointer(skb, 0, sizeof(_frame), &_frame);
+-	if (fp == NULL)
+-		return false;
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++    if (skb->vlan_header[0] == 0)
++#else
++    if (ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_encapsulated_proto) == 0)
++#endif
++    {
++        fp = skb_header_pointer(skb, 0, sizeof(_frame), &_frame);
++        if (fp == NULL)
++            return false;
+ 
+-	/* Tag Control Information (TCI) consists of the following elements:
+-	 * - User_priority. The user_priority field is three bits in length,
+-	 * interpreted as a binary number.
+-	 * - Canonical Format Indicator (CFI). The Canonical Format Indicator
+-	 * (CFI) is a single bit flag value. Currently ignored.
+-	 * - VLAN Identifier (VID). The VID is encoded as
+-	 * an unsigned binary number. */
+-	TCI = ntohs(fp->h_vlan_TCI);
+-	id = TCI & VLAN_VID_MASK;
+-	prio = (TCI >> 13) & 0x7;
+-	encap = fp->h_vlan_encapsulated_proto;
+-    }else{
++        /* Tag Control Information (TCI) consists of the following elements:
++         * - User_priority. The user_priority field is three bits in length,
++         * interpreted as a binary number.
++         * - Canonical Format Indicator (CFI). The Canonical Format Indicator
++         * (CFI) is a single bit flag value. Currently ignored.
++         * - VLAN Identifier (VID). The VID is encoded as
++         * an unsigned binary number. */
++        TCI = ntohs(fp->h_vlan_TCI);
++        id = TCI & VLAN_VID_MASK;
++        prio = (TCI >> 13) & 0x7;
++        encap = fp->h_vlan_encapsulated_proto;
++    }
++    else
++    {
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++        id = GET_SKBVLAN_ID(skb->vlan_header[0] >> 16);
++        prio = GET_SKBVLAN_PRIO(skb->vlan_header[0] >> 16);
++        encap = (skb->vlan_header[0]);
++#else
+         // for new broadcom vlan device
+         TCI = ((struct vlan_hdr *)(skb->vlan_header))->h_vlan_TCI;
+ 	    id = TCI & VLAN_VID_MASK;
+ 	    prio = (TCI >> 13) & 0x7;
++#endif
+     }
+ #else
+ 	__be16 encap;
+Index: linux-4.1.52/net/bridge/netfilter/ebt_AUTOMAP.c
+===================================================================
+--- linux-4.1.52.orig/net/bridge/netfilter/ebt_AUTOMAP.c	2018-09-07 16:52:13.188731000 +0800
++++ linux-4.1.52/net/bridge/netfilter/ebt_AUTOMAP.c	2018-09-07 17:03:07.273881021 +0800
+@@ -13,6 +13,9 @@
+ #include <linux/netfilter_bridge/ebtables.h>
+ #include <linux/netfilter_bridge/ebt_AUTOMAP.h>
+ 
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++#define GET_SKBVLAN_PRIO(VTAG) ((VTAG & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT)
++#endif
+ 
+ static int getVlanPrioAndIpHeader(struct sk_buff *skb, unsigned char *prio, struct iphdr **iph){
+ 	unsigned short TCI;
+@@ -30,8 +33,13 @@
+ 			ih = (struct iphdr *)(skb_network_header(skb) + VLAN_HLEN);
+     }
+ 	*iph = ih;
+-	
+-	if(ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_encapsulated_proto) == 0){
++
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++    if (skb->vlan_header[0] == 0)
++#else
++    if (ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_encapsulated_proto) == 0)
++#endif
++    {
+ 		if(skb->protocol == ETH_P_8021Q) {
+ 			fp = skb_header_pointer(skb, 0, sizeof(_frame), &_frame);
+ 			if (fp == NULL)
+@@ -55,11 +63,16 @@
+ 			*prio = 1;
+ 		}
+ 	}
+-	else {
++    else
++    {
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++        *prio = GET_SKBVLAN_PRIO(skb->vlan_header[0] >> 16);
++#else
+ 		// for new broadcom vlan device
+ 		TCI = ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_TCI);
+ 		id = TCI & VLAN_VID_MASK;
+ 		*prio = (TCI >> 13) & 0x7;
++#endif
+ 	}
+ 
+ 	return 0;
+Index: linux-4.1.52/net/netfilter/xt_AUTOMAP.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/xt_AUTOMAP.c	2018-09-07 16:52:13.352812999 +0800
++++ linux-4.1.52/net/netfilter/xt_AUTOMAP.c	2018-09-07 17:03:52.720619383 +0800
+@@ -24,6 +24,9 @@
+ #include <linux/netfilter/xt_DSCP.h>
+ #include <net/dsfield.h>
+ 
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++#define GET_SKBVLAN_PRIO(VTAG) ((VTAG & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT)
++#endif
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_ALIAS("ipt_AUTOMAP");
+@@ -44,8 +47,12 @@
+ 	*iph = ih;
+ 
+ 	/* check VLAN header is parsed or not ? */
+-	if(ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_encapsulated_proto) == 0){
+-
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++    if (skb->vlan_header[0] == 0)
++#else
++    if (ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_encapsulated_proto) == 0)
++#endif
++    {
+ 		/* tagged packet */
+ 		if(skb->protocol == ETH_P_8021Q) {
+ 
+@@ -74,11 +81,16 @@
+ 		}
+ 
+     }
+-	else{
++    else
++    {
++#if 1 /* Jake, 2018-09-06, Refer to keepSkbVlanOnReceive/saveSkbVlanOnReceive in bcm_vlan_rule.c. Broadcom changes the way to store/get skb->vlan_header in Broadcom 502 SDK. */
++        *prio = GET_SKBVLAN_PRIO(skb->vlan_header[0] >> 16);
++#else
+          /* for new broadcom vlan device */
+          TCI = ((struct vlan_hdr *)(skb->vlan_header))->h_vlan_TCI;
+          id = TCI & VLAN_VID_MASK;
+          *prio = (TCI >> 13) & 0x7;
++#endif
+     }
+ 
+ 	return 0;

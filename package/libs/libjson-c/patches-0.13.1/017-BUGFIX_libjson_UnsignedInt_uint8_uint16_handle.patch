@@ -1,0 +1,84 @@
+Index: json-c-0.13.1/json_object.c
+===================================================================
+--- json-c-0.13.1.orig/json_object.c	2019-08-13 16:55:08.000000000 +0800
++++ json-c-0.13.1/json_object.c	2019-08-13 17:04:02.975395652 +0800
+@@ -639,7 +639,13 @@
+ 	return printbuf_memappend (pb, sbuf, strlen(sbuf));
+ }
+ 
+-struct json_object* json_object_new_int(int32_t i)
++struct json_object* json_object_new_int(
++#if 0 /*ZyXEL to using 64bit int to handle RDM*/
++	int32_t i
++#else
++	int64_t i
++#endif
++	)
+ {
+ 	struct json_object *jso = json_object_new(json_type_int);
+ 	if (!jso)
+@@ -649,6 +655,7 @@
+ 	return jso;
+ }
+ 
++#if 0 /*ZyXEL to using 64bit int to handle RDM*/
+ int32_t json_object_get_int(const struct json_object *jso)
+ {
+   int64_t cint64;
+@@ -690,6 +697,27 @@
+     return 0;
+   }
+ }
++#else
++int64_t json_object_get_int(struct json_object *jso)
++{
++	int64_t cint;
++	
++	if(!jso) return 0;
++	switch(jso->o_type) {
++	case json_type_int:
++	  return jso->o.c_int64;
++	case json_type_double:
++	  return (int64_t)jso->o.c_double;
++	case json_type_boolean:
++	  return jso->o.c_boolean;
++	case json_type_string:
++	  if (json_parse_int64(jso->o.c_string.str, &cint) == 0) return cint;
++	default:
++	  return 0;
++	}
++
++}
++#endif
+ 
+ int json_object_set_int(struct json_object *jso,int new_value){
+ 	if (!jso || jso->o_type!=json_type_int)
+Index: json-c-0.13.1/json_object.h
+===================================================================
+--- json-c-0.13.1.orig/json_object.h	2019-08-13 16:55:08.000000000 +0800
++++ json-c-0.13.1/json_object.h	2019-08-13 17:07:55.394067708 +0800
+@@ -729,8 +729,11 @@
+  * @param i the integer
+  * @returns a json_object of type json_type_int
+  */
++#if 0 /*ZyXEL to using 64bit int to handle RDM*/
+ JSON_EXPORT struct json_object* json_object_new_int(int32_t i);
+-
++#else
++JSON_EXPORT struct json_object* json_object_new_int(int64_t i);
++#endif
+ 
+ /** Create a new empty json_object of type json_type_int
+  * @param i the integer
+@@ -753,7 +756,11 @@
+  * @param obj the json_object instance
+  * @returns an int
+  */
++#if 0
+ JSON_EXPORT int32_t json_object_get_int(const struct json_object *obj);
++#else
++JSON_EXPORT int64_t json_object_get_int(const struct json_object *obj);
++#endif
+ 
+ /** Set the int value of a json_object
+  * 

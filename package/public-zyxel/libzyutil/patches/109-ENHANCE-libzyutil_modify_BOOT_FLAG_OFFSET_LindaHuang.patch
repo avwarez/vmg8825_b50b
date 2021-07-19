@@ -1,0 +1,73 @@
+Index: libzyutil-1.0/ECONET/libzyutil_econet_wrapper.h
+===================================================================
+--- libzyutil-1.0.orig/ECONET/libzyutil_econet_wrapper.h	2019-09-24 21:33:12.262323111 +0800
++++ libzyutil-1.0/ECONET/libzyutil_econet_wrapper.h	2019-09-24 21:33:12.310347110 +0800
+@@ -10,7 +10,15 @@
+ #define FLASH_READ_CMD                "/sbin/mtd -q -q readflash %s %lu %lu %s"
+ #define FLASH_WRITE_CMD               "/sbin/mtd -q -q writeflash %s %lu %lu %s"
+ #define BOOT_FLAG_SIZE                1
++#if defined(IMG_BOOT_FLAG_OFFSET)
++#define BOOT_FLAG_OFFSET              IMG_BOOT_FLAG_OFFSET
++#else
++#if defined(TCSUPPORT_CT)
++#define BOOT_FLAG_OFFSET              (EEPROM_RA_OFFSET + RESERVEAREA_ERASE_SIZE)
++#else
+ #define BOOT_FLAG_OFFSET              (MRD_RA_OFFSET - BOOT_FLAG_SIZE)
++#endif
++#endif
+ #define BOOT_FLAG_FILE                "/tmp/boot_flag"
+ #define MRDINFO_PARTITON_NAME         "bootloader"
+ #define MRDINFO_OFFSET                MRD_OFFSET
+Index: libzyutil-1.0/Makefile
+===================================================================
+--- libzyutil-1.0.orig/Makefile	2019-09-24 21:33:12.206295112 +0800
++++ libzyutil-1.0/Makefile	2019-09-24 21:35:50.768576916 +0800
+@@ -61,6 +61,48 @@
+ ifneq ($(strip $(TCSUPPORT_DUAL_WLAN_MT7570)),)
+ ZCFLAGS+=-DTCSUPPORT_MT7570
+ endif
++ifneq ($(strip $(TCSUPPORT_CT_BOOTLOADER_UPGRADE)),)
++export TCSUPPORT_CT_BOOTLOADER_UPGRADE=1
++ZCFLAGS += -DTCSUPPORT_CT_BOOTLOADER_UPGRADE
++endif
++ifneq ($(strip $(TCSUPPORT_LITTLE_ENDIAN)),)
++export TCSUPPORT_BB_256KB=1
++ZCFLAGS += -DTCSUPPORT_BB_256KB
++endif
++ifneq ($(strip $(TCSUPPORT_CPU_EN7580)),)
++export TCSUPPORT_BB_256KB=1
++ZCFLAGS += -DTCSUPPORT_BB_256KB
++endif
++ifneq ($(strip $(TCSUPPORT_CT)),)
++export TCSUPPORT_CT=1
++ZCFLAGS += -DTCSUPPORT_CT
++endif
++ifneq ($(strip $(TCSUPPORT_NAND_FLASH)),)
++export TCSUPPORT_NAND_FLASH
++ZCFLAGS += -DTCSUPPORT_NAND_FLASH
++endif
++ifneq ($(strip $(TCSUPPORT_CT_PON)),)
++export TCSUPPORT_CT_PON=1
++ZCFLAGS += -DTCSUPPORT_CT_PON
++endif
++ifneq ($(strip $(TCSUPPORT_WLAN_MT7615_11N)),)
++ZCFLAGS += -DMT7615_11N
++endif
++ifneq ($(strip $(TCSUPPORT_DUAL_WLAN_MT7613E)),)
++ZCFLAGS += -DMT7613E
++endif
++ifneq ($(strip $(TCSUPPORT_DUAL_WLAN_MT7615E)),)
++ZCFLAGS += -DMT7615E
++endif
++ifneq ($(strip $(TCSUPPORT_CPU_EN7512)$(TCSUPPORT_CPU_EN7516)),)
++ZCFLAGS+=-DTCSUPPORT_CPU_EN7512
++endif
++ifneq ($(strip $(TCSUPPORT_CPU_EN7521)$(TCSUPPORT_CPU_EN7527)$(TCSUPPORT_CPU_EN7528)$(TCSUPPORT_CPU_EN7580)),)
++ZCFLAGS+=-DTCSUPPORT_CPU_EN7521
++endif
++ifneq ($(strip $(TCSUPPORT_RESERVEAREA_EXTEND)),)
++ZCFLAGS+=-DTCSUPPORT_RESERVEAREA_EXTEND
++endif
+ LINK_LIBS+= -lzcfg_msg
+ endif
+ 

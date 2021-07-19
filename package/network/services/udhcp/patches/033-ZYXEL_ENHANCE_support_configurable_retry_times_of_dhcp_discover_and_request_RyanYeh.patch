@@ -1,0 +1,76 @@
+Index: udhcp-0.9.8/dhcpc.c
+===================================================================
+--- udhcp-0.9.8.orig/dhcpc.c	2020-12-09 17:23:29.761172785 +0800
++++ udhcp-0.9.8/dhcpc.c	2020-12-09 17:25:33.692550177 +0800
+@@ -360,7 +360,7 @@
+ }
+ #else
+ static void dhcp_discover_general(unsigned long *xid, time_t *now){
+-	if (packet_num < 3) {
++	if (packet_num < X_ZYXEL_RetryCount) {
+ 		if (packet_num == 0)
+ 			*xid = random_xid();
+ 
+@@ -374,7 +374,7 @@
+ 		/* send discover packet */
+ 		send_discover(*xid, requested_ip); /* broadcast */
+ 
+-		timeout = *now + ((packet_num == 2) ? 4 : 2);
++		timeout = *now + ((packet_num == (X_ZYXEL_RetryCount-1)) ? 4 : 2);
+ 		packet_num++;
+ 	} else {
+ 		if (client_config.background_if_no_lease
+@@ -617,13 +617,13 @@
+ 				break;
+ 			case RENEW_REQUESTED:
+ 			case REQUESTING:
+-				if (packet_num < 3) {
++				if (packet_num < X_ZYXEL_RetryCount) {
+ 					/* send request packet */
+ 					if (state == RENEW_REQUESTED)
+ 						send_renew(xid, server_addr, requested_ip, client_config.interface); /* unicast */
+ 					else send_selecting(xid, server_addr, requested_ip); /* broadcast */
+ 					
+-					timeout = now + ((packet_num == 2) ? 10 : 2);
++					timeout = now + ((packet_num == (X_ZYXEL_RetryCount-1)) ? 10 : 2);
+ 					packet_num++;
+ 				} else {
+ 					/* timed out, go back to init state */
+Index: udhcp-0.9.8/options.c
+===================================================================
+--- udhcp-0.9.8.orig/options.c	2020-12-09 17:23:29.697172786 +0800
++++ udhcp-0.9.8/options.c	2020-12-09 17:24:21.997222832 +0800
+@@ -84,6 +84,10 @@
+ int last_option_index = sizeof(options)/sizeof(struct dhcp_option) - 1;
+ #endif
+ 
++#if 1 // Zyxel, customized retry times of dhcp discover & request (default: 3)
++int X_ZYXEL_RetryCount = 3;
++#endif
++
+ /* get an option with bounds checking (warning, not aligned). */
+ unsigned char *get_option(struct dhcpMessage *packet, int code)
+ {
+@@ -318,6 +322,7 @@
+ 
+ 	while(zcfgFeObjStructGetNext(RDM_OID_DHCPV4_CLIENT, &dhcpIid, (void **)&dhcpcObj) == ZCFG_SUCCESS) {
+ 		if ( !strcmp(dhcpcObj->Interface, ipIntf) ){
++			X_ZYXEL_RetryCount = (dhcpcObj->X_ZYXEL_RetryCount > 3) ? dhcpcObj->X_ZYXEL_RetryCount : 3;
+ 			found = 1;
+ 			free(dhcpcObj);
+ 			break;
+Index: udhcp-0.9.8/options.h
+===================================================================
+--- udhcp-0.9.8.orig/options.h	2020-12-09 17:23:29.697172786 +0800
++++ udhcp-0.9.8/options.h	2020-12-09 17:24:47.538167947 +0800
+@@ -59,6 +59,10 @@
+ extern unsigned char sent_config_options[];
+ #endif
+ 
++#if 1 // Zyxel, customized retry times of dhcp discover & request (default: 3)
++extern int X_ZYXEL_RetryCount;
++#endif
++
+ unsigned char *get_option(struct dhcpMessage *packet, int code);
+ int end_option(unsigned char *optionptr);
+ int add_option_string(unsigned char *optionptr, unsigned char *string);

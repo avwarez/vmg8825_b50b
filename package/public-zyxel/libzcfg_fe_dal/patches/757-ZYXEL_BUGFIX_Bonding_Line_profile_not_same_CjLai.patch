@@ -1,0 +1,43 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_advance.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_advance.c	2020-03-05 17:25:23.640922865 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_advance.c	2020-03-05 17:21:14.720293600 +0800
+@@ -160,6 +160,7 @@
+ #ifdef  SUPPORT_DSL_BONDING
+ 	const char *DSLType = NULL;
+ #endif
++    const char *xDSLcfgFromGui = NULL;
+ 	char adslModulationCfg[512] = {0};
+ 	bool Gdmt = false;
+ 	bool Glite = false;
+@@ -208,6 +209,7 @@
+ 	//DSL Line
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_DSL_LINE, &advDSLLineIid, &advDSLLineObj) == ZCFG_SUCCESS){
+ 		if(advDSLLineObj){
++			memset(adslModulationCfg,0,sizeof(adslModulationCfg));
+ #ifdef CONFIG_TARGET_en75xx
+ 			phyrUSDS = json_object_get_int(json_object_object_get(Jobj, "PhyRUSDS"));
+ 			json_object_object_add(advDSLLineObj, "X_ZYXEL_DslPhyCfg2Value", json_object_new_int(phyrUSDS));
+@@ -332,11 +334,21 @@
+ 			else{
+ 				dbg_printf("adslModulationCfg is NULL");
+ 			}
+-			json_object_object_add(advDSLLineObj, "X_ZYXEL_AdslModulationCfg", json_object_new_string(adslModulationCfg));
++			xDSLcfgFromGui = json_object_get_string(json_object_object_get(Jobj, "X_ZYXEL_AdslModulationCfg"));
++
++			if(xDSLcfgFromGui != NULL){
++				if(!strcmp(xDSLcfgFromGui,"ADSL_Modulation_All,") || !strcmp(xDSLcfgFromGui,"ADSL_Modulation_All")){
++					/*This is by default value. if all of Modulations were active.*/
++					json_object_object_add(advDSLLineObj, "X_ZYXEL_AdslModulationCfg", json_object_new_string("ADSL_Modulation_All"));
++				}else{
++					json_object_object_add(advDSLLineObj, "X_ZYXEL_AdslModulationCfg", json_object_new_string(adslModulationCfg));
++				}
++			}
+ 			if(json_object_get_boolean(json_object_object_get(Jobj, "AnnexB")))
+             {
+                 json_object_object_add(advDSLLineObj, "X_ZYXEL_ADSL2_AnnexA_B", json_object_new_string("AnnexB"));
+             }
++			AnnexM = json_object_get_boolean(json_object_object_get(Jobj, "AnnexM"));
+ 			if(json_object_object_get(Jobj, "AnnexM"))
+ 				json_object_object_add(advDSLLineObj, "X_ZYXEL_ADSL2_AnnexM", json_object_new_boolean(AnnexM));
+ 

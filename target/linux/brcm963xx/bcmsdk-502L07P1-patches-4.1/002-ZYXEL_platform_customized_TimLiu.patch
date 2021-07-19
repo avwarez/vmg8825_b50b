@@ -1,0 +1,997 @@
+Index: linux-4.1.52/arch/arm/mach-bcm963xx/Makefile
+===================================================================
+--- linux-4.1.52.orig/arch/arm/mach-bcm963xx/Makefile	2018-02-12 11:02:47.591498025 +0800
++++ linux-4.1.52/arch/arm/mach-bcm963xx/Makefile	2018-02-12 11:02:48.155490935 +0800
+@@ -30,6 +30,23 @@
+ ifneq ($(strip $(CONFIG_MACH_BCM963138)),)
+ EXTRA_CFLAGS += -I$(INC_BRCMSHARED_PUB_PATH)/pmc
+ endif
++
++## 20140828, TimLiu Add ZyXEL compile flags.
++ifeq ($(strip ${ZYXEL}),y)
++EXTRA_CFLAGS += -DZYXEL=1
++ifneq ("$(strip ${ZYXEL_PRODUCT})","")
++EXTRA_CFLAGS += -DZYPRJ_$(ZYXEL_PRODUCT)=1
++endif
++ifeq ($(strip ${ZYXEL_PARTITION}),y)
++EXTRA_CFLAGS += -DZYXEL_PARTITION=1
++endif
++ifneq ($(strip ${ZYXEL_SUPPORT_ETHWAN_AS_LAN}),)
++EXTRA_CFLAGS += -DZYXEL_SUPPORT_ETHWAN_AS_LAN=$(ZYXEL_SUPPORT_ETHWAN_AS_LAN)
++endif
++else
++EXTRA_CFLAGS += -DZYXEL=0
++endif
++
+ else
+ obj-y += board_6846.o
+ endif
+Index: linux-4.1.52/arch/arm/mach-bcm963xx/board_963xx.c
+===================================================================
+--- linux-4.1.52.orig/arch/arm/mach-bcm963xx/board_963xx.c	2018-02-12 11:02:47.579498176 +0800
++++ linux-4.1.52/arch/arm/mach-bcm963xx/board_963xx.c	2018-02-12 11:02:48.155490935 +0800
+@@ -239,6 +239,27 @@
+ 
+ #ifdef CONFIG_ATAGS
+ 
++#if (defined(CONFIG_BCM963138) || defined (CONFIG_BCM963148)) && defined(ZYXEL_SUPPORT_ETHWAN_AS_LAN)
++int isEthwanAsWan=0;
++static void __init set_ETHWAN_config(char *cmdline)
++{
++	char *cmd_ptr;
++
++	cmd_ptr = strstr(cmdline, "ETHWAN=");
++	if (cmd_ptr != NULL) {
++		cmd_ptr += 7;
++		if (strcmp(cmd_ptr, ETHWAN_CONFIG_LAN) == 0)
++			isEthwanAsWan=0;
++		else if (strcmp(cmd_ptr, ETHWAN_CONFIG_WAN) == 0)
++			isEthwanAsWan=1;
++		else
++			isEthwanAsWan=1;
++	}else
++		isEthwanAsWan=1;
++	printk("ETHWAN set to %d.\n", isEthwanAsWan);
++}
++#endif
++
+ static void __init set_memsize_from_cmdline(char *cmdline)
+ {
+ 	char *cmd_ptr, *end_ptr;
+@@ -324,6 +345,9 @@
+ 		if (t->hdr.tag == ATAG_CMDLINE) {
+ 			set_memsize_from_cmdline(t->u.cmdline.cmdline);
+ 			check_if_rootfs_is_set(t->u.cmdline.cmdline);
++#if (defined(CONFIG_BCM963138) || defined (CONFIG_BCM963148)) && defined(ZYXEL_SUPPORT_ETHWAN_AS_LAN)
++			set_ETHWAN_config(t->u.cmdline.cmdline);
++#endif
+ 		}
+ 		if ((t->hdr.tag == ATAG_INITRD2) || (t->hdr.tag == ATAG_INITRD))
+ 			is_rootfs_set = true;
+Index: linux-4.1.52/arch/mips/bcm963xx/Makefile
+===================================================================
+--- linux-4.1.52.orig/arch/mips/bcm963xx/Makefile	2018-02-12 11:02:47.639497422 +0800
++++ linux-4.1.52/arch/mips/bcm963xx/Makefile	2018-02-12 11:02:48.155490935 +0800
+@@ -49,4 +49,23 @@
+ EXTRA_CFLAGS += -DSUPPORT_DSL_BONDING5B
+ endif
+ 
++## 20130822, TimLiu Add ZyXEL compile flags.
++ifeq ($(strip ${ZYXEL}),y)
++EXTRA_CFLAGS += -DZYXEL=1
++ifneq ("$(strip ${ZYXEL_PRODUCT})","")
++EXTRA_CFLAGS += -DZYPRJ_$(ZYXEL_PRODUCT)=1
++endif
++ifeq ($(strip ${ZYXEL_PARTITION}),y)
++EXTRA_CFLAGS += -DZYXEL_PARTITION=1
++endif
++ifneq ($(strip ${ZYPRJ_HARDWARE_VERSION}),)
++EXTRA_CFLAGS += -DZYPRJ_HARDWARE_VERSION=$(ZYPRJ_HARDWARE_VERSION)
++endif
++ifneq ($(strip ${ZYXEL_WIFI_LED_PATTERN}),)
++EXTRA_CFLAGS += -DZYXEL_WIFI_LED_PATTERN=$(ZYXEL_WIFI_LED_PATTERN)
++endif
++else
++EXTRA_CFLAGS += -DZYXEL=0
++endif
++
+ endif # BCM_KF # defined(CONFIG_BCM_KF_MIPS_BCM963XX)
+Index: linux-4.1.52/arch/mips/bcm963xx/setup.c
+===================================================================
+--- linux-4.1.52.orig/arch/mips/bcm963xx/setup.c	2018-02-12 11:02:47.639497422 +0800
++++ linux-4.1.52/arch/mips/bcm963xx/setup.c	2018-02-12 11:02:48.155490935 +0800
+@@ -338,6 +338,51 @@
+     while (1);
+ }
+ 
++//<<20140212, TimLiu add for refine the GPIO configuration.
++#if defined(ZYXEL) && (defined(ZYPRJ_VMG5948) || defined(ZYPRJ_VMG8948) || defined(ZYPRJ_VMG9823) || defined(ZYPRJ_VMG3925) )
++typedef enum
++{
++    kGpioInput,
++    kGpioOutput
++} GPIO_DIRECTION_t;
++
++/**
++* Set gpio direction to input/output.
++* return value:
++*   0 for succeed.
++*   others for fail.
++**/
++int setGpioDir(unsigned short bpGpio, GPIO_DIRECTION_t direction)
++{
++    if(direction == kGpioInput) {
++        kerSysSetGpioDirInput(bpGpio);
++    }else if(direction == kGpioOutput) {
++        kerSysSetGpioDir(bpGpio);
++    }
++    return 0;
++}
++EXPORT_SYMBOL(setGpioDir);
++
++/**
++* Set gpio value to active/inactive.
++* return value:
++*   0 for succeed.
++*   others for fail.
++**/
++int setGpioState(unsigned short bpGpio, GPIO_STATE_t state)
++{
++    kerSysSetGpioState(bpGpio, state);
++    return 0;
++}
++EXPORT_SYMBOL(setGpioState);
++
++int getGpioState(unsigned short bpGpio)
++{
++    return kerSysGetGpioValue(bpGpio);
++}
++EXPORT_SYMBOL(getGpioState);
++#endif //(ZYXEL)
++//>>20140212, TimLiu
+ 
+ #if defined(CONFIG_BCM963268)
+ 
+@@ -417,9 +462,16 @@
+             MISC->miscLed_inv = 0;
+     }
+ 
++#if defined(ZYXEL) && (ZYXEL == 1)
++    LED->ledInit &= ~LED_FAST_INTV_MASK;
++    LED->ledInit |= (LED_INTERVAL_20MS * 6) << LED_FAST_INTV_SHIFT;		//120ms, approach software control 125ms
++    LED->ledInit &= ~LED_SLOW_INTV_MASK;
++    LED->ledInit |= (LED_INTERVAL_20MS * 12) << LED_SLOW_INTV_SHIFT;	//240ms, approach software control 250ms
++#else
+     /* Set LED blink rate for activity LEDs to 80mS */
+     LED->ledInit &= ~LED_FAST_INTV_MASK;
+     LED->ledInit |= (LED_INTERVAL_20MS * 4) << LED_FAST_INTV_SHIFT;
++#endif
+ 
+     /* Start with all HW LEDs disabled */
+     LED->ledHWDis |= 0xFFFFFF;
+@@ -430,23 +482,39 @@
+     /* Enable HW to drive LEDs for Ethernet ports in use */
+     if (EnetInfo[0].sw.port_map & (1 << 0)) {
+         LED->ledHWDis &= ~(1 << LED_EPHY0_ACT);
+-        LED->ledHWDis &= ~(1 << LED_EPHY0_SPD);
++//<<20140210, TimLiu add for refine configurations for different boards.
++        if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_EPHY0_SPD_LED) )
++            LED->ledHWDis &= ~(1 << LED_EPHY0_SPD);
++//>>20140210, Timliu
+     }
+     if (EnetInfo[0].sw.port_map & (1 << 1)) {
+         LED->ledHWDis &= ~(1 << LED_EPHY1_ACT);
+-        LED->ledHWDis &= ~(1 << LED_EPHY1_SPD);
++//<<20140210, TimLiu add for refine configurations for different boards.
++        if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_EPHY1_SPD_LED) )
++            LED->ledHWDis &= ~(1 << LED_EPHY1_SPD);
++//>>20140210, Timliu
+     }
+     if (EnetInfo[0].sw.port_map & (1 << 2)) {
+         LED->ledHWDis &= ~(1 << LED_EPHY2_ACT);
+-        LED->ledHWDis &= ~(1 << LED_EPHY2_SPD);
++//<<20140210, TimLiu add for refine configurations for different boards.
++        if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_EPHY2_SPD_LED) )
++            LED->ledHWDis &= ~(1 << LED_EPHY2_SPD);
++//>>20140210, Timliu
+     }
+     if (EnetInfo[0].sw.port_map & (1 << 3)) {
+         LED->ledHWDis &= ~(1 << LED_GPHY0_ACT);
+-        LED->ledHWDis &= ~(1 << LED_GPHY0_SPD0);
+-        LED->ledHWDis &= ~(1 << LED_GPHY0_SPD1);
+-        LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD0) << LED_0_LINK_SHIFT);
+-        LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD1) << LED_1_LINK_SHIFT);
+-        GPIO->RoboSWLEDControl |= LED_BICOLOR_SPD;
++//<<20140210, TimLiu add for refine configurations for different boards.
++        if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_GPHY0_SPD0_LED) ) {
++            LED->ledHWDis &= ~(1 << LED_GPHY0_SPD0);
++            LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD0) << LED_0_LINK_SHIFT);
++        }
++        if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_GPHY0_SPD1_LED) ) {
++            LED->ledHWDis &= ~(1 << LED_GPHY0_SPD1);
++            LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD1) << LED_1_LINK_SHIFT);
++        }
++        if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_GPHY0_ALL_SPD_LED) )
++            GPIO->RoboSWLEDControl |= LED_BICOLOR_SPD;
++//>>20140210, Timliu
+     }
+ 
+     /* UART2 - SDIN and SDOUT are separate for flexibility */
+@@ -493,20 +561,33 @@
+         /* Enable LED controller to drive GPIO when LEDs are connected to GPIO pins */
+         if (GPIOOverlays & BP_OVERLAY_EPHY_LED_0) {
+             GPIO->LEDCtrl |= (1 << LED_EPHY0_ACT);
+-            GPIO->LEDCtrl |= (1 << LED_EPHY0_SPD);
++//<<20140210, TimLiu add for refine configurations for different boards.
++            if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_EPHY0_SPD_LED) )
++                GPIO->LEDCtrl |= (1 << LED_EPHY0_SPD);
++//>>20140210, Timliu
+         }
+         if (GPIOOverlays & BP_OVERLAY_EPHY_LED_1) {
+             GPIO->LEDCtrl |= (1 << LED_EPHY1_ACT);
+-            GPIO->LEDCtrl |= (1 << LED_EPHY1_SPD);
++//<<20140210, TimLiu add for refine configurations for different boards.
++            if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_EPHY1_SPD_LED) )
++                GPIO->LEDCtrl |= (1 << LED_EPHY1_SPD);
++//>>20140210, Timliu
+         }
+         if (GPIOOverlays & BP_OVERLAY_EPHY_LED_2) {
+             GPIO->LEDCtrl |= (1 << LED_EPHY2_ACT);
+-            GPIO->LEDCtrl |= (1 << LED_EPHY2_SPD);
++//<<20140210, TimLiu add for refine configurations for different boards.
++            if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_EPHY2_SPD_LED) )
++                GPIO->LEDCtrl |= (1 << LED_EPHY2_SPD);
++//>>20140210, Timliu
+         }
+         if (GPIOOverlays & BP_OVERLAY_GPHY_LED_0) {
+             GPIO->LEDCtrl |= (1 << LED_GPHY0_ACT);
+-            GPIO->LEDCtrl |= (1 << LED_GPHY0_SPD0);
+-            GPIO->LEDCtrl |= (1 << LED_GPHY0_SPD1);
++//<<20140210, TimLiu add for refine configurations for different boards.
++            if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_GPHY0_SPD0_LED) )
++                GPIO->LEDCtrl |= (1 << LED_GPHY0_SPD0);
++            if( !(DeviceOptions&BP_DEVICE_OPTION_DISABLE_GPHY0_SPD1_LED) )
++                GPIO->LEDCtrl |= (1 << LED_GPHY0_SPD1);
++//>>20140210, Timliu
+         }
+         if (GPIOOverlays & BP_OVERLAY_PHY) {
+             unsigned short IntLdMode = 0xffff;
+@@ -696,6 +777,173 @@
+     if ( BpGetFemtoResetGpio(&gpio) == BP_SUCCESS ) {
+         kerSysSetGpioState(gpio, kGpioActive);
+     }
++
++#if defined(ZYPRJ_VMG5948)
++    //Hardware version : SR1
++    {
++    	unsigned short bpGpio;
++
++    	if(BpGetDECTExtIntrGpio(&bpGpio) == BP_SUCCESS)
++    	{
++            printk("DECT button gpio(%d) need to switch to input.\n",bpGpio);
++            if(setGpioDir(bpGpio, kGpioInput) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetDectLedGpio(&bpGpio) == BP_SUCCESS)
++    	{
++            printk("DECT LED gpio(%d) need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetDECTResetGpio(&bpGpio) == BP_SUCCESS)
++    	{
++            printk("DECT Reset gpio(%d) need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetWirelessSesLedGpio(&bpGpio) == BP_SUCCESS)
++    	{
++            printk("DECT WPS gpio(%d) need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetWirelessSesLed2Gpio(&bpGpio) == BP_SUCCESS)
++    	{
++            printk("DECT WPS 5G gpio(%d) need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	//if(BpGetWirelessBtnGpio(&bpGpio) == BP_SUCCESS)
++    	(bpGpio = (unsigned short)BP_GPIO_45_AH);
++    	{
++            printk("wireless button gpio(%d) need to switch to input.\n",bpGpio);
++            if(setGpioDir(bpGpio, kGpioInput) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    }
++#endif
++
++#if defined(ZYPRJ_VMG8948)
++    //Hardware version : SR1
++    {
++    	unsigned short bpGpio;
++
++#if defined(ZYXEL_EXTERNAL_DECT) && (ZYXEL_EXTERNAL_DECT == 1)
++    	if(BpGetDECTResetGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("DECT Reset gpio(%d) need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++#endif
++#if defined(ZYXEL_WIFI_LED_PATTERN) && (ZYXEL_WIFI_LED_PATTERN ==1)
++    	if(BpGetWirelessSelectGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Wireless select gpio(%d) need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++#endif
++    	//if(BpGetGuestWirelessExtIntrGpio(&bpGpio) == BP_SUCCESS)
++		if(BpGetWirelessBtnExtIntrGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("wireless button gpio(%d) need to switch to input.\n",bpGpio);
++            if(setGpioDir(bpGpio, kGpioInput) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++		//using for guest WiFi indicate
++		(bpGpio = (unsigned short)BP_GPIO_22_AH);
++    	{
++    		printk("Guest WiFi button gpio(%d) need to switch to input.\n",bpGpio);
++            if(setGpioDir(bpGpio, kGpioInput) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    }
++#endif
++
++#if defined(ZYPRJ_VMG9823)
++    {
++    	unsigned short bpGpio;
++    	if(BpGetInternetLedEnableGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Internet LED Enable gpio(%d) need to config to output.\n",bpGpio);
++			printk("Default set to Active\n");
++            //if(setGpioState(bpGpio, kGpioActive) != 0)
++            //    printk("Fail to init GPIO_%d\n", bpGpio);
++            if (!(bpGpio & BP_GPIO_SERIAL))
++            {
++                if(setGpioState(bpGpio, kGpioActive) != 0)
++                    printk("Fail to init GPIO_%d\n", bpGpio);
++            }else
++            {
++                unsigned short gpio_state;
++				unsigned short led_state=1;
++                if (((bpGpio & BP_ACTIVE_LOW) && (led_state == 1)) ||
++                    (!(bpGpio & BP_ACTIVE_LOW) && (led_state == 0)))
++                    gpio_state = 0;
++                else
++                    gpio_state = 1;
++                LED->ledMode &= ~(LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(bpGpio));
++                if( gpio_state )
++                    LED->ledMode |= (LED_MODE_OFF << GPIO_NUM_TO_LED_MODE_SHIFT(bpGpio));
++                else
++                    LED->ledMode |= (LED_MODE_ON << GPIO_NUM_TO_LED_MODE_SHIFT(bpGpio));
++                printk("setLed( %x, LED_ON )\n", bpGpio);
++            }
++    	}
++    	if(BpGetInternetCtrlSignalGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Internal control signal gpio(%d) need to config to output.\n",bpGpio);
++			printk("Default set to Active\n");
++            if(setGpioState(bpGpio, kGpioActive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++	}
++#endif
++//20150213, TimLiu, Need to config GPIO for VMG3925, from MSTC.
++#if defined(ZYPRJ_VMG3925)
++    {
++    	unsigned short bpGpio;
++    	if(BpGetInternetLedEnableGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Internet LED Enable gpio(%d) need to config to output.\n",bpGpio);
++			printk("Default set to Active\n");
++            if(setGpioState(bpGpio, kGpioActive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetInternetCtrlSignalGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Internal control signal gpio(%d) need to config to output.\n",bpGpio);
++			printk("Default set to Active\n");
++            if(setGpioState(bpGpio, kGpioActive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetMDIO_SDAGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Using GPIO(%d) simulate MDIO signal need to config to output.\n",bpGpio);
++            if(setGpioDir(bpGpio, kGpioOutput) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    	if(BpGetMDC_SCKGpio(&bpGpio) == BP_SUCCESS)
++    	{
++    		printk("Using GPIO(%d) simulate MDC signal need to config to output.\n",bpGpio);
++            if(setGpioState(bpGpio, kGpioInactive) != 0)
++                printk("Fail to init GPIO_%d\n", bpGpio);
++    	}
++    }
++#endif
++#if defined(ZYPRJ_VMG8924_B10A)
++    {
++        unsigned short bpGpio;
++        if(BpGetInternetLedEnableGpio(&bpGpio) == BP_SUCCESS)
++        {
++            printk("Internet LED Enable gpio(%d) need to config to output.\n",bpGpio);
++            printk("Default set to Inactive\n");
++            kerSysSetGpioState(bpGpio, kGpioInactive);
++        }
++    }
++#endif
++
+     return 0;
+ }
+ 
+@@ -813,6 +1061,23 @@
+         }
+     }
+ 
++#if defined(ZYXEL) && (ZYXEL==1)
++    if( BpGetWirelessBtnExtIntr(&irq) == BP_SUCCESS )
++    {
++        if(BpGetWirelessBtnExtIntrGpio(&gpio) == BP_SUCCESS)
++        {
++            int gpio_polarity = gpio & BP_ACTIVE_MASK;
++            gpio &= BP_GPIO_NUM_MASK;
++            PERF->ext_irq_muxsel0 |= ( (gpio&EXT_IRQ_MASK_LOW) << (irq*EXT_IRQ_OFF_LOW) );
++            DBGPERF->Dbg_extirqmuxsel0_1 |= ( ((gpio&EXT_IRQ_MASK_HIGH)>>EXT_IRQ_OFF_LOW) << (irq*EXT_IRQ_OFF_HIGH) );
++            if (gpio_polarity == BP_ACTIVE_HIGH)
++			{
++                PERF->ExtIrqCfg |= (1<<irq);
++            }
++        }
++    }
++#endif
++
+     if( BpGetLteExtIntr(&irq) == BP_SUCCESS )
+     {
+         if(BpGetLteExtIntrGpio(&gpio) == BP_SUCCESS)
+Index: linux-4.1.52/include/uapi/linux/zy_feature_bits.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-4.1.52/include/uapi/linux/zy_feature_bits.h	2018-02-12 11:02:48.155490935 +0800
+@@ -0,0 +1,65 @@
++/*
++ *	include/uapi/linux/zy_feature_bits.h - Zyxel Feature Bits related definitions.
++ *	Copyright (C) 2017 Zyxel Communications Corp.
++ */
++
++#ifndef _LINUX_ZY_FEATURE_BITS_H
++#define _LINUX_ZY_FEATURE_BITS_H
++
++/*!
++ *  ZYFEATUREBITS_XXX :
++ *  Zyxel Feature Bits offset are defined in linux header
++ *  /linux-brcm963xx_xxx/linux-3.4.11/include/linux/zy_feature_bits.h,
++ *  which is used by /bcmdrivers/opensource/include/bcm963xx/board.h
++ *  and
++ *  /libzyutil-1.0/zyutil.h
++ */
++
++#define ZYFEATUREBITS_MASK_ADSLTYPE     0x0000003F
++#define ZYFEATUREBITS_MASK_VDSLPROFFILE 0x00000FC0
++#define ZYFEATUREBITS_MASK_WIFI         0x000FF000
++#define ZYFEATUREBITS_MASK_VOIP         0x00300000
++#define ZYFEATUREBITS_MASK_RESERVED     0xFFC00000
++#define ZYFEATUREBITS_ADSL_BASEBIT      0x1
++#define ZYFEATUREBITS_ADSL_ANNEXA       (ZYFEATUREBITS_ADSL_BASEBIT << 0)
++#define ZYFEATUREBITS_ADSL_ANNEXB       (ZYFEATUREBITS_ADSL_BASEBIT << 1)
++#define ZYFEATUREBITS_ADSL_ANNEXC       (ZYFEATUREBITS_ADSL_BASEBIT << 2)
++#define ZYFEATUREBITS_VDSL_17A          (0x40 << 0)
++#define ZYFEATUREBITS_VDSL_35B          (0x40 << 1)
++#define ZYFEATUREBITS_VDSL_GFAST        (0x40 << 2)
++#define ZYFEATUREBITS_WIFI_24G          (0x1000 << 0)
++#define ZYFEATUREBITS_WIFI_24G_FEM      (0x1000 << 2)
++#define ZYFEATUREBITS_WIFI_24G_EXT_ANT  (0x1000 << 4)
++#define ZYFEATUREBITS_WIFI_5G           (0x1000 << 1)
++#define ZYFEATUREBITS_WIFI_5G_FEM       (0x1000 << 3)
++#define ZYFEATUREBITS_WIFI_5G_EXT_ANT   (0x1000 << 5)
++#define ZYFEATUREBITS_VOIP              (0x100000 << 0)
++/*!
++ *  MRDFEATUREBITS_XXX :
++ *  these offset need to sync with /build_dir/host/brcm-imageutil-xxx/board.h
++ */
++#define MRDFEATUREBITS_BYTE_VOIP            8
++#define MRDFEATUREBITS_BYTE_WIFI            9
++#define MRDFEATUREBITS_BYTE_VDSLPROFILE     10
++#define MRDFEATUREBITS_BYTE_ADSLTYPE        11
++#define MRDFEATUREBITS_ADSL_ANNEXA          (0x1 << 0)
++#define MRDFEATUREBITS_ADSL_ANNEXB          (0x1 << 1)
++#define MRDFEATUREBITS_ADSL_ANNEXC          (0x1 << 2)
++#define MRDFEATUREBITS_VDSL_17A             (0x1 << 0)
++#define MRDFEATUREBITS_VDSL_35B             (0x1 << 1)
++#define MRDFEATUREBITS_VDSL_GFAST           (0x1 << 2)
++#define MRDFEATUREBITS_VDSL_RESERVERD_1     (0x1 << 3)
++#define MRDFEATUREBITS_VDSL_RESERVERD_2     (0x1 << 4)
++#define MRDFEATUREBITS_VDSL_RESERVERD_LAST  (0x1 << 5)
++#define MRDFEATUREBITS_WIFI_24G             (0x1 << 0)
++#define MRDFEATUREBITS_WIFI_24G_FEM         (0x1 << 2)
++#define MRDFEATUREBITS_WIFI_24G_EXT_ANT     (0x1 << 4)
++#define MRDFEATUREBITS_WIFI_5G              (0x1 << 1)
++#define MRDFEATUREBITS_WIFI_5G_FEM          (0x1 << 3)
++#define MRDFEATUREBITS_WIFI_5G_EXT_ANT      (0x1 << 5)
++#define MRDFEATUREBITS_WIFI_RESERVERD_1     (0x1 << 6)
++#define MRDFEATUREBITS_WIFI_RESERVERD_LAST  (0x1 << 7)
++#define MRDFEATUREBITS_VOIP                 (0x1 << 0)
++#define MRDFEATUREBITS_VOIP_RESERVERD_LAST  (0x1 << 1)
++
++#endif	/* _LINUX_ZY_FEATURE_BITS_H */
+Index: linux-4.1.52/drivers/i2c/busses/i2c-gpio.c
+===================================================================
+--- linux-4.1.52.orig/drivers/i2c/busses/i2c-gpio.c	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/drivers/i2c/busses/i2c-gpio.c	2018-02-12 11:02:48.155490935 +0800
+@@ -24,6 +24,16 @@
+ 	struct i2c_gpio_platform_data pdata;
+ };
+ 
++#if !defined(CONFIG_GPIOLIB) && (defined(CONFIG_BCM963138) || defined(CONFIG_BCM963381) || defined(CONFIG_BCM963148))
++extern int gpio_request(unsigned bpGpio, const char *label);
++extern void gpio_free(unsigned bpGpio);
++extern void gpio_set_value(unsigned bpGpio, int value);
++extern int gpio_direction_input(unsigned bpGpio);
++extern int gpio_direction_output(unsigned bpGpio, int value);
++extern int gpio_get_value(unsigned bpGpio);
++extern bool gpio_is_valid(int number);
++#endif
++
+ /* Toggle SDA by changing the direction of the pin */
+ static void i2c_gpio_setsda_dir(void *data, int state)
+ {
+Index: linux-4.1.52/drivers/mtd/brcmnand/Makefile
+===================================================================
+--- linux-4.1.52.orig/drivers/mtd/brcmnand/Makefile	2018-02-12 11:02:47.699496667 +0800
++++ linux-4.1.52/drivers/mtd/brcmnand/Makefile	2018-02-12 11:02:48.155490935 +0800
+@@ -9,3 +9,14 @@
+ EXTRA_CFLAGS	+= -I $(TOPDIR)/include/asm-generic -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD) -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD)
+ endif # BCM_KF # defined(CONFIG_BCM_KF_MTD_BCMNAND)
+ 
++## 20130822, TimLiu add ZyXEL compile flags
++#ifdef VENDOR_ZYXEL
++ifeq ($(strip ${ZYXEL}),y)
++EXTRA_CFLAGS += -DZYXEL=1
++ifneq ("$(strip ${ZYXEL_PRODUCT})","")
++EXTRA_CFLAGS += -DZYPRJ_$(ZYXEL_PRODUCT)=1
++endif
++ifeq ($(strip ${ZYXEL_PARTITION}),y)
++EXTRA_CFLAGS += -DZYXEL_PARTITION=1
++endif
++endif
+Index: linux-4.1.52/drivers/mtd/brcmnand/brcmnand_base.c
+===================================================================
+--- linux-4.1.52.orig/drivers/mtd/brcmnand/brcmnand_base.c	2018-02-12 11:02:47.695496718 +0800
++++ linux-4.1.52/drivers/mtd/brcmnand/brcmnand_base.c	2018-02-12 11:02:48.159490884 +0800
+@@ -739,6 +739,7 @@
+ 		.ctrlVersion	= CONFIG_MTD_BRCMNAND_VERS_2_0,
+ 	},
+ 
++#if 0 //replaced by TOSHIBA TC58NVG1S3HTAI0 for VMG3927-B50B
+ 	{       /* 33 */
+ 		.chipId		= TOSHIBA_TC58NVG1S3ETAI5,
+ 		.mafId		= FLASHTYPE_TOSHIBA,
+@@ -752,6 +753,7 @@
+ 		.nbrBlocks	= 2048,
+ 		.ctrlVersion	= CONFIG_MTD_BRCMNAND_VERS_2_0,
+ 	},
++#endif
+ 
+ 	{       /* 34 */
+ 		.chipId		= TOSHIBA_TC58NVG3S0ETA00,
+@@ -815,6 +817,30 @@
+ 		.ctrlVersion	= CONFIG_MTD_BRCMNAND_VERS_3_0,
+ 	},
+ 
++	{	/* 39 */
++		.mafId = FLASHTYPE_ESMT,
++		.chipId = ESMT_F59L1G81MA,
++		.chipIdStr = "ESMT F59L1G81MA",
++		.options = NAND_BBT_USE_FLASH,
++		.idOptions = BRCMNAND_ID_EXT_BYTES,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.ctrlVersion = 0,
++	},
++
++	{	/* 40 */
++		.mafId = FLASHTYPE_ZENTEL,
++		.chipId = ZENTEL_A5U1GA31ATS,
++		.chipIdStr = "Zentel A5U1GA31ATS",
++		.options = NAND_BBT_USE_FLASH,
++		.idOptions = BRCMNAND_ID_EXT_BYTES,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.ctrlVersion = 0,
++	},
++
+ #if 0
+ /* New Chip ID scheme in place and working, but as of 2631-2.5 these do not work yet, for some unknown reason */
+ 
+@@ -857,6 +883,73 @@
+ 	},
+ #endif
+ 
++	{	/* 41 */
++		.chipId = TOSHIBA_TH58NVG2S3HTAI0,
++		.mafId = FLASHTYPE_TOSHIBA,
++		.chipIdStr = "TOSHIBA TH58NVG2S3HTAI0",
++		.options = NAND_BBT_USE_FLASH,
++		.idOptions = BRCMNAND_ID_EXT_BYTES,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.eccLevel=8,
++		.nbrBlocks = 4096,
++		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0,
++	},
++
++	{	/* 42 */
++		.chipId = MXIC_MX30LF2G18AC,
++		.mafId = FLASHTYPE_MXIC,
++		.chipIdStr = "MXIC_MX30LF2G18AC",
++		.options = NAND_BBT_USE_FLASH,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.eccLevel=4,
++		.nbrBlocks = 2048,
++		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0,
++	},
++
++	{	/* 43 */ //2017, 2nd source for VMG8924-B10D,VMG3925-B10C,XMG3512-B10A
++		.chipId = MXIC_MX30LF1G18AC,
++		.mafId = FLASHTYPE_MXIC,
++		.chipIdStr = "MXIC MX30LF1G18AC",
++		.options = NAND_BBT_USE_FLASH,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.eccLevel=4,
++		.nbrBlocks = 1024,
++		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0,
++	},
++
++	{	/* 44 */ //VMG3927-B50B
++		.chipId = TOSHIBA_TC58NVG1S3HTAI0,
++		.mafId = FLASHTYPE_TOSHIBA,
++		.chipIdStr = "TOSHIBA TC58NVG1S3HTAI0",
++		.options = NAND_BBT_USE_FLASH,
++		.idOptions = BRCMNAND_ID_EXT_BYTES,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.eccLevel=8,
++		.nbrBlocks = 2048,
++		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0,
++	},
++
++	{	/* 45 */ //Zyxel,VMG8825-B50B_WIND, 512MB
++		.chipId = MXIC_MX30LF4G18AC,
++		.mafId = FLASHTYPE_MXIC,
++		.chipIdStr = "MXIC MX30LF4G18AC",
++		.options = NAND_BBT_USE_FLASH,
++		.timing1 = 0,
++		.timing2 = 0,
++		.nop=4,
++		.eccLevel=4,
++		.nbrBlocks = 4096,
++		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0,
++	},
++
+ 	{       /* LAST DUMMY ENTRY */
+ 		.chipId		= 0,
+ 		.mafId		= 0,
+@@ -946,7 +1039,7 @@
+ 
+ 	if (nandCtrlReg < BCHP_NAND_REVISION || nandCtrlReg > BCHP_NAND_LAST_REG ||
+ 	    (nandCtrlReg & 0x3) != 0) {
+-		printk( "brcmnand_ctrl_read: Invalid register value %p\n", (void*)nandCtrlReg);
++		printk( "brcmnand_ctrl_write: Invalid register value %p\n", (void*)nandCtrlReg);
+ 	}
+ 
+ 	BDEV_WR(pReg, val);
+@@ -3902,7 +3995,7 @@
+ 
+ 
+ 
+-#ifdef CONFIG_MTD_BRCMNAND_VERIFY_WRITE
++#ifdef BRCMNAND_WRITE_VERIFY
+ 
+ #if 0
+ /*
+@@ -4189,6 +4282,9 @@
+ 	int oobWritten = 0;
+ 	int ret = 0;
+ 	uint64_t offset = page << chip->page_shift;
++#ifdef CONFIG_MTD_BRCMNAND_VERIFY_WRITE
++	char * tmp_page_buf = NULL;
++#endif
+ 
+ 
+ 	if (gdebug > 3 ) {
+@@ -4213,6 +4309,21 @@
+ 		oobWritten += chip->eccOobSize;
+ 	}
+ 
++#ifdef CONFIG_MTD_BRCMNAND_VERIFY_WRITE
++	tmp_page_buf = kmalloc(mtd->writesize, GFP_KERNEL);
++	if(tmp_page_buf) {
++		memset(tmp_page_buf, 0, mtd->writesize);
++		brcmnand_read_page(mtd, tmp_page_buf, NULL, page);
++		if (memcmp(inp_buf, tmp_page_buf, mtd->writesize))
++		{
++			printk(KERN_ERR "%s: NAND Verify Write fail at offset=%0llx\n", __FUNCTION__, offset);
++			kfree(tmp_page_buf);
++			return -EIO;
++		}
++		kfree(tmp_page_buf);
++	}
++#endif
++
+ 	// TBD
+ #ifdef BRCMNAND_WRITE_VERIFY
+ 	if (0 == ret) {
+@@ -6338,6 +6449,8 @@
+ 	case FLASHTYPE_HYNIX:
+ 	case FLASHTYPE_TOSHIBA:
+ 	case FLASHTYPE_MICRON:
++	case FLASHTYPE_ESMT:
++	case FLASHTYPE_ZENTEL:
+ 		pageSize = 1024 << (devId4thdByte & SAMSUNG_4THID_PAGESIZE_MASK);
+ 		blockSize = (64 * 1024) << ((devId4thdByte & SAMSUNG_4THID_BLKSIZE_MASK) >> 4);
+ 		//oobSize = devId4thdByte & SAMSUNG_4THID_OOBSIZE_MASK ? 16 : 8;
+@@ -6400,6 +6513,8 @@
+ 		case FLASHTYPE_HYNIX:
+ 		case FLASHTYPE_TOSHIBA:
+ 		case FLASHTYPE_MICRON:
++		case FLASHTYPE_ESMT:
++		case FLASHTYPE_ZENTEL:
+ 			PRINTK("5th ID byte = %02x, extID = %08lx\n", devId5thByte, devIdExt);
+ 
+ 			switch (devId5thByte & SAMSUNG_5THID_NRPLANE_MASK) {
+@@ -6422,6 +6537,8 @@
+ 		switch (brcmnand_maf_id) {
+ 		case FLASHTYPE_SAMSUNG:
+ 		case FLASHTYPE_MICRON:
++		case FLASHTYPE_ESMT:
++		case FLASHTYPE_ZENTEL:
+ 			if (idOptions & BRCMNAND_ID_HAS_MICRON_M68A) {
+ 				planeSizeMB = 128;
+ 			}else  {
+@@ -8876,7 +8993,7 @@
+ 				printk("ECC layout=brcmnand_oob_bch12_27_2k\n");
+ 				chip->ecclayout = &brcmnand_oob_bch12_27_2k;
+ 			}else if (chip->ecclevel == BRCMNAND_ECC_HAMMING) {
+-				printk("ECC layout=brcmnand_oob_bch4_4k\n");
++				printk("ECC layout=brcmnand_oob_64\n");
+ 				chip->ecclayout = &brcmnand_oob_64;
+ 			}else  {
+ 				printk(KERN_ERR "Unsupported ECC code %d with only 64B OOB per page\n", chip->ecclevel);
+Index: linux-4.1.52/drivers/mtd/nand/Makefile
+===================================================================
+--- linux-4.1.52.orig/drivers/mtd/nand/Makefile	2018-02-12 11:02:47.703496617 +0800
++++ linux-4.1.52/drivers/mtd/nand/Makefile	2018-02-12 11:02:48.159490884 +0800
+@@ -59,4 +59,15 @@
+ EXTRA_CFLAGS	+= -I $(TOPDIR)/include/asm-generic -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD) -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD) -I$(INC_BRCMSHARED_PUB_PATH)/../flash
+ endif # BCM_KF # defined(CONFIG_BCM_KF_MTD_BCM963XX)
+ 
++## 20130822, TimLiu add ZyXEL compile flags
++ifeq ($(strip ${ZYXEL}),y)
++EXTRA_CFLAGS += -DZYXEL=1
++ifneq ("$(strip ${ZYXEL_PRODUCT})","")
++EXTRA_CFLAGS += -DZYPRJ_$(ZYXEL_PRODUCT)=1
++endif
++ifeq ($(strip ${ZYXEL_PARTITION}),y)
++EXTRA_CFLAGS += -DZYXEL_PARTITION=1
++endif
++endif
++
+ nand-objs := nand_base.o nand_bbt.o nand_timings.o
+Index: linux-4.1.52/drivers/mtd/nand/bcm63xx_spinand.c
+===================================================================
+--- linux-4.1.52.orig/drivers/mtd/nand/bcm63xx_spinand.c	2018-02-12 11:02:47.699496667 +0800
++++ linux-4.1.52/drivers/mtd/nand/bcm63xx_spinand.c	2018-02-12 11:02:48.159490884 +0800
+@@ -1778,7 +1778,13 @@
+ 
+     /* micron MT29F1G01 only support up to 50MHz, update to 50Mhz if it is more than that */
+     spi_flash_busnum = HS_SPI_BUS_NUM;
++    //20150520, TimLiu, Adjust the clock, reference T&W
++    #if defined(ZYXEL)
++    //according to data sheet, operating up to 66.67 MHz
++    spi_flash_clock = 66000000;
++    #else
+     spi_flash_clock = 50000000;
++    #endif
+ 
+     /* retrieve the maximum read/write transaction length from the SPI controller */
+     spi_max_op_len = SPI_BUF_LEN;
+Index: linux-4.1.52/include/linux/mtd/brcmnand.h
+===================================================================
+--- linux-4.1.52.orig/include/linux/mtd/brcmnand.h	2018-02-12 11:02:47.803495360 +0800
++++ linux-4.1.52/include/linux/mtd/brcmnand.h	2018-02-12 11:02:48.159490884 +0800
+@@ -475,8 +475,23 @@
+ #define FLASHTYPE_TOSHIBA		0x98
+ 
+ #define TOSHIBA_TC58NVG0S3ETA00	0xD1
+-#define TOSHIBA_TC58NVG1S3ETAI5	0xDA
++#define TOSHIBA_TC58NVG1S3HTAI0	0xDA    //VMG3927-B50B used it; replaced "#define TOSHIBA_TC58NVG1S3ETAI5	0xDA"
+ #define TOSHIBA_TC58NVG3S0ETA00	0xD3
++#define TOSHIBA_TH58NVG2S3HTAI0	0xDC
++
++/* -------- ESMT NAND flash -----------------*/
++#define FLASHTYPE_ESMT          0xC8
++#define ESMT_F59L1G81MA         0xD1
++
++/* -------- Zentel NAND flash -----------------*/
++#define FLASHTYPE_ZENTEL        0x92
++#define ZENTEL_A5U1GA31ATS      0xF1
++
++/* -------- MXIC NAND flash -----------------*/
++#define FLASHTYPE_MXIC          0xC2
++#define MXIC_MX30LF2G18AC       0xDA
++#define MXIC_MX30LF1G18AC       0xF1    //2017, 2nd source for VMG8924-B10D,VMG3925-B10C,XMG3512-B10A
++#define MXIC_MX30LF4G18AC       0xDC
+ 
+ /*---------------------------------------------------------------------------------------*/
+ 
+Index: linux-4.1.52/drivers/usb/core/Makefile
+===================================================================
+--- linux-4.1.52.orig/drivers/usb/core/Makefile	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/drivers/usb/core/Makefile	2018-02-12 11:02:48.159490884 +0800
+@@ -11,3 +11,11 @@
+ usbcore-$(CONFIG_ACPI)		+= usb-acpi.o
+ 
+ obj-$(CONFIG_USB)		+= usbcore.o
++
++##20130822,TimLiu support USB LED
++ifeq ($(strip $(ZYXEL)),y)
++EXTRA_CFLAGS += -DZYXEL=1
++ifneq ("$(strip ${ZYXEL_PRODUCT})","")
++EXTRA_CFLAGS += -DZYPRJ_$(ZYXEL_PRODUCT)=1
++endif
++endif
+Index: linux-4.1.52/drivers/usb/core/generic.c
+===================================================================
+--- linux-4.1.52.orig/drivers/usb/core/generic.c	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/drivers/usb/core/generic.c	2018-02-12 11:02:48.159490884 +0800
+@@ -181,6 +181,12 @@
+ 	/* USB device state == configured ... usable */
+ 	usb_notify_add_device(udev);
+ 
++#if defined(ZYXEL) && (ZYXEL==1)
++	if( udev->portnum != 0x0)	// port 0 will be root
++		USB_LED_Control( udev->portnum, 0x01 );
++	//printk("===> Add device at USB port %d\n", udev->portnum);
++#endif
++
+ 	return 0;
+ }
+ 
+@@ -192,6 +198,13 @@
+ 	 * unconfigure the device */
+ 	if (udev->actconfig)
+ 		usb_set_configuration(udev, -1);
++
++#if defined(ZYXEL) && (ZYXEL==1)
++	if( udev->portnum != 0x0)	// port 0 will be root
++		USB_LED_Control( udev->portnum, 0x00 );
++	//printk("===> Remove device at USB port %d\n", udev->portnum);
++#endif
++
+ }
+ 
+ #ifdef	CONFIG_PM
+Index: linux-4.1.52/drivers/usb/core/urb.c
+===================================================================
+--- linux-4.1.52.orig/drivers/usb/core/urb.c	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/drivers/usb/core/urb.c	2018-02-12 11:02:48.159490884 +0800
+@@ -10,6 +10,10 @@
+ 
+ #define to_urb(d) container_of(d, struct urb, kref)
+ 
++//20130822, TimLiu To support USB LED.
++#if defined(ZYXEL) && (ZYXEL==1)
++extern void USB_LED_Control( int USBId, int status );
++#endif
+ 
+ static void urb_destroy(struct kref *kref)
+ {
+@@ -539,6 +543,13 @@
+ 		}
+ 	}
+ 
++
++#if defined(ZYXEL) && (ZYXEL==1)
++	if( dev->portnum != 0x0)	// port 0 will be root
++		USB_LED_Control( dev->portnum, 0x02 );
++	//printk("===> USB port %d submit urb\n", dev->portnum);
++#endif
++
+ 	return usb_hcd_submit_urb(urb, mem_flags);
+ }
+ EXPORT_SYMBOL_GPL(usb_submit_urb);
+Index: linux-4.1.52/drivers/usb/core/usb.h
+===================================================================
+--- linux-4.1.52.orig/drivers/usb/core/usb.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/drivers/usb/core/usb.h	2018-02-12 11:02:48.159490884 +0800
+@@ -185,3 +185,8 @@
+ static inline int usb_acpi_register(void) { return 0; };
+ static inline void usb_acpi_unregister(void) { };
+ #endif
++
++//20130822,TimLiu support USB LED
++#if defined(ZYXEL) && (ZYXEL==1)
++extern void USB_LED_Control( int USBId, int status );
++#endif
+Index: linux-4.1.52/drivers/net/usb/Makefile
+===================================================================
+--- linux-4.1.52.orig/drivers/net/usb/Makefile	2018-02-12 11:02:47.731496265 +0800
++++ linux-4.1.52/drivers/net/usb/Makefile	2018-02-12 11:02:48.159490884 +0800
+@@ -4,6 +4,12 @@
+ 
+ ifdef BCM_KF # defined(CONFIG_BCM_KF_USBNET)
+ EXTRA_CFLAGS	+= -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD)
++ifeq ($(strip $(ZYXEL)),y)
++EXTRA_CFLAGS += -DZYXEL=1
++ifneq ("$(strip ${ZYXEL_PRODUCT})","")
++EXTRA_CFLAGS += -DZYPRJ_$(ZYXEL_PRODUCT)=1
++endif
++endif
+ endif #BCM_KF # defined(CONFIG_BCM_KF_USBNET)
+ 
+ obj-$(CONFIG_USB_CATC)		+= catc.o
+Index: linux-4.1.52/drivers/net/usb/cdc_ether.c
+===================================================================
+--- linux-4.1.52.orig/drivers/net/usb/cdc_ether.c	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/drivers/net/usb/cdc_ether.c	2018-02-12 11:02:48.159490884 +0800
+@@ -30,6 +30,9 @@
+ #include <linux/usb/cdc.h>
+ #include <linux/usb/usbnet.h>
+ 
++#if defined(ZYXEL) && (ZYXEL==1)
++extern void USB_LED_Control( int USBId, int status );
++#endif
+ 
+ #if IS_ENABLED(CONFIG_USB_NET_RNDIS_HOST)
+ 
+@@ -411,6 +414,11 @@
+ 		usb_driver_release_interface(driver, info->control);
+ 		info->control = NULL;
+ 	}
++
++#if defined(ZYXEL) && (ZYXEL==1)
++	USB_LED_Control(dev->udev->portnum, 0x00);
++#endif
++
+ }
+ EXPORT_SYMBOL_GPL(usbnet_cdc_unbind);
+ 
+@@ -490,6 +498,10 @@
+ 		return status;
+ 	}
+ 
++#if defined(ZYXEL) && (ZYXEL==1)
++	USB_LED_Control(dev->udev->portnum, 0x01);
++#endif
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(usbnet_cdc_bind);
+Index: linux-4.1.52/include/uapi/linux/Kbuild
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/Kbuild	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/uapi/linux/Kbuild	2018-02-12 15:10:36.497180205 +0800
+@@ -451,3 +451,4 @@
+ header-y += xilinx-v4l2-controls.h
+ header-y += zorro.h
+ header-y += zorro_ids.h
++header-y += zy_feature_bits.h
+\ No newline at end of file

@@ -1,0 +1,13 @@
+Index: libzcfg_fe_tr98-1.0/lanDev_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2019-11-11 10:54:13.914147050 +0800
++++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2019-11-11 10:54:13.990147048 +0800
+@@ -376,7 +376,7 @@
+ 	{ "LastRequestedUnicastCipher", PARAMETER_ATTR_READONLY, 257, json_type_string},
+ 	{ "LastRequestedMulticastCipher", PARAMETER_ATTR_READONLY, 257, json_type_string},
+ 	{ "LastPMKId", PARAMETER_ATTR_READONLY, 257, json_type_string},
+-	{ "LastDataTransmitRate", PARAMETER_ATTR_READONLY, 0, json_type_uint32},
++	{ "LastDataTransmitRate", PARAMETER_ATTR_READONLY, 5, json_type_string},
+ 	{ "SignalStrength", PARAMETER_ATTR_READONLY, 0, json_type_int},
+ 	{ NULL, 0, 0, 0}
+ };

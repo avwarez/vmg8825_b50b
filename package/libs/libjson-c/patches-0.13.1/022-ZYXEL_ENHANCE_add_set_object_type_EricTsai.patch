@@ -1,0 +1,31 @@
+Index: json-c-0.13.1/json_object.h
+===================================================================
+--- json-c-0.13.1.orig/json_object.h	2019-08-13 17:53:37.000000000 +0800
++++ json-c-0.13.1/json_object.h	2019-08-13 17:57:42.108204309 +0800
+@@ -258,6 +258,8 @@
+      json_type_array,
+      json_type_string
+  */
++JSON_EXPORT void json_object_set_type(struct json_object *obj, enum json_type type); 
++ 
+ JSON_EXPORT enum json_type json_object_get_type(const struct json_object *obj);
+ 
+ 
+Index: json-c-0.13.1/json_object.c
+===================================================================
+--- json-c-0.13.1.orig/json_object.c	2019-08-13 17:53:37.000000000 +0800
++++ json-c-0.13.1/json_object.c	2019-08-13 17:56:24.854128808 +0800
+@@ -247,6 +247,13 @@
+ 	return (jso->o_type == type);
+ }
+ 
++void json_object_set_type(struct json_object *obj, enum json_type type)
++{
++   if(!obj)
++       return;
++   obj->o_type = type;
++}
++
+ enum json_type json_object_get_type(const struct json_object *jso)
+ {
+ 	if (!jso)

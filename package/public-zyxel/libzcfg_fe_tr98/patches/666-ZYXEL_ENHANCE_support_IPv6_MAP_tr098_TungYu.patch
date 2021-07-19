@@ -1,0 +1,534 @@
+Index: libzcfg_fe_tr98-1.0/Makefile
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/Makefile	2020-04-17 02:00:39.012124636 +0000
++++ libzcfg_fe_tr98-1.0/Makefile	2020-04-17 02:00:39.028124636 +0000
+@@ -299,6 +299,11 @@
+ CFLAGS += -DZYXEL_WLAN_MAXBITRATE
+ endif
+ 
++#Support tr98 IPv6 MAP
++ifeq ($(CONFIG_ZYXEL_IPV6_MAP),y)
++CFLAGS += -DZYXEL_IPV6_MAP
++endif
++
+ #Support tr98 Ipv6 Specific
+ ifeq ($(CONFIG_ZYXEL_TR98_IPV6SPECIFIC),y)
+ CFLAGS += -DZYXEL_IPV6SPEC
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.c	2020-04-17 02:00:39.020124636 +0000
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c	2020-04-17 02:00:39.028124636 +0000
+@@ -320,6 +320,11 @@
+ {e_TR98_IPV6_DHCPV6_SERVER_CNT_OPT	,&tr98Obj[e_TR98_IPV6_DHCPV6_SERVER_CNT_OPT -e_TR98_START]},
+ {e_TR98_IPV6_DHCPV6_SERVER_OPT	, &tr98Obj[e_TR98_IPV6_DHCPV6_SERVER_OPT -e_TR98_START]},
+ #endif
++#ifdef ZYXEL_IPV6_MAP
++{e_TR98_IPV6MAP                 , &tr98Obj[e_TR98_IPV6MAP                 -e_TR98_START]},
++{e_TR98_IPV6MAP_DOMAIN          , &tr98Obj[e_TR98_IPV6MAP_DOMAIN          -e_TR98_START]},
++{e_TR98_IPV6MAP_DOMAIN_RULE     , &tr98Obj[e_TR98_IPV6MAP_DOMAIN_RULE     -e_TR98_START]},
++#endif
+ #ifdef ZYXEL_GRE_SUPPORT
+ {e_TR98_GRE						,&tr98Obj[e_TR98_GRE 					-e_TR98_START]},
+ {e_TR98_GRE_TUNNEL				,&tr98Obj[e_TR98_GRE_TUNNEL 			-e_TR98_START]},
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98_handle.h	2020-04-17 02:00:39.012124636 +0000
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h	2020-04-17 02:00:39.028124636 +0000
+@@ -311,6 +311,12 @@
+ #define TR98_DATA_USAGE_WAN                  "InternetGatewayDevice.X_ZYXEL_DataUsage.Wan.i"
+ #endif
+ 
++#ifdef ZYXEL_IPV6_MAP
++#define TR98_IPV6MAP                  "InternetGatewayDevice.X_ZYXEL_MAP"
++#define TR98_IPV6MAP_DOMAIN           "InternetGatewayDevice.X_ZYXEL_MAP.Domain.i"
++#define TR98_IPV6MAP_DOMAIN_RULE      "InternetGatewayDevice.X_ZYXEL_MAP.Domain.i.Rule.i"
++#endif
++
+ #ifdef ZYXEL_IPV6SPEC
+ #define TR98_IPV6SPEC					"InternetGatewayDevice.IPv6Specific"
+ #define TR98_IPV6_PPP					"InternetGatewayDevice.IPv6Specific.PPP"
+@@ -636,6 +642,11 @@
+ {TR98_IPV6_DHCPV6_SERVER_CNT_OPT,		ATTR_INDEXNODE,	para_Ipv6Dhcpv6SrvCntOpt,	zyIpv6Dhcpv6SrvCntOptObjGet, NULL, NULL, NULL,	NULL,	NULL,	NULL},
+ {TR98_IPV6_DHCPV6_SERVER_OPT,	ATTR_INDEX_CREA,para_Ipv6Dhcpv6SrvOpt, 		zyIpv6Dhcpv6SrvOptObjGet,	zyIpv6Dhcpv6SrvOptObjSet, zyIpv6Dhcpv6SrvOptObjAdd, zyIpv6Dhcpv6SrvOptObjDel,	NULL,	NULL,	NULL},
+ #endif
++#ifdef ZYXEL_IPV6_MAP
++{TR98_IPV6MAP,                  0,              para_MAP,                   zyExtMAPObjGet,             zyExtMAPObjSet,           NULL,                     NULL,                       NULL, NULL, NULL},
++{TR98_IPV6MAP_DOMAIN,           ATTR_INDEX_CREA,para_MAPDomain,             zyExtMAPDomainObjGet,       zyExtMAPDomainObjSet,     zyExtMAPDomainObjAdd,     zyExtMAPDomainObjDel,       NULL, NULL, NULL},
++{TR98_IPV6MAP_DOMAIN_RULE,      ATTR_INDEX_CREA,para_MAPDomainRule,         zyExtMAPDomainRuleObjGet,   zyExtMAPDomainRuleObjSet, zyExtMAPDomainRuleObjAdd, zyExtMAPDomainRuleObjDel,   NULL, NULL, NULL},
++#endif
+ #ifdef ZYXEL_GRE_SUPPORT
+ {TR98_XGRE,                     0,              para_XGRE,                  zyXGREObjGet,               NULL,               NULL,               NULL,               NULL,   NULL,   NULL},
+ {TR98_XGRE_TUNNEL,              ATTR_INDEX_CREA,para_XGRETunnel,            zyXGRETunnelObjGet,         zyXGRETunnelObjSet, zyXGRETunnelObjAdd, zyXGRETunnelObjDel, NULL,   NULL,   NULL},
+Index: libzcfg_fe_tr98-1.0/zyExt.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt.h	2020-04-17 02:00:38.800124638 +0000
++++ libzcfg_fe_tr98-1.0/zyExt.h	2020-04-17 02:00:39.028124636 +0000
+@@ -42,6 +42,12 @@
+ extern tr98Parameter_t para_Samba[];
+ extern tr98Parameter_t para_Upnp[];
+ 
++#ifdef ZYXEL_IPV6_MAP
++extern tr98Parameter_t para_MAP[];
++extern tr98Parameter_t para_MAPDomain[];
++extern tr98Parameter_t para_MAPDomainRule[];
++#endif
++
+ #ifdef ZyXEL_IPP_PRINTSERVER
+ extern tr98Parameter_t para_Ipp_PrintServer[];
+ #endif
+@@ -380,10 +386,22 @@
+ extern zcfgRet_t zyExtSfpMgmObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
+ #endif
+ 
++#ifdef ZYXEL_IPV6_MAP
++extern zcfgRet_t zyExtMAPObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
++extern zcfgRet_t zyExtMAPObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
++extern zcfgRet_t zyExtMAPDomainObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
++extern zcfgRet_t zyExtMAPDomainObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
++extern zcfgRet_t zyExtMAPDomainObjAdd(char *tr98FullPathName, int *idx);
++extern zcfgRet_t zyExtMAPDomainObjDel(char *tr98FullPathName);
++extern zcfgRet_t zyExtMAPDomainRuleObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
++extern zcfgRet_t zyExtMAPDomainRuleObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
++extern zcfgRet_t zyExtMAPDomainRuleObjAdd(char *tr98FullPathName, int *idx);
++extern zcfgRet_t zyExtMAPDomainRuleObjDel(char *tr98FullPathName);
++#endif
++
+ #ifdef ZYXEL_TR69_DATA_USAGE
+ extern zcfgRet_t zyExtDataUsageObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
+ extern zcfgRet_t zyExtDataUsageObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
+ extern zcfgRet_t zyExtDataUsageLanObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
+ extern zcfgRet_t zyExtDataUsageWanObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
+ #endif
+-
+Index: libzcfg_fe_tr98-1.0/zyExt_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt_parameter.h	2020-04-17 02:00:38.968124636 +0000
++++ libzcfg_fe_tr98-1.0/zyExt_parameter.h	2020-04-17 02:00:39.028124636 +0000
+@@ -491,6 +491,45 @@
+ };
+ #endif //#ifdef ZYXEL_SFP_POWER_MGMT
+ 
++#ifdef ZYXEL_IPV6_MAP
++tr98Parameter_t para_MAP[] = {
++	{ "Enable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++	{ NULL, 0, 0, 0}
++};
++
++tr98Parameter_t para_MAPDomain[] = {
++	{ "Enable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++	{ "Status", PARAMETER_ATTR_READONLY, 32, json_type_string},
++	//{ "Alias", PARAMETER_ATTR_WRITE, 64, json_type_string},
++	{ "TransportMode", PARAMETER_ATTR_WRITE, 16, json_type_string},
++	{ "WANInterface", PARAMETER_ATTR_WRITE, 64, json_type_string},
++	{ "IPv6Prefix", PARAMETER_ATTR_WRITE, 64, json_type_string},
++	{ "BRIPv6Prefix", PARAMETER_ATTR_WRITE, 49, json_type_string},
++	//{ "DSCPMarkPolicy", PARAMETER_ATTR_WRITE, 0, json_type_int},
++	{ "PSIDOffset", PARAMETER_ATTR_WRITE, 15, json_type_uint32},
++	{ "PSIDLength", PARAMETER_ATTR_WRITE, 16, json_type_uint32},
++	{ "PSID", PARAMETER_ATTR_WRITE, 65535, json_type_uint32},
++	//{ "IncludeSystemPorts", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++	{ "X_ZYXEL_Softwire46Enable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++	{ NULL, 0, 0, 0}
++};
++
++tr98Parameter_t para_MAPDomainRule[] = {
++	{ "Enable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++	{ "Status", PARAMETER_ATTR_READONLY, 32, json_type_string},
++	//{ "Alias", PARAMETER_ATTR_WRITE, 64, json_type_string},
++	{ "Origin", PARAMETER_ATTR_READONLY, 13, json_type_string},
++	{ "IPv6Prefix", PARAMETER_ATTR_WRITE, 49, json_type_string},
++	{ "IPv4Prefix", PARAMETER_ATTR_WRITE, 18, json_type_string},
++	//{ "EABitsLength", PARAMETER_ATTR_WRITE, 48, json_type_uint32},
++	{ "IsFMR", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++	{ "PSIDOffset", PARAMETER_ATTR_WRITE, 15, json_type_uint32},
++	{ "PSIDLength", PARAMETER_ATTR_WRITE, 16, json_type_uint32},
++	{ "PSID", PARAMETER_ATTR_WRITE, 65535, json_type_uint32},
++	{ NULL, 0, 0, 0}
++};
++#endif
++
+ #ifdef ZYXEL_TR69_DATA_USAGE
+ tr98Parameter_t para_DataUsage[] = {
+ 	{ "DataUsageUpdate", PARAMETER_ATTR_WRITE, 16, json_type_string},
+Index: libzcfg_fe_tr98-1.0/zyExt.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt.c	2020-04-17 02:00:38.964124637 +0000
++++ libzcfg_fe_tr98-1.0/zyExt.c	2020-04-17 05:55:49.572843746 +0000
+@@ -8026,6 +8026,377 @@
+ 	return ZCFG_SUCCESS;
+ }
+ 
++#ifdef ZYXEL_IPV6_MAP
++/*
++ *   TR98 Object Name : InternetGatewayDevice.X_ZYXEL_MAP
++ *
++ *   Related object in TR181:
++ *   Device.MAP
++ *   RDM_OID_MAP
++ */
++
++zcfgRet_t zyExtMAPObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)
++{
++	zcfgRet_t ret;
++	objIndex_t objIid;
++	struct json_object *mapJobj = NULL;
++	struct json_object *paramValue = NULL;
++	tr98Parameter_t *paramList = NULL;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "%s : Enter\n", __FUNCTION__);
++
++	/*Get related tr181 objects*/
++	IID_INIT(objIid);
++	if((ret = feObjJsonGet(RDM_OID_MAP, &objIid, &mapJobj, updateFlag)) != ZCFG_SUCCESS)
++		return ret;
++
++	/*fill up tr98 object from related tr181 objects*/
++	*tr98Jobj = json_object_new_object();
++	paramList = tr98Obj[handler].parameter;
++	while(paramList->name != NULL) {
++		/*Write parameter value from tr181 objects to tr98 object*/
++		paramValue = json_object_object_get(mapJobj, paramList->name);
++		if(paramValue != NULL) {
++			json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			paramList++;
++			continue;
++		}
++
++		/*Not defined in tr181, give it a default value*/
++		zcfgLog(ZCFG_LOG_ERR, "Can't find parameter %s in TR181\n", paramList->name);
++		paramList++;
++	}
++
++	json_object_put(mapJobj);
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++	zcfgRet_t ret;
++	objIndex_t objIid;
++	struct json_object *mapJobj = NULL;
++	struct json_object *tmpObj = NULL;
++	struct json_object *paramValue = NULL;
++	struct json_object *tr181ParamValue = NULL;
++	tr98Parameter_t *paramList = NULL;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "%s : Enter\n", __FUNCTION__);
++
++	/*Get related tr181 objects*/
++	IID_INIT(objIid);
++	if((ret = zcfgFeObjJsonGet(RDM_OID_MAP, &objIid, &mapJobj)) != ZCFG_SUCCESS)
++		return ret;
++
++	if(multiJobj){
++		tmpObj = mapJobj;
++		mapJobj = NULL;
++		mapJobj = zcfgFeJsonMultiObjAppend(RDM_OID_MAP, &objIid, multiJobj, tmpObj);
++	}
++
++	paramList = tr98Obj[handler].parameter;
++	while(paramList->name != NULL) {
++		/*Write new parameter value from tr98 object to tr181 objects*/
++		paramValue = json_object_object_get(tr98Jobj, paramList->name);
++		if(paramValue != NULL) {
++			tr181ParamValue = json_object_object_get(mapJobj, paramList->name);
++			if(tr181ParamValue != NULL) {
++				json_object_object_add(mapJobj, paramList->name, JSON_OBJ_COPY(paramValue));
++				paramList++;
++				continue;
++			}
++		}
++
++		zcfgLog(ZCFG_LOG_ERR, "Can't find parameter %s in TR181\n", paramList->name);
++
++		paramList++;
++	}
++
++	if(multiJobj){
++		json_object_put(tmpObj);
++	}
++	else{
++		if((ret = zcfgFeObjJsonSet(RDM_OID_MAP, &objIid, mapJobj, NULL)) != ZCFG_SUCCESS ) {
++			json_object_put(mapJobj);
++			return ret;
++		}
++		json_object_put(mapJobj);
++	}
++
++	return ZCFG_SUCCESS;
++}
++
++/*
++ *   TR98 Object Name : InternetGatewayDevice.X_ZYXEL_MAP.Domain.i
++ *
++ *   Related object in TR181:
++ *   Device.MAP.Domain.i
++ *   RDM_OID_MAP_DOMAIN
++ */
++zcfgRet_t zyExtMAPDomainObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)
++{
++	zcfgRet_t ret;
++	objIndex_t objIid;
++	struct json_object *mapDomainJobj = NULL;
++	struct json_object *paramValue = NULL;
++	tr98Parameter_t *paramList = NULL;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "%s : Enter\n", __FUNCTION__);
++
++	/*Get related tr181 objects*/
++	IID_INIT(objIid);
++	objIid.level = 1;
++	sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu", &objIid.idx[0]);
++
++	if((ret = feObjJsonGet(RDM_OID_MAP_DOMAIN, &objIid, &mapDomainJobj, updateFlag)) != ZCFG_SUCCESS)
++		return ret;
++
++	/*fill up tr98 object from related tr181 objects*/
++	*tr98Jobj = json_object_new_object();
++	paramList = tr98Obj[handler].parameter;
++	while(paramList->name != NULL) {
++		/*Write parameter value from tr181 objects to tr98 object*/
++		paramValue = json_object_object_get(mapDomainJobj, paramList->name);
++		if(paramValue != NULL) {
++			json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			paramList++;
++			continue;
++		}
++
++		/*Not defined in tr181, give it a default value*/
++		zcfgLog(ZCFG_LOG_ERR, "Can't find parameter %s in TR181\n", paramList->name);
++		paramList++;
++	}
++
++	json_object_put(mapDomainJobj);
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPDomainObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++	zcfgRet_t ret;
++	objIndex_t mapDomainIid;
++	struct json_object *mapDomainObj = NULL;
++	struct json_object *paramValue = NULL;
++	struct json_object *tr181ParamValue = NULL;
++	struct json_object *tmpObj = NULL;
++	tr98Parameter_t *paramList = NULL;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "Enter %s\n", __FUNCTION__);
++
++	IID_INIT(mapDomainIid);
++	mapDomainIid.level = 1;
++	sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu", &mapDomainIid.idx[0]);
++
++	if((ret = zcfgFeObjJsonGet(RDM_OID_MAP_DOMAIN, &mapDomainIid, &mapDomainObj)) != ZCFG_SUCCESS)
++		return ret;
++
++	paramList = tr98Obj[handler].parameter;
++	while(paramList->name != NULL) {
++		/*Write new parameter value from tr98 object to tr181 objects*/
++		paramValue = json_object_object_get(tr98Jobj, paramList->name);
++
++		if(paramValue != NULL) {
++			tr181ParamValue = json_object_object_get(mapDomainObj, paramList->name);
++			if(tr181ParamValue != NULL) {
++				json_object_object_add(mapDomainObj, paramList->name, JSON_OBJ_COPY(paramValue));
++				paramList++;
++				continue;
++			}
++		}
++
++		/*Not defined in tr181, give it a default value*/
++		zcfgLog(ZCFG_LOG_ERR, "Can't find parameter %s in TR181\n", paramList->name);
++		paramList++;
++	} /*End while*/
++
++	/*Set */
++	if(multiJobj){
++		tmpObj = mapDomainObj;
++		mapDomainObj = NULL;
++		mapDomainObj = zcfgFeJsonMultiObjAppend(RDM_OID_MAP_DOMAIN, &mapDomainIid, multiJobj, tmpObj);
++		json_object_put(tmpObj);
++	}
++	else{
++		if((ret = zcfgFeObjJsonSet(RDM_OID_MAP_DOMAIN, &mapDomainIid, mapDomainObj, NULL)) != ZCFG_SUCCESS ) {
++			json_object_put(mapDomainObj);
++			return ret;
++		}
++		json_object_put(mapDomainObj);
++	}
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPDomainObjAdd(char *tr98FullPathName, int *idx)
++{
++	zcfgRet_t ret;
++	objIndex_t mapDomainIid;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "%s : Enter \n", __FUNCTION__);
++
++	IID_INIT(mapDomainIid);
++ 	if((ret = zcfgFeObjStructAdd(RDM_OID_MAP_DOMAIN, &mapDomainIid, NULL)) != ZCFG_SUCCESS) {
++		zcfgLog(ZCFG_LOG_DEBUG,"%s : Add X_ZYXEL_MAP.Domain.%hhu. Fail.\n", __FUNCTION__, mapDomainIid.idx[0]);
++		return ret;
++	}
++	*idx = mapDomainIid.idx[0];
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPDomainObjDel(char *tr98FullPathName)
++{
++	objIndex_t mapDomainIid;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "%s : Enter\n", __FUNCTION__);
++
++	IID_INIT(mapDomainIid);
++	mapDomainIid.level = 1;
++	if(sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu", &mapDomainIid.idx[0]) != 1)
++		return ZCFG_INVALID_OBJECT;
++
++	return zcfgFeObjStructDel(RDM_OID_MAP_DOMAIN, &mapDomainIid, NULL);
++}
++
++/*
++ *   TR98 Object Name : InternetGatewayDevice.X_ZYXEL_MAP.Domain.i.Rule.i
++ *
++ *   Related object in TR181:
++ *   Device.MAP.Domain.i.Rule.i
++ *   RDM_OID_MAP_DOMAIN_RULE
++ */
++zcfgRet_t zyExtMAPDomainRuleObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)
++{
++	zcfgRet_t ret;
++	objIndex_t mapDomainRuleIid;
++	struct json_object *mapDomainRuleObj = NULL;
++	struct json_object *paramValue = NULL;
++	tr98Parameter_t *paramList = NULL;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "Enter %s\n", __FUNCTION__);
++
++	IID_INIT(mapDomainRuleIid);
++	mapDomainRuleIid.level = 2;
++
++	if(sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu.Rule.%hhu", &mapDomainRuleIid.idx[0], &mapDomainRuleIid.idx[1]) != 2)
++		return ZCFG_INVALID_OBJECT;
++
++	if((ret = feObjJsonGet(RDM_OID_MAP_DOMAIN_RULE, &mapDomainRuleIid, &mapDomainRuleObj, updateFlag)) != ZCFG_SUCCESS)
++		return ret;
++
++	/*fill up tr98 rule object*/
++	*tr98Jobj = json_object_new_object();
++	paramList = tr98Obj[handler].parameter;
++	while(paramList->name != NULL) {
++		paramValue = json_object_object_get(mapDomainRuleObj, paramList->name);
++		if(paramValue != NULL) {
++			json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			paramList++;
++			continue;
++		}
++		/*Not defined in tr181, give it a default value*/
++		zcfgLog(ZCFG_LOG_ERR, "Can't find parameter %s in TR181\n", paramList->name);
++		paramList++;
++	}
++
++	json_object_put(mapDomainRuleObj);
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPDomainRuleObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++	zcfgRet_t ret;
++	objIndex_t mapDomainRuleIid;
++	struct json_object *mapDomainRuleObj = NULL;
++	struct json_object *paramValue = NULL;
++	struct json_object *tr181ParamValue = NULL;
++	struct json_object *tmpObj = NULL;
++	tr98Parameter_t *paramList = NULL;
++
++	zcfgLog(ZCFG_LOG_ERR, "Enter %s\n", __FUNCTION__);
++
++	IID_INIT(mapDomainRuleIid);
++	mapDomainRuleIid.level = 2;
++	if(sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu.Rule.%hhu", &mapDomainRuleIid.idx[0], &mapDomainRuleIid.idx[1]) != 2) return ZCFG_INVALID_OBJECT;
++
++	if((ret = zcfgFeObjJsonGet(RDM_OID_MAP_DOMAIN_RULE, &mapDomainRuleIid, &mapDomainRuleObj)) != ZCFG_SUCCESS)
++		return ret;
++	if(multiJobj){
++		tmpObj = mapDomainRuleObj;
++		mapDomainRuleObj = NULL;
++		mapDomainRuleObj = zcfgFeJsonMultiObjAppend(RDM_OID_MAP_DOMAIN_RULE, &mapDomainRuleIid, multiJobj, tmpObj);
++	}
++
++	paramList = tr98Obj[handler].parameter;
++	while(paramList->name != NULL) {
++		/*Write new parameter value from tr98 object to tr181 objects*/
++		paramValue = json_object_object_get(tr98Jobj, paramList->name);
++		if(paramValue != NULL) {
++			tr181ParamValue = json_object_object_get(mapDomainRuleObj, paramList->name);
++			if(tr181ParamValue != NULL) {
++				json_object_object_add(mapDomainRuleObj, paramList->name, JSON_OBJ_COPY(paramValue));
++				paramList++;
++				continue;
++			}
++		}
++		paramList++;
++	} /*End while*/
++
++	/*Set */
++	if(multiJobj){
++		json_object_put(tmpObj);
++	}
++	else{
++		if((ret = zcfgFeObjJsonSet(RDM_OID_MAP_DOMAIN_RULE, &mapDomainRuleIid, mapDomainRuleObj, NULL)) != ZCFG_SUCCESS ) {
++			json_object_put(mapDomainRuleObj);
++			return ret;
++		}
++		json_object_put(mapDomainRuleObj);
++	}
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPDomainRuleObjAdd(char *tr98FullPathName, int *idx)
++{
++	zcfgRet_t ret;
++	objIndex_t mapDomainRuleIid;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "Enter %s\n", __FUNCTION__);
++
++	IID_INIT(mapDomainRuleIid);
++	mapDomainRuleIid.level = 1;
++	if(sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu.Rule", &mapDomainRuleIid.idx[0]) != 1)
++		return ZCFG_INVALID_OBJECT;
++
++	if((ret = zcfgFeObjStructAdd(RDM_OID_MAP_DOMAIN_RULE, &mapDomainRuleIid, NULL)) != ZCFG_SUCCESS) {
++		zcfgLog(ZCFG_LOG_DEBUG,"%s : Add X_ZYXEL_MAP.Domain.%hhu.Rule. Fail.\n", __FUNCTION__, mapDomainRuleIid.idx[0]);
++		return ret;
++	}
++	*idx = mapDomainRuleIid.idx[1];
++
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtMAPDomainRuleObjDel(char *tr98FullPathName)
++{
++	objIndex_t mapDomainRuleIid;
++
++	zcfgLog(ZCFG_LOG_DEBUG, "Enter %s\n", __FUNCTION__);
++
++	IID_INIT(mapDomainRuleIid);
++	mapDomainRuleIid.level = 2;
++	if(sscanf(tr98FullPathName, "InternetGatewayDevice.X_ZYXEL_MAP.Domain.%hhu.Rule.%hhu", &mapDomainRuleIid.idx[0], &mapDomainRuleIid.idx[1]) != 2)
++		return ZCFG_INVALID_OBJECT;
++
++	return zcfgFeObjStructDel(RDM_OID_MAP_DOMAIN_RULE, &mapDomainRuleIid, NULL);
++}
++#endif //End ZYXEL_IPV6_MAP
++
+ #ifdef ZYXEL_EASYMESH
+ /* InternetGatewayDevice.X_ZYXEL_EXT.EasyMesh */
+ zcfgRet_t zyExtEasyMeshObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)

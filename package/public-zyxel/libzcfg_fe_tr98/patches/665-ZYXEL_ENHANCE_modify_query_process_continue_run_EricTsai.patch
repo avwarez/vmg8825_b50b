@@ -1,0 +1,90 @@
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.c	2020-04-07 17:55:00.733849290 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c	2020-04-07 17:41:32.253245000 +0800
+@@ -4128,6 +4128,12 @@
+ 
+ 	ztrdbg(ZTR_DL_DEBUG, "%s\n", __FUNCTION__);
+ 
++	if((zcfgFeTr98QryRootPath() && enableRootQuryBlackObjPath &&
++			zcfgQueryObjectPathIdxNotRepliedPathName(tr98ObjName, rootQuryBlackObjPathIdx)) ||
++			zcfgQueryObjectPathIdxNotRepliedPathName(tr98ObjName, quryBlackObjPathIdx))
++		return ZCFG_NO_MORE_INSTANCE;
++
++
+ 	if((ret = zcfgFeTr98ClassNameGet(tr98ObjName, tr98ClassName)) != ZCFG_SUCCESS) {
+ 		return ret;
+ 	}
+@@ -5190,6 +5196,27 @@
+ 	return ZCFG_SUCCESS;
+ }
+ 
++
++zcfgRet_t zcfgFeTr98QueryAttrObjName(const char *tr98ObjName, struct json_object **tr98parm)
++{
++	zcfgRet_t rst;
++
++	if((zcfgFeTr98QryRootPath() && enableRootQuryBlackObjPath &&
++			zcfgQueryObjectPathIdxNotRepliedPathName(tr98ObjName, rootQuryBlackObjPathIdx)) ||
++			zcfgQueryObjectPathIdxNotRepliedPathName(tr98ObjName, quryBlackObjPathIdx))
++		return ZCFG_NO_MORE_INSTANCE;
++
++#ifdef ZCFG_QUERY_TR98_PARM_ATTR_LIST
++	rst = zcfgFeTr98QueryAttrObjNameAndParms(tr98ObjName, tr98parm);
++	if(rst == ZCFG_SUCCESS)
++		json_object_object_del(*tr98parm, "attr");
++#else
++	rst = zcfgFeTr98ObjNameGet(tr98ObjName, tr98parm);
++#endif
++
++	return rst;
++}
++
+ #ifdef ZCFG_QUERY_TR98_PARM_ATTR_LIST
+ void zcfgTr98AttrListEnable()
+ {
+@@ -5362,16 +5389,6 @@
+ 	return zcfgFeTr98QueryAttrObjNameAndParms(tr98ObjName, tr98parm);
+ }
+ 
+-zcfgRet_t zcfgFeTr98QueryAttrObjName(const char *tr98ObjName, struct json_object **tr98parm)
+-{
+-	zcfgRet_t rst;
+-
+-	rst = zcfgFeTr98QueryAttrObjNameAndParms(tr98ObjName, tr98parm);
+-	if(rst == ZCFG_SUCCESS)
+-		json_object_object_del(*tr98parm, "attr");
+-
+-	return rst;
+-}
+ 
+ #if 0
+ static zcfgRet_t qryAndSetParamObjAttr(struct json_object *mappingIdxObj, struct json_object *tr98parm, tr98Parameter_t *parmList)
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.h	2020-04-07 17:55:00.237849305 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.h	2020-04-07 17:55:00.789849289 +0800
+@@ -322,10 +322,12 @@
+ zcfgRet_t zcfgFeTr98ParamList(char *);
+ 
+ int zcfgFeTr98ParamAttrChk(int , int);
+-#ifdef ZCFG_QUERY_TR98_PARM_ATTR_LIST
+-zcfgRet_t zcfgFeTr98QueryAttrObjExist(const char *, struct json_object **);
++
++
+ zcfgRet_t zcfgFeTr98QueryAttrObjName(const char *, struct json_object **);
+ 
++#ifdef ZCFG_QUERY_TR98_PARM_ATTR_LIST
++zcfgRet_t zcfgFeTr98QueryAttrObjExist(const char *, struct json_object **);
+ void zcfgTr98AttrListEnable();
+ void *zcfgTr98AttrListSync(struct json_object *);
+ void zcfgTr98AttrListClear();
+@@ -336,7 +338,7 @@
+ 
+ #else
+ #define zcfgFeTr98QueryAttrObjExist(name, parm) zcfgFeTr98ObjNameGet(name, parm)
+-#define zcfgFeTr98QueryAttrObjName(name, parm) zcfgFeTr98ObjNameGet(name, parm)
++//#define zcfgFeTr98QueryAttrObjName(name, parm) zcfgFeTr98ObjNameGet(name, parm)
+ 
+ #define zcfgTr98AttrListEnable() { }
+ #define zcfgTr98AttrListSync(obj) obj

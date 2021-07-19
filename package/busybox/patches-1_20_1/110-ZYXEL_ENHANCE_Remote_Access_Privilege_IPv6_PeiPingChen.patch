@@ -1,0 +1,110 @@
+Index: busybox-1_20_1/loginutils/login.c
+===================================================================
+--- busybox-1_20_1.orig/loginutils/login.c	2020-08-25 10:05:15.474853435 +0800
++++ busybox-1_20_1/loginutils/login.c	2020-08-25 10:06:29.939677095 +0800
+@@ -415,6 +415,32 @@
+ #endif //ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT
+ 
+ #ifdef ZYXEL_REMOTE_ACCESS_PRIVILEGE
++
++bool beCheckLANLinkLocalAddr(char *remoteAddr)
++{
++	char cmd[256]={0};
++	FILE *fp = NULL;
++	char *lst = calloc(128, sizeof(char));
++	int ret = 0; //set ip addr from wan by default
++
++	sprintf(cmd, "ip -6 neigh | grep '%s' | grep br > /tmp/CheckLANLinkLocalResult", remoteAddr);
++	system(cmd);
++
++	fp = fopen("/tmp/CheckLANLinkLocalResult", "r");
++	if(fp != NULL){
++		if( fgets (lst, 128, fp)!=NULL ) {
++			if(strstr(lst, "br") != 0)
++				ret = 1; //LAN
++   		}
++		fclose(fp);
++	}
++	
++	unlink("/tmp/CheckLANLinkLocalResult");
++	
++	free(lst);
++	return ret;	
++}
++
+ void checkClientFromLANWAN(char *remoaddr, char *remoAddr_Type)
+ {
+ 	int addrType = 0;
+@@ -427,6 +453,7 @@
+ 	char lanip[64] = {0};
+ 	char perfix[8] = {0};
+ 	bool found = false;
++	int fromLAN=0;
+ 	
+ 	addrType = ipType(remoaddr);
+ 	if (addrType != AF_INET && addrType != AF_INET6) {
+@@ -465,6 +492,24 @@
+ 					}
+ 					zcfgFeObjStructFree(ipv6Obj);
+ 				}
++				//check if login account from link-local address
++				if(!found){
++					fromLAN = beCheckLANLinkLocalAddr(remoaddr);
++					if(!fromLAN){
++						//this address not come from LAN, no need to check with device linklocal addr
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++					if( strcmp(ipObj->X_ZYXEL_IPv6LocalAddress, "") == 0 ){
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++					if (checkCidrBlock(ipObj->X_ZYXEL_IPv6LocalAddress, "64", remoaddr) == 1) {
++						found = true;
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++				}				
+ 			}
+ 		}
+ 		zcfgFeObjStructFree(ipObj);
+@@ -503,7 +548,8 @@
+ //SHA512_PASSWD
+ 	char *accFile = NULL;
+ //SHA512_PASSWD
+-	char  addr[128];
++	char  addr[128]={0};
++	char  argvaddr[128]={0};
+ #ifdef ZCFG_SUPPORT
+ 	int cur_user_idx[2] = {-1};
+ 	int login_fail_cnt = 0;
+@@ -646,7 +692,7 @@
+ 	}
+ 
+ 	if(argv[1]){
+-		safe_strncpy(addr, argv[1], sizeof(addr));		
++		safe_strncpy(argvaddr, argv[1], sizeof(argvaddr));		
+ 		argv[1] = NULL;
+ 	}	
+ 	argv += optind;
+@@ -662,6 +708,11 @@
+ 
+ 	}
+ 
++	if(strstr(argvaddr, "%") != 0)
++		sscanf(argvaddr, "%[^%]", addr);
++	else
++		sscanf(argvaddr, "%s", addr);
++
+ 	/* Save tty attributes - and by doing it, check that it's indeed a tty */
+ 	if (tcgetattr(STDIN_FILENO, &G.tty_attrs) < 0
+ 	 || !isatty(STDOUT_FILENO)
+@@ -922,7 +973,7 @@
+ #ifdef ZYXEL_REMOTE_ACCESS_PRIVILEGE
+ 				bool checkPrivilege = false;
+ 				char remoAddr_Type[32] = {0};
+-				if(ipType(addr) == AF_INET && strcmp(userPriviege, "LAN,WAN")) {
++				if(strcmp(addr,"--") && strcmp(userPriviege, "LAN,WAN")) {
+ 					checkClientFromLANWAN(addr, remoAddr_Type);
+ 					if (strstr(userPriviege, remoAddr_Type) != NULL) {
+ 						checkPrivilege = true;

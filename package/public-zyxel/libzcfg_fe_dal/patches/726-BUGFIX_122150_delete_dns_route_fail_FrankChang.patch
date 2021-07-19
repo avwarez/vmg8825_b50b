@@ -1,0 +1,13 @@
+diff -ruN a/network/routing/zcfg_fe_dal_dns_route.c b/network/routing/zcfg_fe_dal_dns_route.c
+--- a/network/routing/zcfg_fe_dal_dns_route.c	2020-01-21 17:52:10.000000000 +0800
++++ b/network/routing/zcfg_fe_dal_dns_route.c	2020-01-30 12:44:07.655118272 +0800
+@@ -197,7 +197,8 @@
+ 	}
+ 
+ exit:
+-	freeAllDnsRouteObjects();
++    // Frank: it should not need to free objects
++	//freeAllDnsRouteObjects();
+ 	return ret;
+ }
+ 

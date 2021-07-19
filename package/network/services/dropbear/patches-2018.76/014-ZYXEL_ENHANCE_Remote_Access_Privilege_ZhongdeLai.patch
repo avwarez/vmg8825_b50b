@@ -1,0 +1,169 @@
+Index: dropbear-2018.76/svr-auth.c
+===================================================================
+--- dropbear-2018.76.orig/svr-auth.c	2020-04-24 15:32:03.580610189 +0800
++++ dropbear-2018.76/svr-auth.c	2020-04-24 15:33:06.282022970 +0800
+@@ -344,6 +344,71 @@
+ }
+ #endif //ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT
+ 
++#ifdef ZYXEL_REMOTE_ACCESS_PRIVILEGE
++void checkClientFromLANWAN(char *remoaddr, char *remoAddr_Type)
++{
++	int addrType = 0;
++	objIndex_t objIid;
++	objIndex_t v4AddrIid;
++	objIndex_t v6AddrIid;
++	rdm_IpIface_t *ipObj = NULL;
++	rdm_IpIfaceV4Addr_t *ipv4Obj = NULL;
++	rdm_IpIfaceV6Addr_t *ipv6Obj = NULL;
++	char lanip[64] = {0};
++	char perfix[8] = {0};
++	bool found = false;
++	
++	addrType = ipType(remoaddr);
++	if (addrType != AF_INET && addrType != AF_INET6) {
++		strcpy(remoAddr_Type, "Unknown");
++		syslog(LOG_INFO, "[%s][%d] Unknow IP type!!\n", __FUNCTION__, __LINE__);
++		return;
++	}
++	
++	/*LANIP*/
++	IID_INIT(objIid);
++	while(!found && zcfgFeObjStructGetNext(RDM_OID_IP_IFACE, &objIid, (void **)&ipObj) == ZCFG_SUCCESS) {
++		if(!strcmp(ipObj->Name, "LAN")) {
++			if(addrType == AF_INET) {
++				IID_INIT(v4AddrIid);
++				while(zcfgFeObjStructGetNext(RDM_OID_IP_IFACE_V4_ADDR, &v4AddrIid, (void **)&ipv4Obj) == ZCFG_SUCCESS) {
++					if(objIid.idx[0] == v4AddrIid.idx[0]) { //check LAN group	
++						if (!zyUtilIp4AddrDomainCmp(ipv4Obj->IPAddress, ipv4Obj->SubnetMask, remoaddr)) {
++							found = true;
++							zcfgFeObjStructFree(ipv4Obj);
++							break;
++						}
++					}
++					zcfgFeObjStructFree(ipv4Obj);
++				}
++			}
++			else {
++				IID_INIT(v6AddrIid);
++				while(zcfgFeObjStructGetNext(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, (void **)&ipv6Obj) == ZCFG_SUCCESS) {
++					if(objIid.idx[0] == v6AddrIid.idx[0]) { //check LAN group
++						sscanf(ipv6Obj->IPAddress, "%[^/]/%s", lanip, perfix);
++						if (checkCidrBlock(lanip, perfix, remoaddr) == 1) {
++							found = true;
++							zcfgFeObjStructFree(ipv6Obj);
++							break;
++						}
++					}
++					zcfgFeObjStructFree(ipv6Obj);
++				}
++			}
++		}
++		zcfgFeObjStructFree(ipObj);
++	}
++	
++	if (found) {
++		strcpy(remoAddr_Type, "LAN");
++	}
++	else {
++		strcpy(remoAddr_Type, "WAN");
++	}
++}
++#endif
++
+ #ifdef HAVE_GETGROUPLIST
+ /* returns DROPBEAR_SUCCESS or DROPBEAR_FAILURE */
+ static int check_group_membership(gid_t check_gid, const char* username, gid_t user_gid) {
+@@ -501,84 +566,20 @@
+ #endif //ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT
+ 
+ #ifdef ZYXEL_REMOTE_ACCESS_PRIVILEGE
+-
+-		//syslog(LOG_INFO, "Account privilege: ZYXEL_REMOTE_ACCESS_PRIVILEGE IN >> SSH!!!!");
+-		//syslog(LOG_INFO, "Account privilege: get remoAddr = %s ", remoAddr);
+-
+-		// check remote IP v4/v6
+-		int addrType = 0;
+-		char remoAddr_Type[32] = {0}; //WAN LAN
+-		addrType = ipType(remoAddr);
+-		
+-		if (addrType == AF_INET){
+-			//v4 checking
+-			//syslog(LOG_INFO, "Account privilege: %s remoAddr type = %d ", remoAddr, addrType);
+-			/*Remote Ip WAN/LAN Ip check */
+-			//Get host IP	
+-			int n;
+-			int remoAddrType = 0;
+-			objIndex_t objIid;
+-			rdm_IpIface_t *ipObj = NULL;
+-			rdm_IpIfaceV4Addr_t *ipv4Obj = NULL;	
+-			char lanip[32] = {0};
+-			char subnetMask[32] = {0};
+-			char perfix[10]={0};
+-
+-			/*LANIP*/
+-			IID_INIT(objIid);
+-			while( zcfgFeObjStructGetNext(RDM_OID_IP_IFACE, &objIid, (void **)&ipObj) == ZCFG_SUCCESS) {
+-				if(strcmp(ipObj->X_ZYXEL_IfName, "br0") ==0) {
+-					free(ipObj);
+-					break;
+-				}
+-				free(ipObj);
+-			}
+-			
+-			bool checkPrivilege = false;
+-			objIndex_t v4AddrIid;
+-			v4AddrIid.level = 2;
+-			
+-			IID_INIT(v4AddrIid);
+-			while( zcfgFeObjStructGetNext(RDM_OID_IP_IFACE_V4_ADDR, &v4AddrIid, (void **)&ipv4Obj)== ZCFG_SUCCESS){
+-				if (objIid.idx[0] == v4AddrIid.idx[0]){ //check br0(LAN) group
+-					strcpy(lanip, ipv4Obj->IPAddress);
+-					strcpy(subnetMask, ipv4Obj->SubnetMask);
+-					
+-					inet_pton(AF_INET, subnetMask, &n);
+-					int i = 0;
+-
+-					while (n > 0) {
+-							n = n >> 1;
+-							i++;
+-					}
+-					sprintf(perfix, "%d", i);
+-					if (checkCidrBlock(lanip, perfix, remoAddr) == 1){
+-						strcpy(remoAddr_Type, "LAN");
+-					}
+-					else{
+-						strcpy(remoAddr_Type, "WAN");
+-					}
+-					
+-					if (strstr(userPriviege, remoAddr_Type) != NULL){
+-						checkPrivilege = true;
+-					}
+-				}
+-				free(ipv4Obj);
++		bool checkPrivilege = false;
++		char remoAddr_Type[32] = {0};
++		if(strcmp(userPriviege, "LAN,WAN")) {
++			checkClientFromLANWAN(remoAddr, remoAddr_Type);
++			if (strstr(userPriviege, remoAddr_Type) != NULL) {
++				checkPrivilege = true;
+ 			}
+ 
+-			if (checkPrivilege == false){
++			if (checkPrivilege == false) {
+ 				syslog(LOG_INFO, "Account privilege:'%s' SSH permission denied.", username);
+ 				TRACE(("leave check username:'%s' SSH permission denied.", username));
+ 				return DROPBEAR_FAILURE;
+-			}			
+-		}
+-		else if (addrType == AF_INET6){
+-			//not support V6 for WIND Italy
++			}
+ 		}
+-	    else{
+-			//skip check unknow IP type
+-	    }
+-
+ #endif		
+ 	}
+ 	/* check that user exists */

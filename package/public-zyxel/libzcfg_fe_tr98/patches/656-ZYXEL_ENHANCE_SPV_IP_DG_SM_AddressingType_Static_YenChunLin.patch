@@ -1,0 +1,74 @@
+Index: libzcfg_fe_tr98-1.0/wanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev.c	2019-12-16 14:09:24.567885421 +0800
++++ libzcfg_fe_tr98-1.0/wanDev.c	2019-12-16 14:19:47.839908809 +0800
+@@ -3237,6 +3237,8 @@
+ 	bool staticDnsType = false;
+ 	char tr181DnsType[45+1] = {0};
+ 	bool runSpvValid;
++	bool AutoSetStatic = false;
++	const char Static[] = "Static";
+ 
+ 
+ 	zcfgLog(ZCFG_LOG_INFO, "%s : Enter\n", __FUNCTION__);
+@@ -3249,6 +3251,13 @@
+ 	struct json_object *tr98SpvObj = NULL;
+ 	tr98SpvObj = zcfgFeRetrieveSpv(tr98FullPathName);
+ 
++	if(tr98SpvObj && (json_object_object_get(tr98SpvObj, "AddressingType") == NULL) &&
++		json_object_object_get(tr98SpvObj, "ExternalIPAddress") &&
++		json_object_object_get(tr98SpvObj, "DefaultGateway") &&
++		json_object_object_get(tr98SpvObj, "SubnetMask") &&
++		strcmp(json_object_get_string(json_object_object_get(tr98Jobj, "AddressingType")), "Static"))
++		AutoSetStatic = true;
++
+ 	//sprintf(devIpIface, "Device.%s", ipIface);
+ 	sprintf(devIpIface, "%s", ipIface);
+ 	IID_INIT(ipIfaceIid);
+@@ -3362,7 +3371,10 @@
+ 	}
+ 
+ 	paramValue = json_object_object_get(tr98Jobj, "AddressingType");
+-	addrType = json_object_get_string(paramValue);
++	if(AutoSetStatic)
++		addrType = &Static;
++	else
++		addrType = json_object_get_string(paramValue);
+ 
+ 	paramValue = json_object_object_get(tr98Jobj, "ConnectionType");
+ 	connType = json_object_get_string(paramValue);
+@@ -3404,7 +3416,7 @@
+ 		json_object_put(rtJobj);
+ 		return ZCFG_INTERNAL_ERROR;
+ 	}
+-
++#if 0
+ 	//tr181AddrTypeQuery(ipIfaceIid, tr181AddrType)
+ 	{
+ 		const char *addrTypeStr = NULL;
+@@ -3423,7 +3435,7 @@
+ 		json_object_put(ipAddrJobj);
+ 		ipAddrJobj = NULL;
+ 	}
+-
++#endif
+ 	if(!strcmp(connType, "IP_Routed")) {
+ 		/*Set IP Address*/
+ 		if(multiJobj)
+@@ -3648,7 +3660,15 @@
+ 			}
+ 			else if(!strcmp(paramList->name, "DefaultGateway") && rtIpJobj){
+ 				const char *defaultRt = json_object_get_string(json_object_object_get(tr98SpvObj, "DefaultGateway"));
+-				const char *spvAddrType = json_object_get_string(json_object_object_get(tr98SpvObj, "AddressingType"));
++				const char *spvAddrType = NULL;
++				if(AutoSetStatic)
++					spvAddrType = &Static;
++				else
++					if(json_object_object_get(tr98SpvObj, "AddressingType") != NULL)
++						spvAddrType = json_object_get_string(json_object_object_get(tr98SpvObj, "AddressingType"));
++					else
++						spvAddrType = json_object_get_string(json_object_object_get(tr98Jobj, "AddressingType"));
++
+ 				if(defaultRt && strcmp(spvAddrType, "Static") && strcmp(addrType, "Static")){
+ 					sprintf(paramfault, "Can't modify DefaultGateway");
+ 					return ZCFG_INVALID_PARAM_VALUE;

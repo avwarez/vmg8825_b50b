@@ -1,0 +1,13 @@
+Index: json-c-0.13.1/json_util.c
+===================================================================
+--- json-c-0.13.1.orig/json_util.c	2019-08-13 17:48:48.000000000 +0800
++++ json-c-0.13.1/json_util.c	2019-08-13 17:51:17.908504072 +0800
+@@ -209,7 +209,7 @@
+ 		wpos += (unsigned int)ret;
+ 	}
+ 	fsync(fd);
+-#if 1 /* cpwang, minimize number of writing to flash, 2017-03-17 09:57:19 */
++#if 0 /* cpwang, minimize number of writing to flash, 2017-03-17 09:57:19 */
+     printf("****  %s line %d, %s() : write %s to flash successfully\n",
+        __FILE__, __LINE__, __FUNCTION__, filename);
+ #endif /* cpwang, minimize number of writing to flash, 2017-03-17 09:57:19 */

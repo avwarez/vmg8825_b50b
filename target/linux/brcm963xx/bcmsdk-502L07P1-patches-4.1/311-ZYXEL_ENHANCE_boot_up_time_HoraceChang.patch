@@ -1,0 +1,60 @@
+Index: linux-4.1.52/Kconfig.bcm
+===================================================================
+--- linux-4.1.52.orig/Kconfig.bcm	2020-04-15 09:56:18.811894040 +0000
++++ linux-4.1.52/Kconfig.bcm	2020-04-15 10:34:08.660650310 +0000
+@@ -697,6 +697,10 @@
+ config BCM_TSTAMP
+ 	bool
+ 
++config BCM_DEFAULT_CONSOLE_LOGLEVEL
++	int "Default console printk loglevel"
++	depends on BCM_KF_CONSOLE_LOGLEVEL
++
+ config BCM_LOG
+ 	tristate "Support for BCM LOG"
+ 
+Index: linux-4.1.52/kernel/printk/printk.c
+===================================================================
+--- linux-4.1.52.orig/kernel/printk/printk.c	2020-04-15 09:56:19.035884248 +0000
++++ linux-4.1.52/kernel/printk/printk.c	2020-04-15 09:56:19.043883898 +0000
+@@ -55,6 +55,12 @@
+ #include "console_cmdline.h"
+ #include "braille.h"
+ 
++#if defined(CONFIG_BCM_KF_CONSOLE_LOGLEVEL)
++#undef CONSOLE_LOGLEVEL_DEFAULT
++#define CONSOLE_LOGLEVEL_DEFAULT CONFIG_BCM_DEFAULT_CONSOLE_LOGLEVEL
++#endif
++
++
+ int console_printk[4] = {
+ 	CONSOLE_LOGLEVEL_DEFAULT,	/* console_loglevel */
+ 	MESSAGE_LOGLEVEL_DEFAULT,	/* default_message_loglevel */
+Index: linux-4.1.52/Kconfig.bcm_kf
+===================================================================
+--- linux-4.1.52.orig/Kconfig.bcm_kf	2020-04-15 09:56:18.815893866 +0000
++++ linux-4.1.52/Kconfig.bcm_kf	2020-04-15 09:56:19.043883898 +0000
+@@ -155,6 +155,10 @@
+ 	bool
+ 	default n
+ 
++config BCM_KF_CONSOLE_LOGLEVEL
++	bool
++	default n
++
+ config BCM_KF_SHOW_HEAP_STACK
+ 	bool
+ 	default y
+Index: linux-4.1.52/init/main.c
+===================================================================
+--- linux-4.1.52.orig/init/main.c	2020-04-15 09:56:18.719898063 +0000
++++ linux-4.1.52/init/main.c	2020-04-15 12:09:33.466346814 +0000
+@@ -202,7 +202,7 @@
+ 
+ static int __init debug_kernel(char *str)
+ {
+-	console_loglevel = CONSOLE_LOGLEVEL_DEBUG;
++//	console_loglevel = CONSOLE_LOGLEVEL_DEBUG;
+ 	return 0;
+ }
+ 

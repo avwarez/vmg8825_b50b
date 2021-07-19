@@ -1,0 +1,35 @@
+Index: linux-4.1.52/kernel/printk/printk.c
+===================================================================
+--- linux-4.1.52.orig/kernel/printk/printk.c	2019-10-22 11:11:18.171487277 +0000
++++ linux-4.1.52/kernel/printk/printk.c	2019-11-05 08:21:46.730268088 +0000
+@@ -2277,7 +2277,8 @@
+ 		exclusive_console = NULL;
+ 
+ 	raw_spin_unlock(&logbuf_lock);
+-
++	local_irq_restore(flags); //IChiaHuang 20191105
++	
+ 	up_console_sem();
+ 
+ 	/*
+@@ -2286,10 +2287,19 @@
+ 	 * there's a new owner and the console_unlock() from them will do the
+ 	 * flush, no worries.
+ 	 */
++//IChiaHuang 20191105
++#if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED) && defined(CONFIG_BCM_PRINTK_INT_ENABLED)
++	raw_spin_lock_irqsave(&logbuf_lock, flags);
++#else
+ 	raw_spin_lock(&logbuf_lock);
++#endif
+ 	retry = console_seq != log_next_seq;
++//IChiaHuang 20191105
++#if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED) && defined(CONFIG_BCM_PRINTK_INT_ENABLED)
+ 	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
+-
++#else
++	raw_spin_unlock(&logbuf_lock);
++#endif
+ 	if (retry && console_trylock())
+ 		goto again;
+ 

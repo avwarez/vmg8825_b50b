@@ -1,0 +1,30 @@
+Index: libzcfg_fe_tr98-1.0/wanDev_api.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev_api.c	2019-09-23 11:19:09.323048904 +0800
++++ libzcfg_fe_tr98-1.0/wanDev_api.c	2019-09-23 11:19:10.823048904 +0800
+@@ -934,7 +934,8 @@
+ 			printf("%s : Other : %s to %s", __FUNCTION__, addressingType, addrType);
+ 		}
+ 
+-		json_object_put(v4AddrObj);
++		// 20190920: Remove excess release
++		//json_object_put(v4AddrObj);
+ 	}
+ 	else {
+ 		reqSetAddrObj = false;
+Index: libzcfg_fe_tr98-1.0/wanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev.c	2019-09-23 11:19:10.751048904 +0800
++++ libzcfg_fe_tr98-1.0/wanDev.c	2019-09-23 11:23:28.595048904 +0800
+@@ -3584,7 +3584,11 @@
+ 			}
+ 			else if(!strcmp(paramList->name, "X_ZYXEL_DNSType")){
+ 				struct json_object *spvParamValue;
++#if 0 //check null point IChia 20190923
+ 				if((spvParamValue = json_object_object_get(tr98SpvObj, "X_ZYXEL_DNSType"))){
++#else
++				if(dnsSrvJobj &&  (spvParamValue = json_object_object_get(tr98SpvObj, "X_ZYXEL_DNSType"))){
++#endif
+ 					json_object_object_add(dnsSrvJobj, "X_ZYXEL_Type", JSON_OBJ_COPY(spvParamValue));
+ 				}
+ #if 0

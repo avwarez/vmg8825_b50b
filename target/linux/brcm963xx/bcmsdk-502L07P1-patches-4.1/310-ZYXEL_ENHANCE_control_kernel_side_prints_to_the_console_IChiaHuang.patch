@@ -1,0 +1,72 @@
+Index: linux-4.1.51/include/linux/kernel.h
+===================================================================
+--- linux-4.1.51.orig/include/linux/kernel.h	2019-03-04 18:51:02.352241768 +0800
++++ linux-4.1.51/include/linux/kernel.h	2019-03-04 19:07:10.808241768 +0800
+@@ -170,6 +170,11 @@
+  */
+ #define lower_32_bits(n) ((u32)(n))
+ 
++//I-CHIA.HUANG 20190304
++#if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED) && defined(CONFIG_BCM_PRINTK_INT_ENABLED)
++extern int printk_with_interrupt_enabled;
++#endif
++
+ struct completion;
+ struct pt_regs;
+ struct user;
+Index: linux-4.1.51/kernel/printk/printk.c
+===================================================================
+--- linux-4.1.51.orig/kernel/printk/printk.c	2019-03-04 18:50:59.980241768 +0800
++++ linux-4.1.51/kernel/printk/printk.c	2019-03-04 19:06:19.904241768 +0800
+@@ -138,6 +138,15 @@
+ /* Flag: console code may call schedule() */
+ static int console_may_schedule;
+ 
++//I-CHIA.HUANG 20190304
++#if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED)
++#if ( defined(CONFIG_BCM_VOICE_SUPPORT) || defined(CONFIG_BCM_DECT_SUPPORT) )
++int printk_with_interrupt_enabled = 1;
++#else
++int printk_with_interrupt_enabled = 0;
++#endif
++#endif
++
+ /*
+  * The printk log buffer consists of a chain of concatenated variable
+  * length records. Every record starts with a record header, containing
+@@ -1475,9 +1484,12 @@
+ 	unsigned int cpu = smp_processor_id();
+ 
+ #if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED) && defined(CONFIG_BCM_PRINTK_INT_ENABLED)
+-	if(oops_in_progress || early_boot_irqs_disabled ||
+-	   preempt_count() > 1 || irqs_disabled())
++    //I-CHIA.HUANG 20190304
++    if (printk_with_interrupt_enabled)
++    {
++        if(oops_in_progress || early_boot_irqs_disabled || preempt_count() > 1 || irqs_disabled())
+ 		return 0;
++    }
+ #endif
+ 	if (!console_trylock())
+ 		return 0;
+Index: linux-4.1.51/kernel/sysctl.c
+===================================================================
+--- linux-4.1.51.orig/kernel/sysctl.c	2018-03-28 04:15:21.000000000 +0800
++++ linux-4.1.51/kernel/sysctl.c	2019-03-04 19:00:43.694232500 +0800
+@@ -825,6 +825,16 @@
+ 		.extra1		= &zero,
+ 		.extra2		= &two,
+ 	},
++    //I-CHIA.HUANG 20190304
++    #if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED) && defined(CONFIG_BCM_PRINTK_INT_ENABLED)
++    {
++        .procname   = "printk_with_interrupt_enabled",
++        .data       = &printk_with_interrupt_enabled,
++        .maxlen     = sizeof(int),
++        .mode       = 0644,
++        .proc_handler   = proc_dointvec,
++    },
++    #endif
+ #endif
+ 	{
+ 		.procname	= "ngroups_max",

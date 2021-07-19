@@ -1,0 +1,208 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-11-06 11:18:29.202777305 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-11-06 11:21:53.592210462 +0800
+@@ -199,6 +199,11 @@
+ CFLAGS += -DISKON_CUSTOMIZATION
+ endif
+ 
++#OSK
++ifeq ($(CONFIG_ABUE_CUSTOMIZATION),y)
++CFLAGS += -DABUE_CUSTOMIZATION
++endif
++
+ ifeq ($(CONFIG_ZYXEL_AP_STEERING),y)
+ CFLAGS += -DAPSTEERING
+ endif
+Index: libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_acl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/firewall/zcfg_fe_dal_firewall_acl.c	2019-11-06 11:18:27.602777351 +0800
++++ libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_acl.c	2019-11-06 11:22:38.008286594 +0800
+@@ -15,7 +15,8 @@
+ 
+ dal_param_t FIREWALL_ACL_param[] =
+ {
+-	{"Index", 				dalType_int, 	 0, 	0,		NULL,	NULL, 							dal_Edit|dal_Delete},
++	{"Index", 				dalType_int, 	 0, 	0,		NULL,	NULL, 							dal_Edit|dal_Delete},	
++	{"Enable",				dalType_boolean, 0,	    0,	    NULL,	NULL,	                        dal_Add},
+ 	{"Name",		 		dalType_string,  1, 	128,	NULL,	NULL, 							dal_Add},
+ 	{"Order", 				dalType_int, 	 0, 	0, 		NULL,	NULL, 							dal_Add},
+ 	{"Target", 				dalType_string,  0, 	0, 		NULL,	"Accept|Drop|Reject", 			0},
+@@ -120,8 +121,8 @@
+ 		return;
+ 	}
+ 	
+-	printf("%-6s %-6s %-13s %-41s %-41s %-40s %-12s\n",
+-		    "Index", "Order", "Name", "Source IP", "Destination IP", "Service", "Action");
++	printf("%-6s %-6s %-6s %-13s %-41s %-41s %-40s %-12s\n",
++		    "Index", "Enable", "Order", "Name", "Source IP", "Destination IP", "Service", "Action");
+ 
+ 	len = json_object_array_length(Jarray);
+ 	for(i=0;i<len;i++){
+@@ -133,8 +134,9 @@
+ 		DestIP = json_object_get_string(json_object_object_get(obj, "DestIP"));
+ 		DestMask = json_object_get_string(json_object_object_get(obj, "DestMask"));
+ 		tmp[0] = '\0';
+-		printf("%-6s %-6s %-13s ",
++			printf("%-6s %-6s %-6s %-13s ",
+ 			json_object_get_string(json_object_object_get(obj, "Index")),
++			json_object_get_string(json_object_object_get(obj, "Enable")),			
+ 		    json_object_get_string(json_object_object_get(obj, "Order")),
+ 		    json_object_get_string(json_object_object_get(obj, "Name")));
+ 
+@@ -224,6 +226,7 @@
+ 	const char *charVal = NULL;
+ 	const char *protocol = NULL;
+ 	const char *name = NULL;
++	bool enable;
+ 	int intVal = 0;
+ 	char buf[32] = {0};
+ 	char ip[64] = {0};
+@@ -234,6 +237,8 @@
+ 
+ 	IID_INIT(aclIid);
+ 	oid = RDM_OID_FIREWALL_CHAIN_RULE;
++ 		
++	enable = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
+ 	name = json_object_get_string(json_object_object_get(Jobj, "Name"));
+ 	ServiceIndex = json_object_get_int(json_object_object_get(Jobj, "X_ZYXEL_ServiceIndex"));
+ 
+@@ -398,6 +403,10 @@
+ 				json_object_object_add(aclObj, "X_ZYXEL_LimitRateUnit", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "LimitRateUnit");
+ 			}
++			
++			if(json_object_object_get(Jobj, "Enable"))
++				json_object_object_add(aclObj, "Enable", json_object_new_boolean(enable));
++					
+ 			if(json_object_object_get(Jobj, "Name"))
+ 				json_object_object_add(aclObj, "Description", json_object_new_string(name));
+ 
+@@ -423,7 +432,8 @@
+ 	struct json_object *paramObj = NULL;
+ 	const char *charVal = NULL;
+ 	const char *protocol = NULL;
+-	const char *name = NULL;
++	const char *name = NULL;	
++	bool enable;
+ 	int intVal = 0;
+ 	char buf[32] = {0};
+ 	char ip[64] = {0};
+@@ -431,7 +441,8 @@
+ 	int startPort, endPort, ServiceIndex;
+ 	objIndex_t protocolIid = {0};
+ 	IID_INIT(protocolIid);
+-	
++
++	enable = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
+ 	name = json_object_get_string(json_object_object_get(Jobj, "Name"));
+ 	ServiceIndex = json_object_get_int(json_object_object_get(Jobj, "X_ZYXEL_ServiceIndex"));
+ 	
+@@ -580,6 +591,10 @@
+ 				json_object_object_add(aclObj, "X_ZYXEL_LimitRateUnit", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "LimitRateUnit");
+ 			}
++
++			if(json_object_object_get(Jobj, "Enable"))
++				json_object_object_add(aclObj, "Enable", json_object_new_boolean(enable));
++		
+ 			if(json_object_object_get(Jobj, "Name"))
+ 				json_object_object_add(aclObj, "Description", json_object_new_string(name));
+ 
+@@ -676,7 +691,8 @@
+ 				json_object_object_add(paramJobj, "Protocol", json_object_new_string(""));
+ 				break;
+ 		}
+-		
++
++		json_object_object_add(paramJobj, "Enable", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "Enable")));
+ 		json_object_object_add(paramJobj, "Order", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "Order")));
+ 		json_object_object_add(paramJobj, "Name", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "Description")));
+ 		json_object_object_add(paramJobj, "SourcePort", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "SourcePort")));
+@@ -752,3 +768,4 @@
+ 	return ret;
+ }
+ 
++
+Index: libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_generic.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/firewall/zcfg_fe_dal_firewall_generic.c	2019-11-06 11:18:28.274777331 +0800
++++ libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_generic.c	2019-11-06 11:22:17.857973044 +0800
+@@ -23,7 +23,11 @@
+ 	{"IPv6_Enable", 		dalType_boolean, 	0, 	0, 	NULL,	NULL,	NULL},
+ 	{"AdvancedLevel", 		dalType_string, 	0, 	0, 	NULL,	NULL,	dalcmd_Forbid},
+ 	{"Level_GUI",			dalType_string, 	0, 	0, 	NULL,	NULL,	dalcmd_Forbid},
++#ifdef ABUE_CUSTOMIZATION	
++	{"Level",				dalType_string, 	0, 	0, 	NULL,	"Low|Medium|High|Custom",	NULL},
++#else	
+ 	{"Level",				dalType_string, 	0, 	0, 	NULL,	"Low|Medium|High",	NULL},
++#endif	
+ 	{"Config", 				dalType_string, 	0, 	0, 	NULL,	NULL,	dalcmd_Forbid},
+ 	{"Level_Name", 			dalType_string, 	0, 	0, 	NULL,	NULL,	dalcmd_Forbid},
+ 	{"Description", 		dalType_string, 	0, 	0, 	NULL,	NULL,	dalcmd_Forbid},
+@@ -65,6 +69,13 @@
+ 		wantolan = "NO";
+ 		lantowan = "NO";
+ 	}
++#ifdef ABUE_CUSTOMIZATION		
++	else if(!strcmp(filewalllevel, "Custom")){
++		level = "Custom";
++		wantolan = "NO";
++		lantowan = "YES";
++	}
++#endif
+ 
+ 	printf("%-20s  %-10s \n", "IPv4 Firewall:", json_object_get_string(json_object_object_get(obj, "IPv4_Enable")));
+ 	printf("%-20s  %-10s \n", "IPv6 Firewall:", json_object_get_string(json_object_object_get(obj, "IPv6_Enable")));
+@@ -179,6 +190,11 @@
+ 	bool zyxelFirewallEnable = false;
+ 	bool found = false;
+ 	bool RSA_Telkom = false;
++#ifdef ABUE_CUSTOMIZATION	
++	struct json_object *FiremallACLJobj = NULL;
++	bool enable = false;
++	objIndex_t FiremallACLIid;
++#endif	
+ 
+ 
+ 	// RSA Telkom - Firewall per Interface
+@@ -214,13 +230,34 @@
+ 			level = "Low";
+ 		else if(!strcmp(clilevel, "High"))
+ 			level = "High";
++#ifdef ABUE_CUSTOMIZATION 		
++		else if(!strcmp(clilevel, "Custom"))
++			level = "Custom";
++#endif		
+ 	}
+ 	if(found && level){
+ 
+ 		json_object_object_add(levelObj, "X_ZYXEL_DefaultConfig", json_object_new_string(level));
+ 		ret = zcfgFeObjJsonSet(RDM_OID_FIREWALL_LEVEL, &levelIid, levelObj, NULL);
+ 	}
++#ifdef ABUE_CUSTOMIZATION 
++	if(!strcmp(level, "Custom"))
++		enable = true;
++	else
++		enable = false;
+ 
++	IID_INIT(FiremallACLIid);
++	FiremallACLIid.level = 2;
++	FiremallACLIid.idx[0] = 1;
++
++	while(zcfgFeObjJsonGetNext(RDM_OID_FIREWALL_CHAIN_RULE, &FiremallACLIid, &FiremallACLJobj) == ZCFG_SUCCESS){	
++		if(json_object_object_get(FiremallACLJobj, "Enable")){
++			json_object_object_add(FiremallACLJobj, "Enable", json_object_new_boolean(enable));		
++			zcfgFeObjJsonSet(RDM_OID_FIREWALL_CHAIN_RULE, &FiremallACLIid, FiremallACLJobj, NULL);
++		}	
++	}	
++	zcfgFeJsonObjFree(FiremallACLJobj);	
++#endif	
+ 	zcfgFeJsonObjFree(levelObj);
+ 	return ret;
+ }
+@@ -347,3 +384,4 @@
+ 	return ret;
+ }
+ 
++

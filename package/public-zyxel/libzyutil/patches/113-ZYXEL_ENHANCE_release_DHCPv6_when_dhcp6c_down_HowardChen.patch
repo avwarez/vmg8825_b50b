@@ -1,0 +1,15 @@
+Index: libzyutil-1.0/common.c
+===================================================================
+--- libzyutil-1.0.orig/common.c	2019-10-04 13:24:08.144597267 +0800
++++ libzyutil-1.0/common.c	2019-10-04 13:25:01.972598750 +0800
+@@ -350,8 +350,8 @@
+ 	fscanf(fptr, "%d", &pid);
+ 	fclose(fptr);
+ 
+-#if defined(SUNRISE_RELEASE_DHCP_PPP_BEFORE_IFDOWN) || defined(ECONET_PLATFORM)
+-	if (strstr(pidFile,"pppd") != NULL || strstr(pidFile,"/var/dhcpc") != NULL)
++#if 1 //SUNRISE_RELEASE_DHCP_PPP_BEFORE_IFDOWN
++	if (strstr(pidFile,"pppd") != NULL || strstr(pidFile,"/var/dhcpc") != NULL || strstr(pidFile,"dhcp6c") != NULL)
+ 	{
+ 		kill(pid, SIGTERM);
+ 		sleep(1);

@@ -1,0 +1,528 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_others.c	2020-04-10 17:20:44.648206000 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c	2020-04-10 17:20:44.656210000 +0800
+@@ -18,15 +18,15 @@
+ dal_param_t WIFI_OTHERS_param[]={
+ 	//WiFi Radio
+ 	{"Band",						dalType_string,		0,	0,	NULL,	"2.4GHz|5GHz",	dal_Edit},
+-	{"wlRtsThrshld",				dalType_int,		0,	2347,	NULL,	NULL,	0},
+-	{"wlFrgThrshld",				dalType_int, 		256,	2346,	NULL,	NULL,	0},
++	{"wlRtsThrshld",				dalType_int,		0,	2347,	NULL,	NULL,	hidden_extender_dalcmd_param},
++	{"wlFrgThrshld",				dalType_int, 		256,	2346,	NULL,	NULL,	hidden_extender_dalcmd_param},
+ 	{"AutoChannelTimer",			dalType_int,		0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{"wlCsScanTimer",				dalType_int,		0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{"wlTxPwrPcnt",					dalType_int,		0,	0,	NULL,	"20|40|60|80|100",	0},
+ 	{"wlBcnIntvl",					dalType_int,		50,	1000,	NULL,	NULL,	0},
+ 	{"wlDtmIntvl",					dalType_int,		1,	255,	NULL,	NULL,	0},
+ 	{"wlMode",						dalType_wlanMode,	0,	0,	NULL,	NULL,	0},
+-	{"wlProtect",					dalType_string,		0,	0,	NULL,	"auto|off",	0},
++	{"wlProtect",					dalType_string,		0,	0,	NULL,	"auto|off",	hidden_extender_dalcmd_param},
+ 	//{"wlRifsAdvert",				dalType_string,		0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{"wlPreamble",					dalType_string, 	0,	0,	NULL,	"long|short",	dalcmd_Forbid},
+ 	{"wlRxChainPwrSave",			dalType_int, 		0,	0,	NULL,	NULL,	dalcmd_Forbid},
+@@ -110,14 +110,18 @@
+ 		if(obj != NULL){
+ 			printf("%-20s : %s\n","Band",json_object_get_string(json_object_object_get(obj, "Band")));
+ 			printf("-----------------------------------------------\n");
++#ifndef ZYXEL_OPAL_EXTENDER
+ 			printf("%-30s : %s\n","RTS/CTS Threshold",json_object_get_string(json_object_object_get(obj, "wlRtsThrshld")));
+ 			printf("%-30s : %s\n","Fragmentation Threshold",json_object_get_string(json_object_object_get(obj, "wlFrgThrshld")));
++#endif
+ 			printf("%-30s : %s\n","Beacon Interval",json_object_get_string(json_object_object_get(obj, "wlBcnIntvl")));
+ 			printf("%-30s : %s\n","DTIM Interval",json_object_get_string(json_object_object_get(obj, "wlDtmIntvl")));
+ 			printf("%-30s : %s\n","802.11 Mode",json_object_get_string(json_object_object_get(obj, "wlMode")));
+ 			printf("%-30s : %s\n","Output Power",json_object_get_string(json_object_object_get(obj, "wlTxPwrPcnt")));
++#ifndef ZYXEL_OPAL_EXTENDER
+ 			printf("%-30s : %s\n","802.11 Protection",json_object_get_string(json_object_object_get(obj, "wlProtect")));
+ 			printf("%-30s : %s\n","Preamble",json_object_get_string(json_object_object_get(obj, "wlPreamble")));
++#endif
+ 			printf("%-30s : %s\n","Protected Management Frames",json_object_get_string(json_object_object_get(obj, "wlPmf")));
+ 			printf("\n");
+ 		}
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-04-10 17:20:44.608186000 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-04-10 17:20:44.660212000 +0800
+@@ -398,149 +398,150 @@
+ extern void zcfgFeDalShowOperatingModes(struct json_object *Jarray);
+ #endif
+ 
++
+ dal_handler_t dalHandler[] = {
+-{"wan",				WAN_param,			zcfgFeDalWan,			zcfgFeDalShowWan,			"get|add|edit|delete",	"Broadband"},
+-{"tr69",			MGMT_param,			zcfgFeDalMgmt,			zcfgFeDalShowMgmt,			"get|edit",			"TR-069_Client"},
+-{"ethwanlan", 		ETHWANLAN_param, 	zcfgFeDalEthWanLan,		zcfgFeDalShowEthWanLan,		"get|edit",				"Broadband"},
+-{"dns",				DNS_ENTRY_param,	zcfgFeDalDnsEntry,		zcfgFeDalShowDnsEntry,		"get|add|edit|delete",	"DNS"}, //DNS
+-{"ddns",			D_DNS_param,		zcfgFeDalDDns,			zcfgFeDalShowDDns,			"get|edit",			"DNS"},
+-{"wan_adv",			ADVANCE_param,		zcfgFeDalWanAdvance,	zcfgFeDalShowWanAdvance,	"get|edit",				"Broadband"}, //Broadband
+-{"cellular", 		WWANBACKUP_param,	zcfgFeDalWwanBackup,	zcfgFeDalShowWwanBackup,	"get|edit",				"Broadband"}, //Broadband
++{"wan",				WAN_param,			zcfgFeDalWan,			zcfgFeDalShowWan,			"get|add|edit|delete",	"Broadband",											hidden_extender_dalcmd},
++{"tr69",			MGMT_param,			zcfgFeDalMgmt,			zcfgFeDalShowMgmt,			"get|edit",			"TR-069_Client",											0},
++{"ethwanlan", 		ETHWANLAN_param, 	zcfgFeDalEthWanLan,		zcfgFeDalShowEthWanLan,		"get|edit",				"Broadband",											hidden_extender_dalcmd},
++{"dns",				DNS_ENTRY_param,	zcfgFeDalDnsEntry,		zcfgFeDalShowDnsEntry,		"get|add|edit|delete",	"DNS",													hidden_extender_dalcmd}, //DNS
++{"ddns",			D_DNS_param,		zcfgFeDalDDns,			zcfgFeDalShowDDns,			"get|edit",			"DNS",														hidden_extender_dalcmd},
++{"wan_adv",			ADVANCE_param,		zcfgFeDalWanAdvance,	zcfgFeDalShowWanAdvance,	"get|edit",				"Broadband",											hidden_extender_dalcmd}, //Broadband
++{"cellular", 		WWANBACKUP_param,	zcfgFeDalWwanBackup,	zcfgFeDalShowWwanBackup,	"get|edit",				"Broadband",											hidden_extender_dalcmd}, //Broadband
+ #ifdef ZYXEL_BANDWIDTH_IMPROVEMENT
+-{"bandwidth_improvement",Bandwidth_Improvement_param,	zcfgFeDalBandwidthImprovement, zcfgFeDalShowBandwidthImprovement, "edit|get",	"Broadband"},
++{"bandwidth_improvement",Bandwidth_Improvement_param,	zcfgFeDalBandwidthImprovement, zcfgFeDalShowBandwidthImprovement, "edit|get",	"Broadband",						hidden_extender_dalcmd},
+ #endif
+-{"ethctl",			ETH_CTL_param,		zcfgFeDalEthCtl,		zcfgFeDalShowEthCtl,		"get|edit",				"ethctl"}, //ETHCTL command
+-{"static_route", 	STATICROUTE_param,	zcfgFeDalStaticRoute,	zcfgFeDalShowStaticRoute,	"get|add|edit|delete",	"Routing"},
+-{"dns_route", 		DNSROUTE_param,		zcfgFeDalDnsRoute,		zcfgFeDalShowDnsRoute,		"get|add|edit|delete",	"Routing"}, //Routing
+-{"policy_route", 	POLICYROUTE_param,	zcfgFeDalPolicyRoute,	zcfgFeDalShowPolicyRoute,	"get|add|edit|delete",	"Routing"}, //Routing
+-{"rip", 			RIP_param,			zcfgFeDalRip,			zcfgFeDalShowRip,			"get|edit",				"Routing"}, //Routing
+-{"nat",				NatPortFwd_param,	zcfgFeDalNatPortMapping,zcfgFeDalShowPortFwd,		"get|add|edit|delete", "NAT"},
+-{"nat_trigger",NAT_PORT_TRIGGERING_param,zcfgFeDalNatPortTriggering,zcfgFeDalShowPortTrigger,			"get|add|edit|delete", 	"NAT"}, //NAT
+-{"nat_addr_map",NAT_ADDR_MAPPING_param,	zcfgFeDalNatAddrMapping,zcfgFeDalShowAddrMapping,	"get|add|edit|delete",	 "NAT"}, //NAT
+-{"NAT_APPLICATION",NAT_Application_param,	zcfgFeDalNatApplication,NULL,					"add|delete",		""}, //NAT
+-{"nat_conf",		NAT_CONF_param,		zcfgFeDalNatConf, 		zcfgFeDalShowNatConf,		"edit|get",				"NAT"}, //NAT
+-{"intf_group",		IntfGrp_param,		zcfgFeDalIntrGrp,		zcfgFeDalShowIntrGrp,		"add|edit|delete|get",	"Interface_Grouping"},//
++{"ethctl",			ETH_CTL_param,		zcfgFeDalEthCtl,		zcfgFeDalShowEthCtl,		"get|edit",				"ethctl",												0}, //ETHCTL command
++{"static_route", 	STATICROUTE_param,	zcfgFeDalStaticRoute,	zcfgFeDalShowStaticRoute,	"get|add|edit|delete",	"Routing",												hidden_extender_dalcmd},
++{"dns_route", 		DNSROUTE_param,		zcfgFeDalDnsRoute,		zcfgFeDalShowDnsRoute,		"get|add|edit|delete",	"Routing",												hidden_extender_dalcmd}, //Routing
++{"policy_route", 	POLICYROUTE_param,	zcfgFeDalPolicyRoute,	zcfgFeDalShowPolicyRoute,	"get|add|edit|delete",	"Routing",												hidden_extender_dalcmd}, //Routing
++{"rip", 			RIP_param,			zcfgFeDalRip,			zcfgFeDalShowRip,			"get|edit",				"Routing",												hidden_extender_dalcmd}, //Routing
++{"nat",				NatPortFwd_param,	zcfgFeDalNatPortMapping,zcfgFeDalShowPortFwd,		"get|add|edit|delete", "NAT",													hidden_extender_dalcmd},
++{"nat_trigger",NAT_PORT_TRIGGERING_param,zcfgFeDalNatPortTriggering,zcfgFeDalShowPortTrigger,			"get|add|edit|delete", 	"NAT",										hidden_extender_dalcmd}, //NAT
++{"nat_addr_map",NAT_ADDR_MAPPING_param,	zcfgFeDalNatAddrMapping,zcfgFeDalShowAddrMapping,	"get|add|edit|delete",	 "NAT",													hidden_extender_dalcmd}, //NAT
++{"NAT_APPLICATION",NAT_Application_param,	zcfgFeDalNatApplication,NULL,					"add|delete",		"",															hidden_extender_dalcmd}, //NAT
++{"nat_conf",		NAT_CONF_param,		zcfgFeDalNatConf, 		zcfgFeDalShowNatConf,		"edit|get",				"NAT",													hidden_extender_dalcmd}, //NAT
++{"intf_group",		IntfGrp_param,		zcfgFeDalIntrGrp,		zcfgFeDalShowIntrGrp,		"add|edit|delete|get",	"Interface_Grouping",									hidden_extender_dalcmd},//
+ #ifdef ZYXEL_GRE_SUPPORT
+-{"gre_tunnel",      GreTunnel_param,    zcfgFeDalGreTunnel,     zcfgFeDalShowGreTunnel,     "add|edit|delete|get",  "Tunnel_Setting"},
++{"gre_tunnel",      GreTunnel_param,    zcfgFeDalGreTunnel,     zcfgFeDalShowGreTunnel,     "add|edit|delete|get",  "Tunnel_Setting",										hidden_extender_dalcmd},
+ #endif
+-{"lanadv",			LANADV_param, 		zcfgFeDalLanAdvance,	zcfgFeDalShowLanAdv,		"edit|get",			"Home_Networking"},
+-{"lan",				LANSETUP_param, 	zcfgFeDalLanSetup,		zcfgFeDalShowLanSetup,		"get|edit", 			"Home_Networking"},
+-{"ipalias",			SUBNET_param,		zcfgFeDalAddnlSubnet,	zcfgFeDalShowAddnl,			"get|edit" ,			"Home_Networking"},//Home_Networking
+-{"static_dhcp",		STATIC_DHCP_param,	zcfgFeDalStaticDHCP,	zcfgFeDalShowStaticDHCP,	"get|add|edit|delete",	"Home_Networking"},//Home_Networking
+-{"vlan_group", 		VLANGRP_param,		zcfgFeDalVlanGroup,		zcfgFeDalShowVlanGroup,		"get|add|edit|delete",	"Vlan Group"},//Vlan_Group
+-{"igmp_mld", 		IGMPMLD_param,		zcfgFeDalIGMPMLD,		zcfgFeDalShowIGMPMLD,		"get|edit",			"IGMP_MLD"},//IGMP_MLD
+-{"firewall",		FIREWALL_param, 	zcfgFeDalFirewall,		zcfgFeDalShowFirewall,		"get|edit",			"Firewall"}, //Firewall
+-{"firewall_proto",	FIREWALL_PROTOCOL_param, zcfgFeDalFirewallProtocol,zcfgFeDalShowFirewallProtocol,	"get|add|edit|delete", 	"Firewall"},//Firewall
+-{"firewall_acl", 	FIREWALL_ACL_param, zcfgFeDalFirewallACL,	zcfgFeDalShowFirewallACL,	"add|edit|delete|get",	"Firewall"},
+-{"wlan",			WIFI_GENERAL_param,	zcfgFeDalWifiGeneral,   zcfgFeDalShowWifiGeneral,	"edit|get",			"Wireless"},
+-{"macfilter",		MAC_Filter_param,	zcfgFeDalMACFilter,		zcfgFeDalShowMACFilter,		"get|add|edit|delete",	"MAC_Filter"},//MAC_Filter
+-{"qos",				QosGeneral_param,	zcfgFeDalQosGeneral,	zcfgFeDalShowQosGeneral,	"get|edit",	"QoS"},//QoS
+-{"qos_queue",		QosQueue_param,		zcfgFeDalQosQueue,		zcfgFeDalShowQosQueue,		"get|add|edit|delete",	"QoS"},//QoS
+-{"qos_class",		QosClass_param,		zcfgFeDalQosClass,		zcfgFeDalShowQosClass,	    "get|add|edit|delete",	"QoS"},//QoS
+-{"qos_shaper",		QosShaper_param,	zcfgFeDalQosShaper,		zcfgFeDalShowQosShaper,		"get|add|edit|delete",	"QoS"},//QoS
+-{"qos_policer",		QosPolicer_param,	zcfgFeDalQosPolicer,	zcfgFeDalShowQosPolicer,	"get|add|edit|delete",	"QoS"},//QoS
+-{"wifi_macfilter",	WIFI_MACFILTER_param,	zcfgFeDalWifiMACFilter,zcfgFeDalShowWifiMACFilter,"get|add|edit|delete",	"Wireless"},//
+-{"wps",				WIFI_WPS_param,		zcfgFeDalWifiWps,		zcfgFeDalShowWifiWps,		"edit|get",			"Wireless"},
+-{"wmm",				WIFI_WMM_param,		zcfgFeDalWifiWmm,		zcfgFeDalShowWifiWmm,		"edit|get",			"Wireless"},//
++{"lanadv",			LANADV_param, 		zcfgFeDalLanAdvance,	zcfgFeDalShowLanAdv,		"edit|get",			"Home_Networking",											hidden_extender_dalcmd},
++{"lan",				LANSETUP_param, 	zcfgFeDalLanSetup,		zcfgFeDalShowLanSetup,		"get|edit", 			"Home_Networking",0},
++{"ipalias",			SUBNET_param,		zcfgFeDalAddnlSubnet,	zcfgFeDalShowAddnl,			"get|edit" ,			"Home_Networking",										hidden_extender_dalcmd},//Home_Networking
++{"static_dhcp",		STATIC_DHCP_param,	zcfgFeDalStaticDHCP,	zcfgFeDalShowStaticDHCP,	"get|add|edit|delete",	"Home_Networking",										hidden_extender_dalcmd},//Home_Networking
++{"vlan_group", 		VLANGRP_param,		zcfgFeDalVlanGroup,		zcfgFeDalShowVlanGroup,		"get|add|edit|delete",	"Vlan Group",											hidden_extender_dalcmd},//Vlan_Group
++{"igmp_mld", 		IGMPMLD_param,		zcfgFeDalIGMPMLD,		zcfgFeDalShowIGMPMLD,		"get|edit",			"IGMP_MLD",													hidden_extender_dalcmd},//IGMP_MLD
++{"firewall",		FIREWALL_param, 	zcfgFeDalFirewall,		zcfgFeDalShowFirewall,		"get|edit",			"Firewall",													hidden_extender_dalcmd}, //Firewall
++{"firewall_proto",	FIREWALL_PROTOCOL_param, zcfgFeDalFirewallProtocol,zcfgFeDalShowFirewallProtocol,	"get|add|edit|delete", 	"Firewall",									hidden_extender_dalcmd},//Firewall
++{"firewall_acl", 	FIREWALL_ACL_param, zcfgFeDalFirewallACL,	zcfgFeDalShowFirewallACL,	"add|edit|delete|get",	"Firewall",												hidden_extender_dalcmd},
++{"wlan",			WIFI_GENERAL_param,	zcfgFeDalWifiGeneral,   zcfgFeDalShowWifiGeneral,	"edit|get",			"Wireless",													0},
++{"macfilter",		MAC_Filter_param,	zcfgFeDalMACFilter,		zcfgFeDalShowMACFilter,		"get|add|edit|delete",	"MAC_Filter",											0},//MAC_Filter
++{"qos",				QosGeneral_param,	zcfgFeDalQosGeneral,	zcfgFeDalShowQosGeneral,	"get|edit",	"QoS",																hidden_extender_dalcmd},//QoS
++{"qos_queue",		QosQueue_param,		zcfgFeDalQosQueue,		zcfgFeDalShowQosQueue,		"get|add|edit|delete",	"QoS",													hidden_extender_dalcmd},//QoS
++{"qos_class",		QosClass_param,		zcfgFeDalQosClass,		zcfgFeDalShowQosClass,	    "get|add|edit|delete",	"QoS",													hidden_extender_dalcmd},//QoS
++{"qos_shaper",		QosShaper_param,	zcfgFeDalQosShaper,		zcfgFeDalShowQosShaper,		"get|add|edit|delete",	"QoS",													hidden_extender_dalcmd},//QoS
++{"qos_policer",		QosPolicer_param,	zcfgFeDalQosPolicer,	zcfgFeDalShowQosPolicer,	"get|add|edit|delete",	"QoS",													hidden_extender_dalcmd},//QoS
++{"wifi_macfilter",	WIFI_MACFILTER_param,	zcfgFeDalWifiMACFilter,zcfgFeDalShowWifiMACFilter,"get|add|edit|delete",	"Wireless",											0},//
++{"wps",				WIFI_WPS_param,		zcfgFeDalWifiWps,		zcfgFeDalShowWifiWps,		"edit|get",			"Wireless",													0},
++{"wmm",				WIFI_WMM_param,		zcfgFeDalWifiWmm,		zcfgFeDalShowWifiWmm,		"edit|get",			"Wireless",													0},//
+ #ifdef BUILD_SONIQ
+-{"WIFI_SONIQ",		WIFI_SONIQ_param, 	zcfgFeDalWifiSoniq,		NULL,						"edit|get", 			"Wireless"},//Wireless
++{"WIFI_SONIQ",		WIFI_SONIQ_param, 	zcfgFeDalWifiSoniq,		NULL,						"edit|get", 			"Wireless",												hidden_extender_dalcmd},//Wireless
+ #endif
+ #ifdef ZYXEL_EASYMESH
+-{"wifi_easy_mesh",		WIFI_EASYMESH_param, 	zcfgFeDalWifiEasyMesh,	zcfgFeDalShowWifiEasyMesh,	"edit|get",		"Wireless"},//Wireless
++{"wifi_easy_mesh",		WIFI_EASYMESH_param, 	zcfgFeDalWifiEasyMesh,	zcfgFeDalShowWifiEasyMesh,	"edit|get",		"Wireless",												0},//Wireless
+ #endif
+-{"wifi_others",		WIFI_OTHERS_param,	zcfgFeDalWifiOthers,	zcfgFeDalShowWifiOthers,	"edit|get",				"Wireless"},//
+-{"wlan_scheduler",	WLAN_SCHEDULER_param, zcfgFeDalWlanScheduler,	zcfgFeDalShowWlanScheduler,	"add|edit|delete|get",	"Wireless"},
+-{"wlan_sch_access",	WLAN_SCH_ACCESS_param, zcfgFeDalWlanSchAccess,	zcfgFeDalShowWlanSchAccess, "edit|get",	"Wireless"},
+-{"snmp",			SNMP_param, 		zcfgFeDalSNMP,			zcfgFeDalShowSNMP,			"edit|get",				"SNMP"},
+-{"time",			TIME_param, 		zcfgFeDalTime,			zcfgFeDalShowTime,			"edit|get",				"Time"},//Time
+-{"trust_domain",	TRUST_DOMAIN_param, zcfgFeDalTrustDomain,	zcfgFeDalShowTrustDomain,	"get|add|delete",		"Remote_MGMT"},//Remote_MGMT
++{"wifi_others",		WIFI_OTHERS_param,	zcfgFeDalWifiOthers,	zcfgFeDalShowWifiOthers,	"edit|get",				"Wireless",												0},//
++{"wlan_scheduler",	WLAN_SCHEDULER_param, zcfgFeDalWlanScheduler,	zcfgFeDalShowWlanScheduler,	"add|edit|delete|get",	"Wireless",											hidden_extender_dalcmd},
++{"wlan_sch_access",	WLAN_SCH_ACCESS_param, zcfgFeDalWlanSchAccess,	zcfgFeDalShowWlanSchAccess, "edit|get",	"Wireless",														hidden_extender_dalcmd},
++{"snmp",			SNMP_param, 		zcfgFeDalSNMP,			zcfgFeDalShowSNMP,			"edit|get",				"SNMP",													hidden_extender_dalcmd},
++{"time",			TIME_param, 		zcfgFeDalTime,			zcfgFeDalShowTime,			"edit|get",				"Time",													0},//Time
++{"trust_domain",	TRUST_DOMAIN_param, zcfgFeDalTrustDomain,	zcfgFeDalShowTrustDomain,	"get|add|delete",		"Remote_MGMT",											hidden_extender_dalcmd},//Remote_MGMT
+ #ifdef CONFIG_PPTP_SUPPORT
+-{"pptp",			PPTP_param,			zcfgFeDalPptp,			NULL,						"get|edit",				"PPTP"},
++{"pptp",			PPTP_param,			zcfgFeDalPptp,			NULL,						"get|edit",				"PPTP",													hidden_extender_dalcmd},
+ #endif
+-{"sp_trust_domain",	SP_TRUST_DOMAIN_param, zcfgFeDalSpTrustDomain, zcfgFeDalShowSpTrustDomain,	"get|add|delete",		"SP_Domain"},//SP_Domain
++{"sp_trust_domain",	SP_TRUST_DOMAIN_param, zcfgFeDalSpTrustDomain, zcfgFeDalShowSpTrustDomain,	"get|add|delete",		"SP_Domain",										hidden_extender_dalcmd},//SP_Domain
+ #if BUILD_PACKAGE_ZyIMS
+-{"sip_account",		VOIP_LINE_param,	zcfgFeDalVoipLine,		zcfgFeDalShowVoipLine,		"get|add|edit|delete", "SIP"},//SIP
+-{"sip_sp",			VOIP_PROFILE_param,	zcfgFeDalVoipProfile,	zcfgFeDalShowVoipProfile,	"get|add|edit|delete", "SIP"},//SIP
+-{"sip_tls",     VOIP_TLS_param,    zcfgFeDalVoipTLS,      zcfgFeDalShowVoipTLS,      "get|edit", "SIP"},//SIP
+-{"region",			VOIP_REGION_param,	zcfgFeDalVoipPhoneRegion,zcfgFeDalShowVoipRegion,	"get|edit",				"Phone"},//Phone
+-{"phone",		VOIP_PHONEDEVICE_param,	zcfgFeDalVoipPhoneDevice,zcfgFeDalShowVoipPhoneDevice,					"get|edit",			"Phone"},//Phone
+-{"PHONEDECT",		VOIP_PHONEDECT_param,zcfgFeDalVoipPhoneDECT,NULL,						"edit",				""},//Phone
+-{"speeddial",		VOIP_CALLRULE_param,zcfgFeDalVoipCallRule,	zcfgFeDalShowVoipCallRule,	"get|edit|delete",	"Call_Rule"},//Call_Rule
+-{"CALLBLOCK",		VOIP_CALLBLOCK_param,zcfgFeDalVoipCallBlock,NULL,						"edit",				""},//Call_Rule
+-{"call_history",	VOIP_CALLHISTORY_param,zcfgFeDalVoipCallHistory,	zcfgFeDalShowVoipCallHistory,	"get|delete",	"Call_Rule"},
+-{"call_summary",	VOIP_CALLSUMMARY_param,zcfgFeDalVoipCallSummary,	zcfgFeDalShowVoipCallSummary,	"get|delete",	"Call_Rule"},
++{"sip_account",		VOIP_LINE_param,	zcfgFeDalVoipLine,		zcfgFeDalShowVoipLine,		"get|add|edit|delete", "SIP",													hidden_extender_dalcmd},//SIP
++{"sip_sp",			VOIP_PROFILE_param,	zcfgFeDalVoipProfile,	zcfgFeDalShowVoipProfile,	"get|add|edit|delete", "SIP",													hidden_extender_dalcmd},//SIP
++{"sip_tls",     VOIP_TLS_param,    zcfgFeDalVoipTLS,      zcfgFeDalShowVoipTLS,      "get|edit", "SIP",																		hidden_extender_dalcmd},//SIP
++{"region",			VOIP_REGION_param,	zcfgFeDalVoipPhoneRegion,zcfgFeDalShowVoipRegion,	"get|edit",				"Phone",												hidden_extender_dalcmd},//Phone
++{"phone",		VOIP_PHONEDEVICE_param,	zcfgFeDalVoipPhoneDevice,zcfgFeDalShowVoipPhoneDevice,					"get|edit",			"Phone",								hidden_extender_dalcmd},//Phone
++{"PHONEDECT",		VOIP_PHONEDECT_param,zcfgFeDalVoipPhoneDECT,NULL,						"edit",				"",															hidden_extender_dalcmd},//Phone
++{"speeddial",		VOIP_CALLRULE_param,zcfgFeDalVoipCallRule,	zcfgFeDalShowVoipCallRule,	"get|edit|delete",	"Call_Rule",												hidden_extender_dalcmd},//Call_Rule
++{"CALLBLOCK",		VOIP_CALLBLOCK_param,zcfgFeDalVoipCallBlock,NULL,						"edit",				"",															hidden_extender_dalcmd},//Call_Rule
++{"call_history",	VOIP_CALLHISTORY_param,zcfgFeDalVoipCallHistory,	zcfgFeDalShowVoipCallHistory,	"get|delete",	"Call_Rule",										hidden_extender_dalcmd},
++{"call_summary",	VOIP_CALLSUMMARY_param,zcfgFeDalVoipCallSummary,	zcfgFeDalShowVoipCallSummary,	"get|delete",	"Call_Rule",										hidden_extender_dalcmd},
+ #endif
+-{"email_ntfy",		MAIL_NOTIFICATION_param,zcfgFeDalMailNotification,zcfgFeDalShowMailNotification,	"add|delete|get", 		"Email_Notify"},//Email_Notify
+-{"logset",			LOG_SETTING_param,	zcfgFeDalLogSetting,	zcfgFeDalShowLogSetting,	"get|edit", 		"Log"}, //Log
+-{"sys_log", 		SYS_LOG_param, 		zcfgFeDalSysLog,		zcfgFeDalShowSysLog,		"get|delete", 		"Log"},
++{"email_ntfy",		MAIL_NOTIFICATION_param,zcfgFeDalMailNotification,zcfgFeDalShowMailNotification,	"add|delete|get", 		"Email_Notify",								hidden_extender_dalcmd},//Email_Notify
++{"logset",			LOG_SETTING_param,	zcfgFeDalLogSetting,	zcfgFeDalShowLogSetting,	"get|edit", 		"Log",														hidden_extender_dalcmd}, //Log
++{"sys_log", 		SYS_LOG_param, 		zcfgFeDalSysLog,		zcfgFeDalShowSysLog,		"get|delete", 		"Log",														0},
+ #ifdef CONFIG_ZLOG_USE_DEBUG
+-{"zlog",            ZLOG_SETTING_param, zcfgFeDalZlogSetting,   zcfgFeDalShowZlogSetting,   "get|edit",         "Log"}, //Zlog
++{"zlog",            ZLOG_SETTING_param, zcfgFeDalZlogSetting,   zcfgFeDalShowZlogSetting,   "get|edit",         "Log",														hidden_extender_dalcmd}, //Zlog
+ #endif
+-{"PINGTEST",		PING_TEST_param,	zcfgFeDalPingTest,		NULL,						"edit",				""},//
+-{"8021AG",			IEEE_8021AG_param,	zcfgFe8021ag,			NULL,						"edit",				""},//Diagnostic_Result
+-{"8023AH",			IEEE_8023AH_param,	zcfgFe8023ah,			NULL,						"edit",				""},//Diagnostic_Result
+-{"OAMPING", 		OAMPING_param,		zcfgFeOamPing,			NULL,						"edit",				""},//Diagnostic_Result
+-{"usb_info", 		USB_FILESHARING_param,	zcfgFeDalUsbFilesharing,zcfgFeDalShowUsbFilesharing,	"get|edit", 	"USB_Service"},//USB_Service
+-{"usb_filesharing",	USB_SAMBA_param,	zcfgFeDalUsbSamba,		zcfgFeDalShowUsbSamba,		"get|add|edit|delete",	"USB_Service"},//USB_Service
+-{"media_server", 	USB_MEDIASERVER_param,	zcfgFeDalUsbMediaserver,	zcfgFeDalShowUsbMediaserver,"edit|get", 	"USB_Service"},
+-{"print_server",	USB_PRINTSERVER_param,	zcfgFeDalUsbPrintserver,	NULL,				"edit|get", 			"USB_Service"},
+-{"paren_ctl", 		PAREN_CTL_param,	zcfgFeDalParentCtl,		zcfgFeDalShowParentCtl,						"get|add|edit|delete",	"Parental_Control"},//Parental_Control
++{"PINGTEST",		PING_TEST_param,	zcfgFeDalPingTest,		NULL,						"edit",				"",															0},//
++{"8021AG",			IEEE_8021AG_param,	zcfgFe8021ag,			NULL,						"edit",				"",															0},//Diagnostic_Result
++{"8023AH",			IEEE_8023AH_param,	zcfgFe8023ah,			NULL,						"edit",				"",															0},//Diagnostic_Result
++{"OAMPING", 		OAMPING_param,		zcfgFeOamPing,			NULL,						"edit",				"",															0},//Diagnostic_Result
++{"usb_info", 		USB_FILESHARING_param,	zcfgFeDalUsbFilesharing,zcfgFeDalShowUsbFilesharing,	"get|edit", 	"USB_Service",											hidden_extender_dalcmd},//USB_Service
++{"usb_filesharing",	USB_SAMBA_param,	zcfgFeDalUsbSamba,		zcfgFeDalShowUsbSamba,		"get|add|edit|delete",	"USB_Service",											hidden_extender_dalcmd},//USB_Service
++{"media_server", 	USB_MEDIASERVER_param,	zcfgFeDalUsbMediaserver,	zcfgFeDalShowUsbMediaserver,"edit|get", 	"USB_Service",											hidden_extender_dalcmd},
++{"print_server",	USB_PRINTSERVER_param,	zcfgFeDalUsbPrintserver,	NULL,				"edit|get", 			"USB_Service",											hidden_extender_dalcmd},
++{"paren_ctl", 		PAREN_CTL_param,	zcfgFeDalParentCtl,		zcfgFeDalShowParentCtl,						"get|add|edit|delete",	"Parental_Control",						hidden_extender_dalcmd},//Parental_Control
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+-{"cyber_secure", 	CYBER_SECURE_param,	zcfgFeDalCyberSecure,	zcfgFeDalShowCyberSecure,						"get|edit",	"Parental_Control"},//Cyber_security
+-{"content_filter", 	CONTENT_FILTER_param,	zcfgFeDalContentFilter,	zcfgFeDalShowContentFilter,						"get|add|edit|delete",	"Parental_Control"},//Cyber_security
+-{"change_icon_name", 	ChangeIconName_param,	zcfgFeDalChangeIconName,	zcfgFeDalShowChangeIconName,						"get|add|edit|delete",	"Parental_Control"},//Cyber_security
++{"cyber_secure", 	CYBER_SECURE_param,	zcfgFeDalCyberSecure,	zcfgFeDalShowCyberSecure,						"get|edit",	"Parental_Control",								hidden_extender_dalcmd},//Cyber_security
++{"content_filter", 	CONTENT_FILTER_param,	zcfgFeDalContentFilter,	zcfgFeDalShowContentFilter,						"get|add|edit|delete",	"Parental_Control",				hidden_extender_dalcmd},//Cyber_security
++{"change_icon_name", 	ChangeIconName_param,	zcfgFeDalChangeIconName,	zcfgFeDalShowChangeIconName,						"get|add|edit|delete",	"Parental_Control",	hidden_extender_dalcmd},//Cyber_security
+ #endif
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+-{"URL_filter", 		URL_FILTER_param,	zcfgFeDalURLFilter,	zcfgFeDalShowURLFilter,						"get|add|edit|delete",	"Parental_Control"},//Cyber_security
+-{"URL_WhiteList", 	URLWhite_FILTER_param,	zcfgFeDalURLWhiteFilter,	zcfgFeDalShowURLWhiteFilter,	"get|add|edit|delete",	"Parental_Control"},//Cyber_security
+-{"URL_BlackList", 	URLBlack_FILTER_param,	zcfgFeDalURLBlackFilter,	zcfgFeDalShowURLBlackFilter,	"get|add|edit|delete",	"Parental_Control"},//Cyber_security
++{"URL_filter", 		URL_FILTER_param,	zcfgFeDalURLFilter,	zcfgFeDalShowURLFilter,						"get|add|edit|delete",	"Parental_Control",							hidden_extender_dalcmd},//Cyber_security
++{"URL_WhiteList", 	URLWhite_FILTER_param,	zcfgFeDalURLWhiteFilter,	zcfgFeDalShowURLWhiteFilter,	"get|add|edit|delete",	"Parental_Control",							hidden_extender_dalcmd},//Cyber_security
++{"URL_BlackList", 	URLBlack_FILTER_param,	zcfgFeDalURLBlackFilter,	zcfgFeDalShowURLBlackFilter,	"get|add|edit|delete",	"Parental_Control",							hidden_extender_dalcmd},//Cyber_security
+ #endif
+ #ifdef CONFIG_ZYXEL_ZY_LICENSE_CMD
+-{"zylicense", 		ZyLicense_param,	zcfgFeDalZyLicense,	zcfgFeDalShowZyLicense,						"get|edit",	"Parental_Control"},//Cyber_security
++{"zylicense", 		ZyLicense_param,	zcfgFeDalZyLicense,	zcfgFeDalShowZyLicense,						"get|edit",	"Parental_Control",										hidden_extender_dalcmd},//Cyber_security
+ #endif
+-{"scheduler",		SCHEDULE_param, 	zcfgFeDalSchedule,		zcfgFeDalShowSchedule,		"get|add|edit|delete",	"Scheduler_Rule"},
++{"scheduler",		SCHEDULE_param, 	zcfgFeDalSchedule,		zcfgFeDalShowSchedule,		"get|add|edit|delete",	"Scheduler_Rule",										hidden_extender_dalcmd},
+ #ifdef ZYXEL_IPSEC_VPN //richardfeng add IPSecVPN
+-	{"IPSecVPN",		IPSecVPN_param, 	zcfgFeDalIPSecVPN,		zcfgFeDalShowIPSecVPN,		"get|add|edit|delete",	"IPSecVPN_Rule"},
++	{"IPSecVPN",		IPSecVPN_param, 	zcfgFeDalIPSecVPN,		zcfgFeDalShowIPSecVPN,		"get|add|edit|delete",	"IPSecVPN_Rule",									hidden_extender_dalcmd},
+ #endif
+ #ifdef AVAST_AGENT_PACKAGE
+-{"package_3rdParty",Package_3rdParty_param, 	zcfgFeDalPackage3rdParty,	NULL,		"edit|get", "Package_3rdParty"},
++{"package_3rdParty",Package_3rdParty_param, 	zcfgFeDalPackage3rdParty,	NULL,		"edit|get", "Package_3rdParty",														hidden_extender_dalcmd},
+ #endif
+-{"dev_sec_cert", 	DEV_SEC_CERT_param,	zcfgFeDalDevSecCert, 	NULL,						"get|add|edit|delete", 	""},//Certificates
+-{"one_connect", 	HOME_CONNECTIVYITY_param, zcfgFeDalHomeConnectivity,zcfgFeDalShowHomeConnect, 	"get|edit", 		"Home_Connectivity"},//Home_Connectivity
+-{"oui",				OUI_param,		zcfgFeDaloui,		zcfgFeDalShowoui,		"get|edit",		"Home_Connectivity"},//Set one connect oui enable/disable, not for GUI
+-{"mgmt_srv", 		MGMT_SRV_param,	zcfgFeDalMgmtSrv,			zcfgFeDalShowMgmtSrv,		"edit|get",			"Remote_MGMT"},
+-{"sp_mgmt_srv", 	SP_MGMT_SRV_param,	zcfgFeDalSPMgmtSrv,		zcfgFeDalShowSPMgmtSrv,		"edit|get",			"SP_Domain"},
+-{"login_privilege", LOGIN_PRIVILEGE_param,	zcfgFeDalLoginPrivilege,NULL, 					"edit|get",				""},//root_only
+-{"QUICKSTART", 		QUICK_START_param,	zcfgFeDalQuickStart,	NULL,						"edit",				""},//root_only
+-{"user_account",	USER_ACCOUNT_param, zcfgFeDalUserAccount,	zcfgFeDalShowUserAccount,	"get|add|edit|delete",	"User_Account"}, //temporarily root_only //User_Account
+-{"lanhosts",		NETWORK_MAP_param, zcfgFeDalNetworkMAP,	zcfgFeDalShowNetworkMAP,		"get|add|edit|delete",				"Status"},
+-{"status",			NETWORK_MAP_param, zcfgFeDalStatus, 		NULL,						"",					""}, //temporarily GUI only
+-{"cardpage_status", NETWORK_MAP_param, zcfgFeDalCardPageStatus, NULL,						"", 				""}, //temporarily cardpage only
+-{"LanPortInfo", 	NETWORK_MAP_param, zcfgFeDalLanPortInfo, 	NULL,						"", 				""},
++{"dev_sec_cert", 	DEV_SEC_CERT_param,	zcfgFeDalDevSecCert, 	NULL,						"get|add|edit|delete", 	"",														0},//Certificates
++{"one_connect", 	HOME_CONNECTIVYITY_param, zcfgFeDalHomeConnectivity,zcfgFeDalShowHomeConnect, 	"get|edit", 		"Home_Connectivity",								hidden_extender_dalcmd},//Home_Connectivity
++{"oui",				OUI_param,		zcfgFeDaloui,		zcfgFeDalShowoui,		"get|edit",		"Home_Connectivity",														hidden_extender_dalcmd},//Set one connect oui enable/disable, not for GUI
++{"mgmt_srv", 		MGMT_SRV_param,	zcfgFeDalMgmtSrv,			zcfgFeDalShowMgmtSrv,		"edit|get",			"Remote_MGMT",												0},
++{"sp_mgmt_srv", 	SP_MGMT_SRV_param,	zcfgFeDalSPMgmtSrv,		zcfgFeDalShowSPMgmtSrv,		"edit|get",			"SP_Domain",												hidden_extender_dalcmd},
++{"login_privilege", LOGIN_PRIVILEGE_param,	zcfgFeDalLoginPrivilege,NULL, 					"edit|get",				"",														0},//root_only
++{"QUICKSTART", 		QUICK_START_param,	zcfgFeDalQuickStart,	NULL,						"edit",				"",															0},//root_only
++{"user_account",	USER_ACCOUNT_param, zcfgFeDalUserAccount,	zcfgFeDalShowUserAccount,	"get|add|edit|delete",	"User_Account",											0}, //temporarily root_only //User_Account
++{"lanhosts",		NETWORK_MAP_param, zcfgFeDalNetworkMAP,	zcfgFeDalShowNetworkMAP,		"get|add|edit|delete",				"Status",									hidden_extender_dalcmd},
++{"status",			NETWORK_MAP_param, zcfgFeDalStatus, 		NULL,						"",					"",															0}, //temporarily GUI only
++{"cardpage_status", NETWORK_MAP_param, zcfgFeDalCardPageStatus, NULL,						"", 				"",															0}, //temporarily cardpage only
++{"LanPortInfo", 	NETWORK_MAP_param, zcfgFeDalLanPortInfo, 	NULL,						"", 				"",															0},
+ //Monitor
+-{"Traffic_Status", Traffic_Status_param, zcfgFeDalTrafficStatus, 	NULL,						"get", 				""},
+-{"VOIP_Status", VOIP_Status_param, zcfgFeDalVoIPStatus, 	NULL,						"get", 				""},
+-{"port_mirror", PORT_MIRROR_param, zcfgFeDalPortMirror, 	zcfgFeDalShowPORT_MIRROR,						"edit|get",				"Status"},
+-{"sensor", 		SENSOR_param, zcfgFeDalSensor, 				NULL,						"edit", 			""},
++{"Traffic_Status", Traffic_Status_param, zcfgFeDalTrafficStatus, 	NULL,						"get", 				"",														0},
++{"VOIP_Status", VOIP_Status_param, zcfgFeDalVoIPStatus, 	NULL,						"get", 				"",																0},
++{"port_mirror", PORT_MIRROR_param, zcfgFeDalPortMirror, 	zcfgFeDalShowPORT_MIRROR,						"edit|get",				"Status",								0},
++{"sensor", 		SENSOR_param, zcfgFeDalSensor, 				NULL,						"edit", 			"",																0},
+ 
+ //#ifdef CBT_CUSTOMIZATION // 20170711 Max Add
+ #ifdef ZYXEL_WEB_WIRELESS_NEW_VERSION_ONE
+-{"WIFI_CBT",		WIFI_CBT_param,		zcfgFeDalCbtWifi,		NULL,		"edit",		""},
+-{"WIFI_ADVANCED_CBT",		WIFI_ADV_CBT_param,		zcfgFeDalCbtWifiAdv,		NULL,		"edit",		""},
++{"WIFI_CBT",		WIFI_CBT_param,		zcfgFeDalCbtWifi,		NULL,		"edit",		"",																					0},
++{"WIFI_ADVANCED_CBT",		WIFI_ADV_CBT_param,		zcfgFeDalCbtWifiAdv,		NULL,		"edit",		"",																	0},
+ #endif
+ #ifdef MOS_SUPPORT
+-{"gpon", GPON_param, zcfgFeDalGpon, 	zcfgFeDalShowGpon,						"edit|get",				"gpon"},
++{"gpon", GPON_param, zcfgFeDalGpon, 	zcfgFeDalShowGpon,						"edit|get",				"gpon",																hidden_extender_dalcmd},
+ #endif
+ #ifdef ZYXEL_SFP_POWER_MGMT
+-{"sfp_mgmt", SFP_MGMT_param, zcfgFeDalSfpMgmt, 	zcfgFeDalShowSfpMgmt,		"edit|get",				"SFPManagement"},
++{"sfp_mgmt", SFP_MGMT_param, zcfgFeDalSfpMgmt, 	zcfgFeDalShowSfpMgmt,		"edit|get",				"SFPManagement",														hidden_extender_dalcmd},
+ #endif
+ #ifdef ZYXEL_WEB_GUI_SHOW_ZYEE /* JoannaSu, 20191115, support ZyEE configuration */
+-{"ZYDUACT", ZYEE_DU_param, zcfgFeDalDUAction,  NULL,       "edit",             ""},
++{"ZYDUACT", ZYEE_DU_param, zcfgFeDalDUAction,  NULL,       "edit",             "",																							0},
+ #endif
+ #ifdef ZYXEL_OPAL_EXTENDER
+-{"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes, 	zcfgFeDalShowOperatingModes, 		"edit|get", 			"Wireless"},
++{"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes, 	zcfgFeDalShowOperatingModes, 		"edit|get", 			"Wireless",								0},
+ #endif
+-{NULL,				NULL,				NULL, 					NULL,						NULL,				 NULL}
++{NULL,				NULL,				NULL, 					NULL,						NULL,				 NULL,														NULL}
+ };
+ 
+ dal_voip_region_t dalVoipRegion[] = {
+@@ -698,6 +699,15 @@
+ {NULL,	NULL,	NULL}
+ };
+ 
++void hiddenDalcmd(){
++    int i;
++    for(i = 0; dalHandler[i].name != NULL; i++){
++        if(dalHandler[i].previlegebyFlag){
++            dalHandler[i].previlege = NULL;
++        }
++    }
++}
++
+ bool findInList(char *list, char *target, char *separator){
+ 	char *buf, *ptr, *tmp_ptr = NULL;
+ 
+@@ -2242,7 +2252,7 @@
+ zcfgRet_t zyshPrivilege(char *zyshlist, char *allList){
+ 	char userName[17] = {0}, level[16] = {0}, privilegeList[2049] = {0};
+ 	int i, len = 0, len1 = 0;
+-	
++
+ 	if(getPrivilegeData(userName, level, privilegeList) != ZCFG_SUCCESS)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal_common.h	2020-04-10 17:20:43.047406000 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h	2020-04-10 17:20:44.660212000 +0800
+@@ -26,6 +26,14 @@
+ #define dal_ReadOnly	1 << 6
+ #define dalcmd_Forbid  1 << 7
+ 
++#ifdef ZYXEL_OPAL_EXTENDER
++#define hidden_extender_dalcmd 1
++#define hidden_extender_dalcmd_param 1 << 7
++#else
++#define hidden_extender_dalcmd 0
++#define hidden_extender_dalcmd_param  0
++#endif
++
+ /*X_ZYXEL_Schedule Days*/
+ #define DAY_SUN (0x1 << 0)
+ #define DAY_MON (0x1 << 1)
+@@ -58,6 +66,7 @@
+ 	int					(*showfunc)(struct json_object *);
+ 	char				*method;
+ 	char				*previlege;
++	uint8_t				previlegebyFlag;
+ }dal_handler_t;
+ 
+ typedef struct dal_voip_region_s {
+Index: libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2020-04-10 17:20:44.628196000 +0800
++++ libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2020-04-10 17:20:44.660212000 +0800
+@@ -32,8 +32,8 @@
+ 	{"IPv4_Enable", dalType_boolean, 0, 0, NULL},
+ 	{"DisplaySOAP", dalType_boolean, 0, 0, NULL},
+ 	{"EnableAuthentication", dalType_boolean, 0, 0, NULL, NULL},	
+-	{"BoundInterfaceMode", dalType_string, 0, 256, NULL, "Any_WAN|Multi_WAN"},
+-	{"BoundInterfaceList", dalType_MultiRtWanWWan, 0, 256, NULL},
++	{"BoundInterfaceMode", dalType_string, 0, 256, NULL, "Any_WAN|Multi_WAN", hidden_extender_dalcmd_param},
++	{"BoundInterfaceList", dalType_MultiRtWanWWan, 0, 256, NULL, hidden_extender_dalcmd_param},
+ 	{"ConnectionRequestURL", dalType_string, 0, 0, NULL, NULL, dalcmd_Forbid},
+ 	{"CheckCert", dalType_boolean, 0, 0,NULL},
+ 	{"DataModelSpec", dalType_string, 0, 256, NULL, "TR-098|TR-181"},
+@@ -101,8 +101,10 @@
+ #else
+ 	printf("%-45s %s\n", "ACS Password", "********");
+ #endif
++#ifndef ZYXEL_OPAL_EXTENDER
+ 	printf("%-45s %s\n", "WAN Interface Used by TR-069 Client:", json_object_get_string(json_object_object_get(Jobj, "BoundInterfaceMode")));
+ 	printf("%-45s %s\n", "", !strcmp(mode, "Any_WAN")?"":json_object_get_string(json_object_object_get(Jobj, "BoundInterfaceList")));
++#endif
+ 	printf("%-45s %s\n", "Display SOAP Messages on Serial Console", json_object_get_string(json_object_object_get(Jobj, "DisplaySOAP")));
+ 	printf("%-45s %s\n", "Connection Request Authentication", (*conUser | *conPass)?"true":"false");
+ 	printf("%-45s %s\n", "Connection Request User Name", (*conUser | *conPass)?json_object_get_string(json_object_object_get(Jobj, "ConnectionRequestUsername")):"");
+Index: libzcfg_fe_dal-1.0/maintenance/logsetting/zcfg_fe_dal_sys_log.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/logsetting/zcfg_fe_dal_sys_log.c	2020-04-10 17:20:39.685726000 +0800
++++ libzcfg_fe_dal-1.0/maintenance/logsetting/zcfg_fe_dal_sys_log.c	2020-04-10 17:20:44.660212000 +0800
+@@ -26,7 +26,11 @@
+ 
+ 
+ dal_param_t SYS_LOG_param[]={
++#ifdef ZYXEL_OPAL_EXTENDER
++	{"category",		dalType_string, 0,	0,	NULL,	"syslog",	dal_Get|dal_Delete},
++#else
+ 	{"category",		dalType_string, 0,	0,	NULL,	"syslog|securitylog",	dal_Get|dal_Delete},
++#endif
+ 	{NULL,				dalType_int,	0,	0,	NULL,	NULL,	0},
+ };
+ 
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-10 17:20:44.648206000 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-10 17:20:44.660212000 +0800
+@@ -28,8 +28,8 @@
+ 	{"wlEnable",			dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ 	{"SSID",				dalType_string,	 	0,	0,	NULL,		NULL,			0},
+ 	{"X_ZYXEL_Multicast_Fwd",dalType_boolean,	0,	0,	NULL,		NULL,			0},
+-	{"upRate",				dalType_int,		0,	0,	NULL,		NULL,			0},
+-	{"downRate",			dalType_int,		0,	0,	NULL,		NULL,			0},
++	{"upRate",				dalType_int,		0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"downRate",			dalType_int,		0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
+ 	//WiFi Radio
+ 	{"div_wifiAdvance",		dalType_boolean,	0,	0,	NULL,		NULL,			dalcmd_Forbid},
+ 	{"bandwidth",			dalType_int,		0,	0,	NULL,		NULL,			0},
+@@ -50,10 +50,14 @@
+ 	{"wlEnableGuest",		dalType_boolean, 	0,	0,	NULL,		NULL,			0},
+ 	//WiFi Access Point Sec
+ 	{"ModesSupported",		dalType_string,		0,	0,	NULL,		NULL,			dalcmd_Forbid},
++#ifdef ZYXEL_OPAL_EXTENDER
++	{"securityLevel",		dalType_string,		0,	0,	NULL,		"NoSecurity|MoreSecure",	0},
++#else
+ 	{"securityLevel",		dalType_string,		0,	0,	NULL,		"NoSecurity|Basic|MoreSecure",	0},
++#endif
+ 	{"secMode",				dalType_int,		0,	0,	NULL,		"43|149|255",	dalcmd_Forbid},
+-	{"wep",					dalType_string,		0,	0,	NULL,		NULL,			0}, // 64bit|128bit if need enumeration
+-	{"WEPKey",				dalType_string, 	0,	0,	NULL,		NULL,			0},
++	{"wep",					dalType_string,		0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param}, // 64bit|128bit if need enumeration
++	{"WEPKey",				dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
+ 	// {"X_ZYXEL_AutoGenWepKey",dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ 	// {"X_ZYXEL_WEPKey2",		dalType_string, 	0,	0,	NULL,		NULL,			0},
+ 	// {"X_ZYXEL_WEPKey3",		dalType_string, 	0,	0,	NULL,		NULL,			0},
+@@ -63,14 +67,14 @@
+ 	// {"X_ZYXEL_WEP64Key3",	dalType_string, 	0,	0,	NULL,		NULL,			0},
+ 	// {"X_ZYXEL_WEP64Key4",	dalType_string, 	0,	0,	NULL,		NULL,			0},
+ 	{"AutoGenWepKey",dalType_boolean,	0,	0,	NULL,		NULL,			0},
+-	{"WEPKey2",		dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"WEPKey3",		dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"WEPKey4",		dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"WEP64Key1",	dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"WEP64Key2",	dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"WEP64Key3",	dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"WEP64Key4",	dalType_string, 	0,	0,	NULL,		NULL,			0},
+-	{"wepid",				dalType_string,		0,	0,	NULL,		"key1|key2|key3|key4",			0},
++	{"WEPKey2",		dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"WEPKey3",		dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"WEPKey4",		dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"WEP64Key1",	dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"WEP64Key2",	dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"WEP64Key3",	dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"WEP64Key4",	dalType_string, 	0,	0,	NULL,		NULL,			hidden_extender_dalcmd_param},
++	{"wepid",				dalType_string,		0,	0,	NULL,		"key1|key2|key3|key4",			hidden_extender_dalcmd_param},
+ #ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ 	{"wpaMode",				dalType_string,		0,	0,	NULL,		"wpapsk|wpawpa2psk|wpa2psk|wpawpa2|wpa3sae|wpa2pskwpa3sae",	0},
+ #else
+Index: libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-04-10 17:20:44.472118000 +0800
++++ libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-04-10 17:20:44.660212000 +0800
+@@ -20,46 +20,46 @@
+ 	{"IPAddress", dalType_v4Addr,	0,	0,	NULL},
+ 	{"SubnetMask", dalType_v4Mask,	0,	0,	NULL},
+ 	//IP Addressing Values
+-	{"DHCP_MinAddress", dalType_v4Addr,	0,	0,	NULL},
+-	{"DHCP_MaxAddress", dalType_v4Addr,	0,	0,	NULL},
+-	{"DHCP_AutoReserveLanIp", dalType_boolean,	0,	0,	NULL},
+-	{"DHCP_RelayAddr", dalType_v4Addr,	0,	0,	NULL},
++	{"DHCP_MinAddress", dalType_v4Addr,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"DHCP_MaxAddress", dalType_v4Addr,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"DHCP_AutoReserveLanIp", dalType_boolean,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"DHCP_RelayAddr", dalType_v4Addr,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//DHCP Server State
+-	{"EnableDHCP", dalType_boolean,	0,	0,	NULL},
+-	{"DHCPType", dalType_string,	0,	0,	NULL, "DHCPServer|DHCPRelay"},
++	{"EnableDHCP", dalType_boolean,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"DHCPType", dalType_string,	0,	0,	NULL, "DHCPServer|DHCPRelay",hidden_extender_dalcmd_param},
+ 	//DHCP Server Lease Time
+-	{"DHCP_LeaseTime", dalType_int,	0,	0,	NULL},
++	{"DHCP_LeaseTime", dalType_int,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//DNS Values
+-	{"DNS_Type", dalType_string,	0,	0,	NULL, "DNSProxy|FromISP|Static"},
+-	{"DNS_Servers1", dalType_v4Addr,	0,	0,	NULL},
+-	{"DNS_Servers2", dalType_v4Addr,	0,	0,	NULL},
++	{"DNS_Type", dalType_string,	0,	0,	NULL, "DNSProxy|FromISP|Static",hidden_extender_dalcmd_param},
++	{"DNS_Servers1", dalType_v4Addr,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"DNS_Servers2", dalType_v4Addr,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//LAN IPv6 Mode Setup
+-	{"IPv6_LanEnable", dalType_boolean,	0,	0,	NULL},
++	{"IPv6_LanEnable", dalType_boolean,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//Link Local Address Type
+-	{"IPv6_LinkLocalAddressType", dalType_string,	0,	0,	NULL, "EUI64|Manual"},
+-	{"IPv6_LinkLocalAddress", dalType_v6Addr,	0,	0,	NULL},
++	{"IPv6_LinkLocalAddressType", dalType_string,	0,	0,	NULL, "EUI64|Manual",hidden_extender_dalcmd_param},
++	{"IPv6_LinkLocalAddress", dalType_v6Addr,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//Lan Global Identifier Type
+-	{"IPv6_IdentifierType", 	dalType_string,	0,	0,	NULL, "EUI64|Manual"},
+-	{"IPv6_Identifier", dalType_string,	0,	0,	NULL},
++	{"IPv6_IdentifierType", 	dalType_string,	0,	0,	NULL, "EUI64|Manual",hidden_extender_dalcmd_param},
++	{"IPv6_Identifier", dalType_string,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//LAN IPv6 Prefix Setup
+-	{"IPv6_PrefixType", dalType_string,	0,	0,	NULL, "Static|DelegateFromWan"},
+-	{"IPv6_PrefixWan",			dalType_RtWan,	0,	0,	NULL, "Default"},
+-	{"IPv6_Prefix", 			dalType_v6AddrPrefix,	0,	0,	NULL},
++	{"IPv6_PrefixType", dalType_string,	0,	0,	NULL, "Static|DelegateFromWan",hidden_extender_dalcmd_param},
++	{"IPv6_PrefixWan",			dalType_RtWan,	0,	0,	NULL, "Default",hidden_extender_dalcmd_param},
++	{"IPv6_Prefix", 			dalType_v6AddrPrefix,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ 	//LAN IPv6 Address Assign Setup
+ 	{"IPv6_LanAddrAssign", dalType_string,	0,	0,	NULL, "Stateless|Stateful"},
+ 	//LAN IPv6 DNS Assign Setup
+-	{"IPv6_DNSAssign", dalType_string,	0,	0,	NULL, "RA|DHCP|RA_DHCP"},
++	{"IPv6_DNSAssign", dalType_string,	0,	0,	NULL, "RA|DHCP|RA_DHCP",hidden_extender_dalcmd_param},
+ 	//IPv6 Address Values
+-	{"Ipv6_MinAddress", dalType_string,	0,	0,	NULL},
+-	{"Ipv6_MaxAddress", dalType_string,	0,	0,	NULL},
+-	{"Ipv6_DNSSuffix", dalType_string,	0,	0,	NULL},
++	{"Ipv6_MinAddress", dalType_string,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"Ipv6_MaxAddress", dalType_string,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
++	{"Ipv6_DNSSuffix", dalType_string,	0,	0,	NULL,NULL,hidden_extender_dalcmd_param},
+ //{"Ipv6Interface", dalType_string,	0,	0,	NULL},
+ 	//IPv6 DNS Values
+-	{"Ipv6_DNSServer1", dalType_v6Addr,	0,	0,	NULL, "None|ISP|Proxy"},
+-	{"Ipv6_DNSServer2", dalType_v6Addr,	0,	0,	NULL, "None|ISP|Proxy"},
+-	{"Ipv6_DNSServer3", dalType_v6Addr,	0,	0,	NULL, "None|ISP|Proxy"},
++	{"Ipv6_DNSServer1", dalType_v6Addr,	0,	0,	NULL, "None|ISP|Proxy",hidden_extender_dalcmd_param},
++	{"Ipv6_DNSServer2", dalType_v6Addr,	0,	0,	NULL, "None|ISP|Proxy",hidden_extender_dalcmd_param},
++	{"Ipv6_DNSServer3", dalType_v6Addr,	0,	0,	NULL, "None|ISP|Proxy",hidden_extender_dalcmd_param},
+ 	//DNS Query Scenario
+-	{"DNSQueryScenario", dalType_string,	0,	0,	NULL, "IPv4IPv6|IPv6Only|IPv4Only|IPv6First|IPv4First"},
++	{"DNSQueryScenario", dalType_string,	0,	0,	NULL, "IPv4IPv6|IPv6Only|IPv4Only|IPv6First|IPv4First",hidden_extender_dalcmd_param},
+ 	//Other
+ 	{"IGMPSnoopingMode", dalType_string,	0,	0,	NULL, "Disabled|Standard|Blocking",	dalcmd_Forbid},
+ 	{"MLDSnoopingMode", dalType_string,	0,	0,	NULL, "Disabled|Standard|Blocking",	dalcmd_Forbid},

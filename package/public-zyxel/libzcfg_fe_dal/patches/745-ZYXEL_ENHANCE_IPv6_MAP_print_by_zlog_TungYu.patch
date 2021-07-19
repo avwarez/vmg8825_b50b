@@ -1,0 +1,177 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 08:40:36.043975288 +0000
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 08:40:45.719975196 +0000
+@@ -17,6 +17,7 @@
+ #if defined(SAME_FW_FOR_TWO_BOARD)
+ #include "zyutil_cofw.h"
+ #endif
++#include "zlog_api.h"
+ 
+ //#define JSON_OBJ_COPY(json_object) json_tokener_parse(json_object_to_json_string(json_object))
+ 
+@@ -2564,15 +2565,15 @@
+ 	char ipv6PrefixPath[MAX_INTF_PATH_LENGTH] = {0};
+ 	bool found = false;
+ 
+-	// printf("%s: Enter\n", __FUNCTION__);
++	ZLOG_INFO("%s: Enter\n", __FUNCTION__);
+ 
+ 	if(mapObj == NULL){
+-		// printf("%s: init mapObj\n", __FUNCTION__);
++		ZLOG_INFO("%s: init mapObj\n", __FUNCTION__);
+ 		if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_MAP, &mapIid, &mapObj)) != ZCFG_SUCCESS)
+ 			return ret;
+ 	}
+ 	if(domainObj == NULL){
+-		// printf("%s: init domainObj\n", __FUNCTION__);
++		ZLOG_INFO("%s: init domainObj\n", __FUNCTION__);
+ 
+ 		/* find domain object */
+ 		snprintf(wanIntfPath, MAX_INTF_PATH_LENGTH, "Device.%s",  ipIfacePath);
+@@ -2580,7 +2581,7 @@
+ 		while(!found && zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_MAP_DOMAIN, &domainIid, &domainObj) == ZCFG_SUCCESS)
+ 		{
+ 			// const char *DomainWANIntfPath = json_object_get_string(json_object_object_get(domainObj, "WANInterface"));
+-			// printf("%s : domain idx[0]=%d DWANIntfPath=%s WANIntfPath=%s\n", __FUNCTION__, domainIid.idx[0], DomainWANIntfPath, wanIntfPath);
++			// ZLOG_DEBUG("%s : domain idx[0]=%d DWANIntfPath=%s WANIntfPath=%s\n", __FUNCTION__, domainIid.idx[0], DomainWANIntfPath, wanIntfPath);
+ 
+ 			if(strcmp(wanIntfPath, json_object_get_string(json_object_object_get(domainObj, "WANInterface"))) == 0){
+ 				found = true;
+@@ -2590,19 +2591,19 @@
+ 		}
+ 		/* If there is no domain object can be found, add a new one */
+ 		if(!found){
+-			// printf("%s: domainObj\n", __FUNCTION__);
++			ZLOG_INFO("%s: domainObj\n", __FUNCTION__);
+ 			IID_INIT(domainIid);
+ 			if((ret = zcfgFeObjJsonAdd(RDM_OID_MAP_DOMAIN, &domainIid, NULL)) != ZCFG_SUCCESS)
+-				printf("%s: domainObj zcfgFeObjJsonAdd fail, errno=%d\n", __FUNCTION__, ret);
++				ZLOG_ERROR("%s: domainObj zcfgFeObjJsonAdd fail, errno=%d\n", __FUNCTION__, ret);
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_MAP_DOMAIN, &domainIid, &domainObj)) != ZCFG_SUCCESS)
+-				printf("%s: domainObj zcfgFeObjJsonGetWithoutUpdate fail, errno=%d\n", __FUNCTION__, ret);
+-			// printf("%s : domain idx[0]=%d \n", __FUNCTION__, domainIid.idx[0]);
++				ZLOG_ERROR("%s: domainObj zcfgFeObjJsonGetWithoutUpdate fail, errno=%d\n", __FUNCTION__, ret);
++			ZLOG_DEBUG("%s : domain idx[0]=%d \n", __FUNCTION__, domainIid.idx[0]);
+ 		}
+ 	}
+ 	if(ruleObj == NULL){
+-		// printf("%s: init ruleObj\n", __FUNCTION__);
++		ZLOG_INFO("%s: init ruleObj\n", __FUNCTION__);
+ 		/* get first rule in domain object */
+-		// printf("%s : rule1 idx[0]=%d idx[1]=%d domain idx[0]=%d\n", __FUNCTION__, ruleIid.idx[0], ruleIid.idx[1], domainIid.idx[0]);
++		ZLOG_DEBUG("%s : rule1 idx[0]=%d idx[1]=%d domain idx[0]=%d\n", __FUNCTION__, ruleIid.idx[0], ruleIid.idx[1], domainIid.idx[0]);
+ 		IID_INIT(ruleIid);
+ 		if( zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_MAP_DOMAIN_RULE, &domainIid, &ruleIid, &ruleObj) != ZCFG_SUCCESS){
+ 			/* if first rule object is empty, add a new one */
+@@ -2610,10 +2611,10 @@
+ 			ruleIid.level = 1;
+ 			ruleIid.idx[0] = domainIid.idx[0];
+ 			if((ret = zcfgFeObjJsonAdd(RDM_OID_MAP_DOMAIN_RULE, &ruleIid, NULL)) != ZCFG_SUCCESS)
+-				printf("%s: ruleObj zcfgFeObjJsonAdd fail, errno=%d\n", __FUNCTION__, ret);
++				ZLOG_ERROR("%s: ruleObj zcfgFeObjJsonAdd fail, errno=%d\n", __FUNCTION__, ret);
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_MAP_DOMAIN_RULE, &ruleIid, &ruleObj)) != ZCFG_SUCCESS)
+-				printf("%s: ruleObj zcfgFeObjJsonGetWithoutUpdate fail, errno=%d\n", __FUNCTION__, ret);
+-			// printf("%s : rule2 idx[0]=%d idx[1]=%d domain idx[0]=%d\n", __FUNCTION__, ruleIid.idx[0], ruleIid.idx[1], domainIid.idx[0]);
++				ZLOG_ERROR("%s: ruleObj zcfgFeObjJsonGetWithoutUpdate fail, errno=%d\n", __FUNCTION__, ret);
++			ZLOG_DEBUG("%s : rule2 idx[0]=%d idx[1]=%d domain idx[0]=%d\n", __FUNCTION__, ruleIid.idx[0], ruleIid.idx[1], domainIid.idx[0]);
+ 		}
+ 	}
+ 
+@@ -2642,16 +2643,16 @@
+ 	// Set WAN Interface when MAP doamin enable on new WAN
+ 	if(!found)
+ 	{
+-		// printf("%s : Set WAN Interface\n", __FUNCTION__);
++		ZLOG_INFO("%s : Set WAN Interface\n", __FUNCTION__);
+ 		snprintf(ipv6PrefixPath, MAX_INTF_PATH_LENGTH, "Device.%s.IPv6Prefix.1", ipIfacePath); //temporary set to IPv6Prefix.1
+ 		json_object_object_add(domainObj, "WANInterface", json_object_new_string(wanIntfPath));
+ 		json_object_object_add(domainObj, "IPv6Prefix", json_object_new_string(ipv6PrefixPath));
+ 	}
+ 	replaceParam(domainObj, "X_ZYXEL_Softwire46Enable", Jobj, "Softwire46Enable");
+-	// printf("%s : Domain %s %s S46=%d\n", __FUNCTION__
+-	// 			, json_object_get_string(json_object_object_get(domainObj, "WANInterface"))
+-	// 			, json_object_get_string(json_object_object_get(domainObj, "IPv6Prefix"))
+-	// 			, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
++	ZLOG_DEBUG("%s : Domain %s %s S46=%d\n", __FUNCTION__
++				, json_object_get_string(json_object_object_get(domainObj, "WANInterface"))
++				, json_object_get_string(json_object_object_get(domainObj, "IPv6Prefix"))
++				, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
+ 	// Set MAP rule by DHCP S46 option and don't need duplicate setting
+ 	if(json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) == true)
+ 		return ret;
+@@ -2661,14 +2662,14 @@
+ 	replaceParam(domainObj, "PSIDLength", Jobj, "PSIDLength");
+ 	replaceParam(domainObj, "PSID", Jobj, "PSID");
+ 
+-	// printf("%s : Domain %d %s %s PSIDOffset=%lld PSIDLength=%lld PSID=%lld S46=%d\n", __FUNCTION__
+-	// 			, json_object_get_boolean(json_object_object_get(domainObj, "Enable"))
+-	// 			, json_object_get_string(json_object_object_get(domainObj, "TransportMode"))
+-	// 			, json_object_get_string(json_object_object_get(domainObj, "BRIPv6Prefix"))
+-	// 			, json_object_get_int(json_object_object_get(domainObj, "PSIDOffset"))
+-	// 			, json_object_get_int(json_object_object_get(domainObj, "PSIDLength"))
+-	// 			, json_object_get_int(json_object_object_get(domainObj, "PSID"))
+-	// 			, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
++	ZLOG_DEBUG("%s : Domain %d %s %s PSIDOffset=%lld PSIDLength=%lld PSID=%lld S46=%d\n", __FUNCTION__
++				, json_object_get_boolean(json_object_object_get(domainObj, "Enable"))
++				, json_object_get_string(json_object_object_get(domainObj, "TransportMode"))
++				, json_object_get_string(json_object_object_get(domainObj, "BRIPv6Prefix"))
++				, json_object_get_int(json_object_object_get(domainObj, "PSIDOffset"))
++				, json_object_get_int(json_object_object_get(domainObj, "PSIDLength"))
++				, json_object_get_int(json_object_object_get(domainObj, "PSID"))
++				, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
+ 
+ 	/* MAP Domain Rule object */
+ 	replaceParam(ruleObj, "IPv6Prefix", Jobj, "IPv6Prefix");
+@@ -2678,13 +2679,13 @@
+ 	replaceParam(ruleObj, "PSIDLength", Jobj, "PSIDLength");
+ 	replaceParam(ruleObj, "PSID", Jobj, "PSID");
+ 
+-	// printf("%s : Rule %d %s %s %lld\n", __FUNCTION__
+-	// 			, json_object_get_boolean(json_object_object_get(ruleObj, "Enable"))
+-	// 			, json_object_get_string(json_object_object_get(ruleObj, "IPv6Prefix"))
+-	// 			, json_object_get_string(json_object_object_get(ruleObj, "IPv4Prefix"))
+-	// 			, json_object_get_int(json_object_object_get(ruleObj, "EABitsLength")) );
++	ZLOG_DEBUG("%s : Rule %d %s %s %lld\n", __FUNCTION__
++				, json_object_get_boolean(json_object_object_get(ruleObj, "Enable"))
++				, json_object_get_string(json_object_object_get(ruleObj, "IPv6Prefix"))
++				, json_object_get_string(json_object_object_get(ruleObj, "IPv4Prefix"))
++				, json_object_get_int(json_object_object_get(ruleObj, "EABitsLength")) );
+ 
+-	// printf("%s : End\n", __FUNCTION__);
++	ZLOG_INFO("%s : End\n", __FUNCTION__);
+ 	return ret;
+ }
+ 
+@@ -4510,12 +4511,12 @@
+ 					json_object_object_add(pramJobj, "PSID",JSON_OBJ_COPY(json_object_object_get(domainObj, "PSID")));
+ 					json_object_object_add(pramJobj, "Softwire46Enable",JSON_OBJ_COPY(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")));
+ 
+-					// printf("%s : Domain %s PSIDOffset=%lld PSIDLength=%lld PSID=%lld S46=%d\n", __FUNCTION__
+-					// 	, json_object_get_string(json_object_object_get(domainObj, "BRIPv6Prefix"))
+-					// 	, json_object_get_int(json_object_object_get(domainObj, "PSIDOffset"))
+-					// 	, json_object_get_int(json_object_object_get(domainObj, "PSIDLength"))
+-					// 	, json_object_get_int(json_object_object_get(domainObj, "PSID"))
+-					// 	, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
++					ZLOG_DEBUG("%s : Domain %s PSIDOffset=%lld PSIDLength=%lld PSID=%lld S46=%d\n", __FUNCTION__
++						, json_object_get_string(json_object_object_get(domainObj, "BRIPv6Prefix"))
++						, json_object_get_int(json_object_object_get(domainObj, "PSIDOffset"))
++						, json_object_get_int(json_object_object_get(domainObj, "PSIDLength"))
++						, json_object_get_int(json_object_object_get(domainObj, "PSID"))
++						, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
+ 					break ;
+ 				}
+ 				zcfgFeJsonObjFree(domainObj);
+@@ -4529,9 +4530,9 @@
+ 				json_object_object_add(pramJobj, "IPv6Prefix",JSON_OBJ_COPY(json_object_object_get(ruleObj, "IPv6Prefix")));
+ 				json_object_object_add(pramJobj, "IPv4Prefix",JSON_OBJ_COPY(json_object_object_get(ruleObj, "IPv4Prefix")));
+ 
+-				// printf("%s : Rule %s %s \n", __FUNCTION__
+-				// 	, json_object_get_string(json_object_object_get(ruleObj, "IPv6Prefix"))
+-				// 	, json_object_get_string(json_object_object_get(ruleObj, "IPv4Prefix")) );
++				ZLOG_DEBUG("%s : Rule %s %s \n", __FUNCTION__
++					, json_object_get_string(json_object_object_get(ruleObj, "IPv6Prefix"))
++					, json_object_get_string(json_object_object_get(ruleObj, "IPv4Prefix")) );
+ 			}
+ 		}
+ 		//MAP end

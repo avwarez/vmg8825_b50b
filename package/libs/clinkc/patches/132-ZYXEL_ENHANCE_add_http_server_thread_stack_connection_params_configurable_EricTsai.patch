@@ -1,0 +1,353 @@
+Index: clinkc/include/cybergarage/http/chttp.h
+===================================================================
+--- clinkc.orig/include/cybergarage/http/chttp.h	2020-06-23 16:58:24.654019701 +0800
++++ clinkc/include/cybergarage/http/chttp.h	2020-06-23 16:58:24.670019701 +0800
+@@ -375,6 +375,10 @@
+ 	int timeout;
+ 	CgMutex *mutex;
+ #ifdef ZYXEL_PATCH /*support ssl, ZyXEL 2013*/
++	// set params
++	int clientThreadStack;
++	int clientThreadMaxNum;
++	int clientSockMaxNum;
+ 	void *ctxdata;
+ 	CgSocketList *clientSocks;
+ #endif
+@@ -760,6 +764,25 @@
+ #define cg_http_server_setuserdata(httpServer, value) (httpServer->userData = value)
+ #define cg_http_server_getuserdata(httpServer) (httpServer->userData)
+ 
++
++#ifdef ZYXEL_PATCH
++#define cg_http_server_client_thread_nuw(httpServer) ((cg_threadlist_size(httpServer->clientThreads) >= httpServer->clientThreadMaxNum) ? NULL : cg_thread_new())
++#define cg_http_server_setclientthreadstack(httpServer, value) (httpServer->clientThreadStack = value)
++#define cg_http_server_setmaxclientthreadnum(httpServer, value) (httpServer->clientThreadMaxNum = value ? value : CG_CLIENT_THREAD_LIMIT)
++#define cg_http_server_setmaxclientsocknum(httpServer, value) (httpServer->clientSockMaxNum = value ? value : CG_MAX_WAIT_CLIENT_SOCKET)
++#define cg_http_server_clientthreadstack(httpServer) (httpServer->clientThreadStack)
++#define cg_http_server_maxclientthreadnum(httpServer) (httpServer->clientThreadMaxNum)
++#define cg_http_server_maxclientsocknum(httpServer) (httpServer->clientSockMaxNum)
++#else
++#define cg_http_server_client_thread_nuw(httpServer) cg_thread_new()
++#define cg_http_server_setclientthreadstack(httpServer, value) {}
++#define cg_http_server_setmaxclientthreadnum(httpServer, value) {}
++#define cg_http_server_setmaxclientsocknum(httpServer, value) {}
++#define cg_http_server_clientthreadstack(httpServer) 0
++#define cg_http_server_maxclientthreadnum(httpServer) CG_CLIENT_THREAD_LIMIT
++#define cg_http_server_maxclientsocknum(httpServer) CG_MAX_WAIT_CLIENT_SOCKET
++#endif
++
+ char *cg_http_getservername(char *buf, int bufSize);
+ 
+ /**** Timeout ****/
+Index: clinkc/include/cybergarage/util/cthread.h
+===================================================================
+--- clinkc.orig/include/cybergarage/util/cthread.h	2020-06-23 16:58:24.002019720 +0800
++++ clinkc/include/cybergarage/util/cthread.h	2020-06-23 16:58:24.670019701 +0800
+@@ -124,6 +124,7 @@
+ 	/** Arbitrary data pointer */
+ 	void *userData;
+ #ifdef ZYXEL_PATCH
++	int stack;
+ 	CgMutex *mutex;
+ 	BOOL isAlreadyExit;
+ #endif	
+@@ -132,6 +133,10 @@
+ #ifdef ZYXEL_PATCH
+ #define cg_thread_lock(thread) cg_mutex_lock(thread->mutex)
+ #define cg_thread_unlock(thread) cg_mutex_unlock(thread->mutex)
++
++#define cg_thread_setstack(thread, value) (thread->stack = value)
++#else
++#define cg_thread_setstack(thread, value) {}
+ #endif
+ /**
+  * Prototype for the threads' worker functions 
+Index: clinkc/src/cybergarage/util/cthread.c
+===================================================================
+--- clinkc.orig/src/cybergarage/util/cthread.c	2020-06-23 16:58:24.130019716 +0800
++++ clinkc/src/cybergarage/util/cthread.c	2020-06-23 16:58:24.674019701 +0800
+@@ -386,7 +386,14 @@
+ #ifdef STACK_SIZE
+ 	/* Optimization : not we can set STACK_SIZE attribute at compilation time */
+ 	/* to specify thread stack size */
+-    pthread_attr_setstacksize (&thread_attr,STACK_SIZE);
++#ifdef ZYXEL_PATCH
++	if(thread->stack)
++		pthread_attr_setstacksize(&thread_attr, thread->stack);
++	else
++#endif
++	{
++		pthread_attr_setstacksize (&thread_attr,STACK_SIZE);
++	}
+ #endif
+ 	/* MODIFICATION END Fabrice Fontaine Orange 24/04/2007 */
+ 	if (pthread_create(&thread->pThread, &thread_attr, PosixThreadProc, thread) != 0) {
+Index: clinkc/src/cybergarage/http/chttp_server.c
+===================================================================
+--- clinkc.orig/src/cybergarage/http/chttp_server.c	2020-06-23 16:58:24.662019701 +0800
++++ clinkc/src/cybergarage/http/chttp_server.c	2020-06-23 17:12:18.765995638 +0800
+@@ -63,6 +63,8 @@
+ #ifdef ZYXEL_PATCH /*support ssl, ZyXEL 2013*/
+ 		httpServer->ctxdata = NULL;
+ 		httpServer->clientSocks = NULL;
++		httpServer->clientThreadMaxNum = CG_CLIENT_THREAD_LIMIT;
++		httpServer->clientSockMaxNum = CG_MAX_WAIT_CLIENT_SOCKET;
+ #endif
+ #ifdef ZYXEL_PATCH /*fix the bug of thread list never end, ZyXEL 2014, by Charisse*/
+ 		httpServer->prev = NULL;
+@@ -158,6 +160,8 @@
+ 	     printf("Error setsockopt error=%s\n\n\n",strerror(errno));
+ #endif
+ 
++	cg_socket_setmaxconns(httpServer->sock, cg_http_server_maxclientsocknum(httpServer));
++
+ 	if (cg_socket_listen(httpServer->sock) == FALSE) {
+ 		cg_socket_delete(httpServer->sock);
+ 		httpServer->sock = NULL;
+@@ -264,6 +268,8 @@
+ 	cg_log_debug_l4("Leaving...\n");
+ }
+ 
++#define MAX_SELECT_ERR_AND_QUIT		1
++
+ static void cg_http_server_clientthread(CgThread *thread)
+ {
+ 	CgHttpServerClientData *clientData;
+@@ -275,7 +281,8 @@
+ 	CgSocketList *clientSocks;
+ 	struct timeval timeout;
+ #endif
+-	CgSocket *clientSock;
++	int errnum = 0;
++	CgSocket *clientSock = NULL;
+ 	void *httpServerUserData;
+ 	CgHttpRequest *httpReq;
+ 	char *version = NULL;
+@@ -321,26 +328,35 @@
+ 		nReturn = select(maxFd, &readFds, NULL, &activeFds, &timeout);
+ 		if(nReturn < 0) {
+ 			if (errno == EINTR){
+-				continue;
++				printf("%s: err EINTR\n", __FUNCTION__);
++				errnum = errnum + 1;
++				if(errnum != MAX_SELECT_ERR_AND_QUIT){
++					continue;
++				}
++			}
++			else {
++				printf("%s: errno %d\n", __FUNCTION__, errno);
+ 			}
+-			printf("%s: errno %d\n", __FUNCTION__, errno);
+ 			cg_thread_lock(thread);
+-			thread->isAlreadyExit = TRUE;
++			cg_socketlist_close(clientSocks);
++			clientData->_clientSockSize = 0;
+ 			cg_thread_unlock(thread);
+-
+ 			break;
+ 		}
+ 		else if(nReturn == 0){ //Yuru@2014.12.03, workaround, SO_RCVTIMEO sometimes doesn't work. force delete socket.
+ 			//printf("clinkc: cg_http_server_clientthread() select timeout\n");
++			errnum = errnum + 1;
++			if(errnum != MAX_SELECT_ERR_AND_QUIT){
++				continue;
++			}
++
+ 			cg_thread_lock(thread);
+-			cg_list_remove((CgList*)clientSock);
+-			clientData->_clientSockSize--;
++			cg_socketlist_close(clientSocks);
++			clientData->_clientSockSize = 0;
+ 			cg_thread_unlock(thread);
+-			cg_socket_delete(clientSock);
+-			clientSock = NULL;
+-			continue;
+ 		}
+ 		else if(nReturn){
++			errnum = 0;
+ 			clientSock = NULL;
+ 			cg_thread_lock(thread);
+ 			activeSock = cg_socketlist_gets(clientSocks);
+@@ -373,6 +389,13 @@
+ 							if (cg_http_request_gethost(httpReq) == NULL)
+ 							{
+ 								cg_http_request_postbadrequest(httpReq);
++
++								cg_thread_lock(thread);
++								cg_list_remove((CgList*)clientSock);
++								clientData->_clientSockSize--;
++								cg_thread_unlock(thread);
++								cg_socket_delete(clientSock);
++
+ 								clientSock = NULL;
+ 								continue;
+ 							}
+@@ -566,10 +589,12 @@
+ 			if (errno == EINTR) continue;
+             break;
+ 		}
+-		else if(nReturn){
+-			if(nReturn && (FD_ISSET(serverSock->id, &activeFds) || FD_ISSET(serverSock->id, &readFds))){
++		else if(nReturn)
++		{
++			if(FD_ISSET(serverSock->id, &activeFds) || FD_ISSET(serverSock->id, &readFds))
++			{
+ 				nReturn--;
+-				if(cg_socketlist_size(httpServer->clientSocks) >= CG_MAX_WAIT_CLIENT_SOCKET){
++				if(cg_socketlist_size(httpServer->clientSocks) >= cg_http_server_maxclientsocknum(httpServer)){
+ 					cg_log_debug_l4("Over accept socket limitation, don't accpet any connection now.\n");
+ 				}
+ 				else {
+@@ -618,8 +643,9 @@
+ 							cg_socket_delete(clientSock);
+ 							clientSock = NULL;
+ 							continue;
+-						}
+-						else if(CG_CLIENT_THREAD_LIMIT && (clientThreadSize = cg_threadlist_size(httpServer->clientThreads)) >= CG_CLIENT_THREAD_LIMIT){
++						//}
++						//else if(CG_CLIENT_THREAD_LIMIT && (clientThreadSize = cg_threadlist_size(httpServer->clientThreads)) >= CG_CLIENT_THREAD_LIMIT){
++						}else if(cg_http_server_maxclientthreadnum(httpServer) && cg_threadlist_size(httpServer->clientThreads) >= cg_http_server_maxclientthreadnum(httpServer)){
+ 							//cg_sleep(CG_CLIENT_THREAD_WAIT_TIME);
+ 							//break;
+ #if 0
+@@ -660,22 +686,31 @@
+ 						}
+ 						else{
+ #endif
+-		clientData = cg_http_server_clientdata_new(httpServer, clientSock);
+-		httpClientThread = cg_thread_new();
+-		cg_thread_setaction(httpClientThread, cg_http_server_clientthread);
+-		cg_thread_setuserdata(httpClientThread, clientData);
+-
+-		/**** Thanks for Makela Aapo (10/31/05) ****/
+-		cg_http_server_lock(httpServer);
+-		cg_threadlist_add(httpServer->clientThreads, httpClientThread);
+-		cg_http_server_unlock(httpServer);
+-		int n = cg_threadlist_size(httpServer->clientThreads);
++							//httpClientThread = cg_thread_new();
++							httpClientThread = cg_http_server_client_thread_nuw(httpServer);
++							if(httpClientThread){
++								clientData = cg_http_server_clientdata_new(httpServer, clientSock);
++								cg_thread_setaction(httpClientThread, cg_http_server_clientthread);
++								cg_thread_setuserdata(httpClientThread, clientData);
++								cg_thread_setstack(httpClientThread, httpServer->clientThreadStack);
++
++								/**** Thanks for Makela Aapo (10/31/05) ****/
++								cg_http_server_lock(httpServer);
++								cg_threadlist_add(httpServer->clientThreads, httpClientThread);
++								cg_http_server_unlock(httpServer);
++								int n = cg_threadlist_size(httpServer->clientThreads);
+ 
+ #if 0 /* cpwang, 2018-09-19 14:02:16, redundant log */
+ 		printf("%s: clientThreads %d\n", __FUNCTION__, n);
+ #endif
+ 
+-		cg_thread_start(httpClientThread);
++								cg_thread_start(httpClientThread);
++							}
++							else{
++								printf("%s: create client thread fail!", __func__);
++								cg_socket_delete(clientSock);
++								clientSock = NULL;
++							}
+ #ifdef ZYXEL_PATCH
+ 						}
+ 					}
+Index: clinkc/src/cybergarage/net/csocket.c
+===================================================================
+--- clinkc.orig/src/cybergarage/net/csocket.c	2020-06-23 16:58:24.662019701 +0800
++++ clinkc/src/cybergarage/net/csocket.c	2020-06-23 16:58:24.674019701 +0800
+@@ -303,6 +303,7 @@
+ 		cg_socket_setremoteport(sock, -1);
+ 		sock->if_name = cg_string_new();
+ 		cg_socket_setifname(sock, "");
++		sock->maxconns = SOMAXCONN;
+ #endif
+ 
+ 
+@@ -662,8 +663,12 @@
+ 	/**** Not Supported ****/
+ 	int ret = 0;
+ #else
++#ifdef ZYXEL_PATCH
++	int ret = listen(sock->id, sock->maxconns);
++#else
+ 	int ret = listen(sock->id, SOMAXCONN);
+ #endif
++#endif
+ 
+ 	cg_log_debug_l4("Entering...\n");
+ 
+@@ -1198,7 +1203,7 @@
+ 		ret = -1;
+ #else
+ 	struct addrinfo *toaddrInfo;
+-	int ret;
++	int ret = 0;
+ 
+ #ifdef ZYXEL_PATCH /*non-blocking mode connect, ZyXEL 2013*/
+ 	long flags;
+Index: clinkc/include/cybergarage/net/csocket.h
+===================================================================
+--- clinkc.orig/include/cybergarage/net/csocket.h	2020-06-23 16:58:24.282019712 +0800
++++ clinkc/include/cybergarage/net/csocket.h	2020-06-23 16:58:24.674019701 +0800
+@@ -109,6 +109,8 @@
+ 	CgString *remoteIpAddr;
+ 	CgString *if_name;
+ 	int remotePort;
++	// max connections
++	int maxconns;
+ #endif
+ #if defined(ITRON)
+ 	UH *sendWinBuf;
+@@ -173,6 +175,10 @@
+ #define cg_socket_getremoteport(socket) (socket->remotePort)
+ #define cg_socket_setifname(socket, value) cg_string_setvalue(socket->if_name, value)
+ #define cg_socket_getifname(socket) cg_string_getvalue(socket->if_name)
++
++#define cg_socket_setmaxconns(socket, value) (socket->maxconns = value)
++#else
++#define cg_socket_setmaxconns(socket, value) {}
+ #endif
+ 
+ 
+@@ -277,6 +283,9 @@
+ #define cg_socketlist_gets(sockList) (CgSocket *)cg_list_next((CgList *)sockList)
+ #define cg_socketlist_add(sockList, sock) cg_list_add((CgList *)sockList, (CgList *)sock)
+ 
++void cg_socketlist_close(CgSocketList *socketList);
++#else
++
+ #endif
+ 
+ #ifdef ZYXEL_PATCH
+Index: clinkc/src/cybergarage/net/csocket_list.c
+===================================================================
+--- clinkc.orig/src/cybergarage/net/csocket_list.c	2006-09-22 19:06:10.000000000 +0800
++++ clinkc/src/cybergarage/net/csocket_list.c	2020-06-23 16:58:24.674019701 +0800
+@@ -41,6 +41,25 @@
+ 	cg_log_debug_l4("Leaving...\n");
+ }
+ 
++
++void cg_socketlist_close(CgSocketList *socketList)
++{
++	CgSocket *sock, *next;
++
++	cg_log_debug_l4("Entering...\n");
++
++	sock = cg_socketlist_gets(socketList);
++	while(sock)
++	{
++		next = cg_socket_next(sock);
++		cg_socket_close(sock);
++
++		sock = next;
++	}
++
++	cg_log_debug_l4("Leaving...\n");
++}
++
+ /****************************************
+ * cg_socketlist_delete
+ ****************************************/

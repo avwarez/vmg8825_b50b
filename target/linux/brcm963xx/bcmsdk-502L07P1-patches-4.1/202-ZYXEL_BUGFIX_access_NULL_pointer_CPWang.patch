@@ -1,0 +1,16 @@
+Index: linux-4.1.52/include/linux/list.h
+===================================================================
+--- linux-4.1.52.orig/include/linux/list.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/linux/list.h	2018-04-23 19:33:02.275682338 +0800
+@@ -615,7 +615,10 @@
+ {
+ 	struct hlist_node *next = n->next;
+ 	struct hlist_node **pprev = n->pprev;
+-	*pprev = next;
++
++	if (pprev)
++		*pprev = next;
++
+ 	if (next)
+ 		next->pprev = pprev;
+ }

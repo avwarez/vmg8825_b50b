@@ -1,0 +1,30 @@
+From https://github.com/paulusmack/ppp/commit/8d7970b8f3db727fe798b65f3377fe6787575426
+Fix bounds check in EAP code
+Given that we have just checked vallen < len, it can never be the case
+that vallen >= len + sizeof(rhostname).  This fixes the check so we
+actually avoid overflowing the rhostname array.
+
+Reported-by: Ilja Van Sprundel <ivansprundel@ioactive.com>
+Signed-off-by: Paul Mackerras <paulus@ozlabs.org>
+Index: ppp-2.4.3/pppd/eap.c
+===================================================================
+--- ppp-2.4.3.orig/pppd/eap.c	2004-11-10 06:39:25.000000000 +0800
++++ ppp-2.4.3/pppd/eap.c	2020-02-26 11:33:13.406671449 +0800
+@@ -1421,7 +1421,7 @@
+ 		}
+ 
+ 		/* Not so likely to happen. */
+-		if (vallen >= len + sizeof (rhostname)) {
++		if (len - vallen >= sizeof (rhostname)) {
+ 			dbglog("EAP: trimming really long peer name down");
+ 			BCOPY(inp + vallen, rhostname, sizeof (rhostname) - 1);
+ 			rhostname[sizeof (rhostname) - 1] = '\0';
+@@ -1847,7 +1847,7 @@
+ 		}
+ 
+ 		/* Not so likely to happen. */
+-		if (vallen >= len + sizeof (rhostname)) {
++		if (len - vallen >= sizeof (rhostname)) {
+ 			dbglog("EAP: trimming really long peer name down");
+ 			BCOPY(inp + vallen, rhostname, sizeof (rhostname) - 1);
+ 			rhostname[sizeof (rhostname) - 1] = '\0';

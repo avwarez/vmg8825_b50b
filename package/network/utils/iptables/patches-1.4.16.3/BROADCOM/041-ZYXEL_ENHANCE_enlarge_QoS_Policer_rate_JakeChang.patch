@@ -1,0 +1,72 @@
+Index: iptables-1.4.16.3/extensions/libxt_policer.c
+===================================================================
+--- iptables-1.4.16.3.orig/extensions/libxt_policer.c	2019-07-26 10:24:48.623990627 +0800
++++ iptables-1.4.16.3/extensions/libxt_policer.c	2019-07-26 10:29:17.261041500 +0800
+@@ -20,7 +20,8 @@
+ 
+ #define IPT_POLICER_RATE_KBPS        10       /* Policer default rate in kbps. */
+ #define IPT_POLICER_BURST_KBYTE      10       /* Policer default burst in kbyte. */
+-#define IPT_POLICER_MAX_INPUT_VALUE  1000000  /* Max rate value user can input in kbps or mbps. */
++#define IPT_POLICER_MAX_INPUT_VALUE  10000000 /* Max rate value user can input in kbps or mbps. */
++#define IPT_POLICER_MAX_BURST_SIZE   20000    /* Max burst size value user can input in kbytes. */
+ 
+ #if 1//__MSTC__, Jones For compilation
+ #define MODE_TBF   0
+@@ -37,10 +38,10 @@
+ 	    "tbf mode: \n"
+ 	    "--policer rate			max data rate match, default %ukbps\n"
+ 	    "                                [Bits per second followed by kbps or mbps.\n"
+-	    "                                Support 1kbps to 1000000kbps or 1mbps to 1000000mbps.] \n"   
++	    "                                Support 1kbps to 10000000kbps or 1mbps to 10000mbps.] \n"   
+ 	    "--policer-burst size		size to match in a burst, default %ukb\n"
+ 	    "                                [Kilo-bytes followed by kb.\n"
+-	    "                                Support 1kb to 1000kb.]\n" 
++	    "                                Support 1kb to 20000kb.]\n" 
+ 	    "srtcm mode: \n"
+ 	    "The nfmark field of red packet is marked as 0x10000, \n"
+ 	    "yellow packet is 0x20000 and green packet is 0x30000.\n"
+@@ -228,7 +229,7 @@
+ 		if (r->policerMode == 0) {
+ 			str1 = optarg;
+ 			r->burst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->burst > 1000 || r->burst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->burst > IPT_POLICER_MAX_BURST_SIZE || r->burst <= 0) {
+ 				xtables_error(PARAMETER_PROBLEM,
+ 				    "bad --policer-burst `%s'", optarg);
+ 			}
+@@ -256,7 +257,7 @@
+ 		if (r->policerMode == 1 || r->policerMode == 2) {
+ 			str1 = optarg;
+ 			r->burst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->burst > 1000 || r->burst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->burst > IPT_POLICER_MAX_BURST_SIZE || r->burst <= 0) {
+ 				xtables_error(PARAMETER_PROBLEM,
+ 				    "bad --cbs-burst `%s'", optarg);
+ 			}
+@@ -288,7 +289,7 @@
+ 		if (r->policerMode == 2) {
+ 			str1 = optarg;
+ 			r->pbsBurst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > 1000 || r->pbsBurst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > IPT_POLICER_MAX_BURST_SIZE || r->pbsBurst <= 0) {
+ 				xtables_error(PARAMETER_PROBLEM,
+ 				    "bad --pbs-burst `%s'", optarg);
+ 			}
+@@ -303,7 +304,7 @@
+ 		if (r->policerMode == 1) {
+ 			str1 = optarg;
+ 			r->pbsBurst = strtoul(str1, &remainder, 0);
+-			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > 1000 || r->pbsBurst <= 0) {
++			if (strcmp(remainder, "kb") !=0 || r->pbsBurst > IPT_POLICER_MAX_BURST_SIZE || r->pbsBurst <= 0) {
+ 				xtables_error(PARAMETER_PROBLEM,
+ 				    "bad --ebs-burst `%s'", optarg);
+ 			}
+@@ -354,7 +355,7 @@
+ 		}
+ 		str1 = optarg;
+ 		r->burst = strtoul(str1, &remainder, 0);
+-		if (strcmp(remainder, "kb") !=0 || r->burst > 1000 || r->burst <= 0) {
++		if (strcmp(remainder, "kb") !=0 || r->burst > IPT_POLICER_MAX_BURST_SIZE || r->burst <= 0) {
+ 			exit_error(PARAMETER_PROBLEM,
+ 			    "bad --policer-burst `%s'", optarg);
+ 		}

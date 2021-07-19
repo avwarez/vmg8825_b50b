@@ -1,0 +1,30 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-10-02 15:36:43.967332155 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-10-02 17:46:16.755332155 +0800
+@@ -6760,6 +6760,12 @@
+ 			paramList++;
+ 			continue;
+ 		}
++		else if(!strcmp(paramList->name, "LastDataTransmitRate")) {
++			paramValue = json_object_object_get(assocDevJobj, "LastDataUplinkRate");
++			json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			paramList++;
++			continue;
++		}
+ 
+ 		paramValue = json_object_object_get(assocDevJobj, paramList->name);
+ 		if(paramValue != NULL) {
+Index: libzcfg_fe_tr98-1.0/lanDev_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2019-10-02 15:36:43.851332155 +0800
++++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2019-10-02 16:12:39.523332155 +0800
+@@ -376,7 +376,7 @@
+ 	{ "LastRequestedUnicastCipher", PARAMETER_ATTR_READONLY, 257, json_type_string},
+ 	{ "LastRequestedMulticastCipher", PARAMETER_ATTR_READONLY, 257, json_type_string},
+ 	{ "LastPMKId", PARAMETER_ATTR_READONLY, 257, json_type_string},
+-	{ "LastDataTransmitRate", PARAMETER_ATTR_READONLY, 5, json_type_string},
++	{ "LastDataTransmitRate", PARAMETER_ATTR_READONLY, 0, json_type_uint32},
+ 	{ "SignalStrength", PARAMETER_ATTR_READONLY, 0, json_type_int},
+ 	{ NULL, 0, 0, 0}
+ };

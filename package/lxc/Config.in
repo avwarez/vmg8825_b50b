@@ -1,0 +1,27 @@
+menu "Configuration"
+    depends on PACKAGE_lxc
+
+    config LXC_KERNEL_OPTIONS
+        bool "Enable kernel support for LXC"
+        default n if !PACKAGE_lxc
+        default y if PACKAGE_lxc
+        select KERNEL_CGROUPS
+        select KERNEL_NAMESPACES
+        select KERNEL_LXC_MISC
+        select KERNEL_MEMCG
+        select KERNEL_CGROUP_SCHED
+        select KERNEL_FAIR_GROUP_SCHED
+        select KERNEL_CFS_BANDWIDTH
+        select KERNEL_RT_GROUP_SCHED
+        select KERNEL_CGROUP_CPUACCT
+        select KERNEL_MEMCG
+        select KERNEL_MEMCG_SWAP
+        select KERNEL_MEMCG_KMEM
+        select KERNEL_CPUSETS
+        #select PACKAGE_kmod-ikconfig
+        help
+            Select needed kernel options for LXC related utilities. Options
+            include cgroups, namespaces and other miscellaneous options. These
+            options unfortunately can not be installed as a module.
+
+endmenu

@@ -1,0 +1,60 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 08:32:51.171979721 +0000
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 08:40:36.043975288 +0000
+@@ -2584,7 +2584,9 @@
+ 
+ 			if(strcmp(wanIntfPath, json_object_get_string(json_object_object_get(domainObj, "WANInterface"))) == 0){
+ 				found = true;
++				break ;
+ 			}
++			zcfgFeJsonObjFree(domainObj);
+ 		}
+ 		/* If there is no domain object can be found, add a new one */
+ 		if(!found){
+@@ -2812,7 +2814,9 @@
+ 
+ 	editIgmpMldSetting(Jobj);
+ 	editDefaultGwSetting(Jobj);
++#ifdef ZYXEL_IPV6_MAP
+ 	editMAPSetting(Jobj);
++#endif
+ 	
+ 	IID_INIT(dnsIid);
+ 	zcfgFeObjJsonGetWithoutUpdate(RDM_OID_DNS, &dnsIid, &dnsObj);
+@@ -2955,7 +2959,9 @@
+ 	editDhcpSetting(Jobj);
+ 	editIgmpMldSetting(Jobj);
+ 	editDefaultGwSetting(Jobj);
++#ifdef ZYXEL_IPV6_MAP
+ 	editMAPSetting(Jobj);
++#endif
+ 
+ 	dbg_printf("line=%d\n", __LINE__);
+ 	
+@@ -4510,7 +4516,9 @@
+ 					// 	, json_object_get_int(json_object_object_get(domainObj, "PSIDLength"))
+ 					// 	, json_object_get_int(json_object_object_get(domainObj, "PSID"))
+ 					// 	, json_object_get_boolean(json_object_object_get(domainObj, "X_ZYXEL_Softwire46Enable")) );
++					break ;
+ 				}
++				zcfgFeJsonObjFree(domainObj);
+ 			}
+ 		}
+ 		if(ruleObj == NULL)
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-01-14 08:32:51.147979722 +0000
++++ libzcfg_fe_dal-1.0/Makefile	2020-01-14 08:37:41.467976953 +0000
+@@ -229,6 +229,11 @@
+ 	CFLAGS += -DZYXEL_DHCPV6_OPTION64
+ endif
+ 
++#IPv6 MAP-E/MAP-T
++ifeq ($(CONFIG_ZYXEL_IPV6_MAP),y)
++	CFLAGS += -DZYXEL_IPV6_MAP
++endif
++
+ ifeq ($(CONFIG_ZYXEL_ONESSID),y)
+     CFLAGS += -DZYXEL_ONESSID
+ endif

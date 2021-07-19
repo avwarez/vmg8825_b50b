@@ -1,0 +1,61 @@
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_Qos.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_Qos.h	2019-07-25 18:15:34.327084179 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_Qos.h	2019-07-25 18:24:31.864401100 +0800
+@@ -3,7 +3,7 @@
+ 
+ #define QOS_DAL_DEBUG 0
+ 
+-#define QOS_MAX_SHAPING_RATE 10485760
++#define QOS_MAX_SHAPING_RATE 10000000
+ 
+ typedef enum e_ActionType {
+ 	e_ActionType_ADD = 0,
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosPolicer.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosPolicer.c	2019-07-25 18:15:33.495084179 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosPolicer.c	2019-07-25 18:34:58.680739300 +0800
+@@ -15,24 +15,26 @@
+ #include "zcfg_fe_dal_common.h"
+ #include "zcfg_fe_Qos.h"
+ 
++#define POLICER_MAX_BURST_SIZE 20000
++
+ dal_param_t QosPolicer_param[] = {
+-	{"Index",					dalType_int, 		0,	0,			NULL,	NULL,														dal_Edit|dal_Delete},
+-	{"Enable",					dalType_boolean, 	0, 	0, 			NULL,	NULL,														dal_Add},
+-	{"Name",					dalType_string, 	0, 	0, 			NULL,	NULL,														dal_Add},
+-	{"MeterType",				dalType_string, 	0, 	0, 			NULL,	"SimpleTokenBucket|SingleRateThreeColor|TwoRateThreeColor",	dal_Add},
+-	{"CommittedRate",			dalType_int, 		1, 	1000000, 	NULL,	NULL,														dal_Add},
+-	{"CommittedBurstSize",		dalType_int, 		1, 	1000, 		NULL,	NULL,														dal_Add},
+-	{"PartialConformingAction",	dalType_string, 	0, 	0, 			NULL,	"Pass|Drop|DSCPMark",										NULL},
+-	{"Partial_value",			dalType_int, 		0, 	63, 		NULL,	NULL,														NULL},
+-	{"ExcessBurstSize",			dalType_int, 		1, 	1000, 		NULL,	NULL,														NULL},
+-	{"PeakRate",				dalType_int, 		1, 	1000000, 	NULL,	NULL,														NULL},
+-	{"PeakBurstSize",			dalType_int, 		1, 	1000, 		NULL,	NULL,														NULL},
+-	{"ConformingAction",		dalType_string, 	0, 	0, 			NULL,	"Pass|DSCPMark",											dal_Add},
+-	{"Conform_value",			dalType_int, 		0, 	63, 		NULL,	NULL,														NULL},
+-	{"NonConformingAction",		dalType_string, 	0, 	0, 			NULL,	"Drop|DSCPMark",											dal_Add},
+-	{"NonConform_value",		dalType_int, 		0, 	63, 		NULL,	NULL,														NULL},
+-	{"Class",					dalType_ClassList, 	0, 	0, 			NULL,	NULL,														dal_Add},
+-	{NULL,						0,					0, 	0, 			NULL,	NULL,														NULL}
++    {"Index",                   dalType_int,       0, 0,                      NULL, NULL,                                                       dal_Edit|dal_Delete},
++    {"Enable",                  dalType_boolean,   0, 0,                      NULL, NULL,                                                       dal_Add},
++    {"Name",                    dalType_string,    0, 0,                      NULL, NULL,                                                       dal_Add},
++    {"MeterType",               dalType_string,    0, 0,                      NULL, "SimpleTokenBucket|SingleRateThreeColor|TwoRateThreeColor", dal_Add},
++    {"CommittedRate",           dalType_int,       1, QOS_MAX_SHAPING_RATE,   NULL, NULL,                                                       dal_Add},
++    {"CommittedBurstSize",      dalType_int,       1, POLICER_MAX_BURST_SIZE, NULL, NULL,                                                       dal_Add},
++    {"PartialConformingAction", dalType_string,    0, 0,                      NULL, "Pass|Drop|DSCPMark",                                       NULL},
++    {"Partial_value",           dalType_int,       0, 63,                     NULL, NULL,                                                       NULL},
++    {"ExcessBurstSize",         dalType_int,       1, POLICER_MAX_BURST_SIZE, NULL, NULL,                                                       NULL},
++    {"PeakRate",                dalType_int,       1, QOS_MAX_SHAPING_RATE,   NULL, NULL,                                                       NULL},
++    {"PeakBurstSize",           dalType_int,       1, POLICER_MAX_BURST_SIZE, NULL, NULL,                                                       NULL},
++    {"ConformingAction",        dalType_string,    0, 0,                      NULL, "Pass|DSCPMark",                                            dal_Add},
++    {"Conform_value",           dalType_int,       0, 63,                     NULL, NULL,                                                       NULL},
++    {"NonConformingAction",     dalType_string,    0, 0,                      NULL, "Drop|DSCPMark",                                            dal_Add},
++    {"NonConform_value",        dalType_int,       0, 63,                     NULL, NULL,                                                       NULL},
++    {"Class",                   dalType_ClassList, 0, 0,                      NULL, NULL,                                                       dal_Add},
++    {NULL,                      0,                 0, 0,                      NULL, NULL,                                                       NULL}
+ };
+ 
+ typedef struct s_QosPolicer{

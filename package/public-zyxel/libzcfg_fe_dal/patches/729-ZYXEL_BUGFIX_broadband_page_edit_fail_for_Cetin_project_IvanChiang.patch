@@ -1,0 +1,12 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-12-12 21:54:26.360307636 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-12-12 21:56:58.012081500 +0800
+@@ -4479,6 +4479,7 @@
+ 		while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_DHCPV4_REQ_OPT, &v4ClientIid, &iid, &obj) == ZCFG_SUCCESS){
+ 			tag = json_object_get_int(json_object_object_get(obj, "Tag"));
+ 			opt = json_object_get_boolean(json_object_object_get(obj, "Enable"));
++			value = json_object_get_string(json_object_object_get(obj, "Value"));
+ 			if(tag == 42 ){
+ 				json_object_object_add(pramJobj, "option42Enable", json_object_new_boolean(opt));
+ 				if(opt)

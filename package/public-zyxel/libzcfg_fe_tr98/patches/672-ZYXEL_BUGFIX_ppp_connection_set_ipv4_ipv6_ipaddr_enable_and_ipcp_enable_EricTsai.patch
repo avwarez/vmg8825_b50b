@@ -1,0 +1,90 @@
+Index: libzcfg_fe_tr98-1.0/wanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev.c	2020-07-21 11:44:45.968770763 +0800
++++ libzcfg_fe_tr98-1.0/wanDev.c	2020-07-21 11:44:46.064770760 +0800
+@@ -6651,21 +6651,13 @@
+ 				paramList++;
+ 				continue;
+ 			}
+-			else if(!strcmp(paramList->name, "X_ZYXEL_IPv4Enable")) {
++			else if(!strcmp(paramList->name, "X_ZYXEL_IPv4Enable") && (paramValue = json_object_object_get(tr98SpvObj, "X_ZYXEL_IPv4Enable"))) {
+ 				json_object_object_add(ipIfaceJobj, "IPv4Enable", JSON_OBJ_COPY(paramValue));
+ 				paramList++;
+ 				continue;
+ 			}
+-			else if(!strcmp(paramList->name, "X_ZYXEL_IPCPEnable")){
+-				paramValue3 = json_object_object_get(ipIfaceJobj, "IPv4Enable");
+-				//printf("IPv6CPEnable: pppIfaceJobj para3=%d %d\n", paramValue3, json_object_get_boolean(paramValue3));
+-				if(paramValue3)
+-				{
+-					if (json_object_get_boolean(paramValue3) == true)
+-						json_object_object_add(pppIfaceJobj, "IPCPEnable", json_object_new_boolean(true));
+-					else
+-						json_object_object_add(pppIfaceJobj, "IPCPEnable", json_object_new_boolean(false));
+-				}
++			else if(!strcmp(paramList->name, "X_ZYXEL_IPCPEnable") && (paramValue = json_object_object_get(tr98SpvObj, "X_ZYXEL_IPCPEnable"))) {
++				json_object_object_add(pppIfaceJobj, "IPCPEnable", JSON_OBJ_COPY(paramValue));
+ 				paramList++;
+ 				continue;
+ 			}
+@@ -6838,20 +6830,12 @@
+ 				}
+ 			}
+ #ifdef IPV6INTERFACE_PROFILE		
+-			else if(!strcmp(paramList->name, "X_ZYXEL_IPv6CPEnable")){
+-				paramValue3 = json_object_object_get(ipIfaceJobj, "IPv6Enable");
+-				//printf("IPv6CPEnable: pppIfaceJobj para3=%d %d\n", paramValue3, json_object_get_boolean(paramValue3));
+-				if(paramValue3)
+-				{
+-					if (json_object_get_boolean(paramValue3) == true)
+-						json_object_object_add(pppIfaceJobj, "IPv6CPEnable", json_object_new_boolean(true));
+-					else
+-						json_object_object_add(pppIfaceJobj, "IPv6CPEnable", json_object_new_boolean(false));
+-				}
++			else if(!strcmp(paramList->name, "X_ZYXEL_IPv6CPEnable") && (paramValue = json_object_object_get(tr98SpvObj, "X_ZYXEL_IPv6CPEnable"))){
++				json_object_object_add(pppIfaceJobj, "IPv6CPEnable", JSON_OBJ_COPY(paramValue));
+ 				paramList++;
+ 				continue;
+ 			}
+-			else if(!strcmp(paramList->name, "X_ZYXEL_IPv6Enable")) {
++			else if(!strcmp(paramList->name, "X_ZYXEL_IPv6Enable") && (paramValue = json_object_object_get(tr98SpvObj, "X_ZYXEL_IPv6Enable"))){
+ 				json_object_object_add(ipIfaceJobj, "IPv6Enable", JSON_OBJ_COPY(paramValue));
+ 				paramList++;
+ 				continue;
+Index: libzcfg_fe_tr98-1.0/wanDev_api.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev_api.c	2020-07-21 11:44:45.884770766 +0800
++++ libzcfg_fe_tr98-1.0/wanDev_api.c	2020-07-21 11:33:13.212766500 +0800
+@@ -868,7 +868,7 @@
+ 				if((json_object_get_boolean(json_object_object_get(v4AddrObj, "Enable"))) == true)
+ 					ipv4Enabled = true;
+ 			}
+-			json_object_put(v4AddrObj);
++			//json_object_put(v4AddrObj);
+ 		}
+ 		else if(addressingType && !strcmp(addressingType, "DHCP")){
+ 			if(!strcmp(addrType, "DHCP")) {
+@@ -914,10 +914,10 @@
+ 						}
+ 						ipv4AddrAddDelete = true;
+ 
+-						if((json_object_get_boolean(json_object_object_get(v4AddrObj, "Enable"))) == true)
++						if((json_object_get_boolean(json_object_object_get(v4AddrObj, "Enable"))) == true){
+ 							ipv4Enabled = true;
+-
+-						json_object_put(v4AddrObj);
++						}
++						//json_object_put(v4AddrObj);
+ 					}
+ 					//else {
+ 					//	printf("%s : Get IPv4Address Fail\n", __FUNCTION__);
+@@ -934,8 +934,7 @@
+ 			printf("%s : Other : %s to %s", __FUNCTION__, addressingType, addrType);
+ 		}
+ 
+-		// 20190920: Remove excess release
+-		//json_object_put(v4AddrObj);
++		json_object_put(v4AddrObj);
+ 	}
+ 	else {
+ 		reqSetAddrObj = false;

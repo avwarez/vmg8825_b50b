@@ -1,0 +1,36 @@
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-04-14 18:29:09.523255328 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-04-14 18:36:21.344949018 +0800
+@@ -1763,18 +1763,19 @@
+ 
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_SSID, &iid, &Obj) == ZCFG_SUCCESS) {
+-		sprintf(intfPath, "WiFi.SSID.%u", iid.idx[0]);
+-		SSID = json_object_get_string(json_object_object_get(Obj, "SSID"));
+-		BrPortPath = json_object_get_string(json_object_object_get(mappingObj, intfPath));
+-		if(BrPortPath == NULL)
+-			BrPortPath = "";
+-		Jobj = json_object_new_object();
+-		json_object_object_add(Jobj, "Name", json_object_new_string(SSID));
+-		json_object_object_add(Jobj, "BrPortPath", json_object_new_string(BrPortPath));
+-		json_object_object_add(Jobj, "IntfPath", json_object_new_string(intfPath));
+-		json_object_object_add(Jobj, "Type", json_object_new_string("WiFiSSID"));
+-		json_object_array_add(*Jarray, Jobj);
+-
++		if(json_object_get_int(json_object_object_get(Obj, "X_ZYXEL_Attribute")) == 0) {
++			sprintf(intfPath, "WiFi.SSID.%u", iid.idx[0]);
++			SSID = json_object_get_string(json_object_object_get(Obj, "SSID"));
++			BrPortPath = json_object_get_string(json_object_object_get(mappingObj, intfPath));
++			if(BrPortPath == NULL)
++				BrPortPath = "";
++			Jobj = json_object_new_object();
++			json_object_object_add(Jobj, "Name", json_object_new_string(SSID));
++			json_object_object_add(Jobj, "BrPortPath", json_object_new_string(BrPortPath));
++			json_object_object_add(Jobj, "IntfPath", json_object_new_string(intfPath));
++			json_object_object_add(Jobj, "Type", json_object_new_string("WiFiSSID"));
++			json_object_array_add(*Jarray, Jobj);
++		}
+ 		json_object_put(Obj);
+ 	}
+ 	json_object_put(mappingObj);

@@ -1,0 +1,50 @@
+Index: libzyutil-1.0/libzyutil_zyxelfeaturebits.c
+===================================================================
+--- libzyutil-1.0.orig/libzyutil_zyxelfeaturebits.c	2020-04-20 01:06:57.169683438 +0000
++++ libzyutil-1.0/libzyutil_zyxelfeaturebits.c	2020-04-20 01:37:11.217666138 +0000
+@@ -207,6 +207,27 @@
+     ret = _zyxelfeaturebits_offsetValueGet(ZYFEATUREBITS_VDSL_GFAST, value);
+     return ret;
+ }
++
++/*!
++ *  Check if it support DSL.
++ *
++ *  @param[out] value       1:support, 0:not support.
++ *  @return zcfgRet_t       ZCFG_SUCCESS:success(0), ZCFG_INTERNAL_ERROR:fail(-5).
++ */
++zcfgRet_t libzyutil_zyxelfeaturebits_support_DSL(int *value)
++{
++    zcfgRet_t ret = ZCFG_SUCCESS;
++    unsigned int featurebits;
++    unsigned int check_DSL = (ZYFEATUREBITS_ADSL_ANNEXA | ZYFEATUREBITS_ADSL_ANNEXB | ZYFEATUREBITS_ADSL_ANNEXC | ZYFEATUREBITS_VDSL_17A | ZYFEATUREBITS_VDSL_35B | ZYFEATUREBITS_VDSL_GFAST);
++    ret = _zyxelfeaturebits_allValueGet(&featurebits);
++    if (ret == ZCFG_INTERNAL_ERROR)
++    {
++        return ret;
++    }
++    *value = ((featurebits & check_DSL) ? 1 : 0);
++    return ret;
++}
++
+ /*!
+  *  Check if it support Wifi 2.4G.
+  *
+Index: libzyutil-1.0/libzyutil_zyxelfeaturebits.h
+===================================================================
+--- libzyutil-1.0.orig/libzyutil_zyxelfeaturebits.h	2020-04-20 01:06:55.601683453 +0000
++++ libzyutil-1.0/libzyutil_zyxelfeaturebits.h	2020-04-20 01:37:50.853665760 +0000
+@@ -62,6 +62,13 @@
+  */
+ zcfgRet_t libzyutil_zyxelfeaturebits_vdslGfastGet(int *value);
+ /*!
++ *  Check if it support DSL.
++ *
++ *  @param[out] value       1:support, 0:not support.
++ *  @return zcfgRet_t       ZCFG_SUCCESS:success(0), ZCFG_INTERNAL_ERROR:fail(-5).
++ */
++zcfgRet_t libzyutil_zyxelfeaturebits_support_DSL(int *value);
++/*!
+  *  Check if it support Wifi 2.4G.
+  *
+  *  @param[out] value       1:support, 0:not support.

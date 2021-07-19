@@ -1,0 +1,18 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-10-18 11:46:00.364921388 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-10-18 11:46:39.275189301 +0800
+@@ -4346,6 +4346,13 @@
+ 					json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Up"));
+ 				}
+ 			}
++            else if (!strcmp(paramList->name, "MaxBitRate"))
++			{
++				if (json_object_get_int(json_object_object_get(*tr98Jobj, "MaxBitRate")) == 0)
++				{
++					json_object_object_add(*tr98Jobj, "MaxBitRate", json_object_new_string("Auto"));
++				}
++			}
+ 			else
+ 			{
+ 				json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));

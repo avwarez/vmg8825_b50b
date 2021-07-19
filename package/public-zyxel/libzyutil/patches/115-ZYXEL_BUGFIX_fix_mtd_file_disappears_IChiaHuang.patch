@@ -1,0 +1,64 @@
+Index: libzyutil-1.0/flash.c
+===================================================================
+--- libzyutil-1.0.orig/flash.c	2019-11-12 08:37:16.946186803 +0000
++++ libzyutil-1.0/flash.c	2019-11-12 08:38:12.883848557 +0000
+@@ -29,6 +29,7 @@
+ 
+ /* size of read/write buffer */
+ #define BUFSIZE (64 * 1024)
++#define mtd_FILE_X       "/tmp/mtd-XXXXXX" // I-Chia 20191112
+ 
+ static struct nand_oobinfo none_oobinfo = {
+ 	.useecc = MTD_NANDECC_OFF,
+@@ -80,19 +81,38 @@
+ 	FILE *fptr = NULL;
+ 	char mtd[8], size[12], erasesize[12], name[16], tmpname[16];
+ 	int len = 0;
++#if 1 //I-Chia 20191112
++	char tmp_cat[32] = {0};
++	char template[32] = {0};
++	strcpy(template, mtd_FILE_X);
++
++	if (mkstemp(template) < 0 )
++	{
++		printf("%s: Can't create MRD file!\n",__FUNCTION__);
++	}
++	sprintf(tmp_cat,"cat /proc/mtd > %s",template);
++#endif
+ #if 1 //#ifdef ZYXEL_WWAN
+ 	FILE *fp = NULL;
+ 
+ 	if(!strcmp(mtdname, WWAN_PARTITION_NAME)){
++#if 1 //I-Chia 20191112
++		fp = popen(tmp_cat, "r");
++#else
+ 		fp = popen("cat /proc/mtd > /tmp/mtd", "r");
++#endif
+ 		if(fp != NULL)
+ 			pclose(fp);
+ 	}
+ 	else 
+ #endif
++#if 1 //I-Chia 20191112
++	system(tmp_cat);
++    if((fptr = fopen(template, "r")) == NULL) {
++#else
+ 	system("cat /proc/mtd > /tmp/mtd");
+-
+     if((fptr = fopen("/tmp/mtd", "r")) == NULL) {
++#endif
+         printf("Can't open file\n");
+     }
+ 	else {
+@@ -121,7 +141,11 @@
+         fclose(fptr);
+ 	}
+ 
++#if 1 // I-Chia 20191112
++	remove(template);
++#else
+ 	remove("/tmp/mtd");
++#endif
+ 	return ret;
+ }
+ 

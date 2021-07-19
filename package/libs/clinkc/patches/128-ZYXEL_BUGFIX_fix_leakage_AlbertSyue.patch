@@ -1,0 +1,18 @@
+Index: clinkc/src/cybergarage/util/cstring.c
+===================================================================
+--- clinkc.orig/src/cybergarage/util/cstring.c	2020-02-10 16:47:38.506151075 +0800
++++ clinkc/src/cybergarage/util/cstring.c	2020-02-10 16:54:30.653843201 +0800
+@@ -100,8 +100,12 @@
+ 	cg_log_debug_l5("Entering...\n");
+ 
+ 	if (NULL != str) {
+-		if (value != NULL)
++		if (value != NULL) {
+ 			cg_string_setnvalue(str, value, cg_strlen(value));
++		}
++		else {
++			cg_string_clear(str);
++		}
+ 	}
+ 	
+ 	cg_log_debug_l5("Leaving...\n");

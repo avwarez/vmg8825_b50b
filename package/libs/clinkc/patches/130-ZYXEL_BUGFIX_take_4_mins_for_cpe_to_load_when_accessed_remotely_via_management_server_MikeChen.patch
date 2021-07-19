@@ -1,0 +1,26 @@
+Index: clinkc/include/cybergarage/http/chttp.h
+===================================================================
+--- clinkc.orig/include/cybergarage/http/chttp.h	2020-03-06 17:28:07.077657947 +0800
++++ clinkc/include/cybergarage/http/chttp.h	2020-03-06 17:29:56.226027930 +0800
+@@ -73,6 +73,10 @@
+ //#define HTTPD_MAX_UPLOAD_SIZE 41943040
+ #endif
+ 
++#if 1 /*Work-around compressed file for "Improve the remote GUI access via remote management VLAN time" issue*/
++#define CG_HTTP_CONTENT_ENCODING "Content-Encoding"
++#endif
++
+ #define CG_HTTP_REQUESTLINE_DELIM "\r\n "
+ #define CG_HTTP_STATUSLINE_DELIM "\r\n "
+ #define CG_HTTP_HEADERLINE_DELIM "\r\n :"
+@@ -726,6 +730,10 @@
+ #define cg_http_response_settimeout(httpRes,value) (httpRes->timeout = value)
+ #define cg_http_response_gettimeout(httpRes) (httpRes->timeout)
+ 
++#if 1 /*Work-around compressed file for "Improve the remote GUI access via remote management VLAN time" issue*/
++#define cg_http_response_setcontentencoding(httpRes,value) cg_http_packet_setheadervalue((CgHttpPacket*)httpRes,CG_HTTP_CONTENT_ENCODING,value)
++#endif
++
+ /****************************************
+ * Function (Server)
+ ****************************************/

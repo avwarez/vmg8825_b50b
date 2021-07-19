@@ -1,0 +1,278 @@
+diff -Naur orig_lxc-2.0.4/src/lxc/conf.c lxc-2.0.4/src/lxc/conf.c
+--- orig_lxc-2.0.4/src/lxc/conf.c	2018-03-10 01:21:53.510467587 -0800
++++ lxc-2.0.4/src/lxc/conf.c	2018-03-16 02:56:11.231422384 -0700
+@@ -1167,7 +1167,7 @@
+ 
+ 			// Unprivileged containers cannot create devices, so
+ 			// bind mount the device from the host
+-			ret = snprintf(hostpath, MAXPATHLEN, "/dev/%s", d->name);
++			ret = snprintf(hostpath, MAXPATHLEN, "%s/dev/%s", rootfs->path ? rootfs->mount : "", d->name);
+ 			if (ret < 0 || ret >= MAXPATHLEN)
+ 				return -1;
+ 			pathfile = fopen(path, "wb");
+@@ -1178,8 +1178,8 @@
+ 			fclose(pathfile);
+ 			if (safe_mount(hostpath, path, 0, MS_BIND, NULL,
+ 						rootfs->path ? rootfs->mount : NULL) != 0) {
+-				SYSERROR("Failed bind mounting device %s from host into container",
+-					d->name);
++				SYSERROR("Failed bind mounting device %s from host %s into container",
++					d->name, rootfs->path ? rootfs->mount : "");
+ 				return -1;
+ 			}
+ 		}
+diff -Naur orig_lxc-2.0.4/src/lxc/initutils.c lxc-2.0.4/src/lxc/initutils.c
+--- orig_lxc-2.0.4/src/lxc/initutils.c	2018-03-10 01:21:53.510467587 -0800
++++ lxc-2.0.4/src/lxc/initutils.c	2018-03-16 02:56:11.231422384 -0700
+@@ -33,7 +33,7 @@
+ 		WARN("failed to unmount %s : %s", target, strerror(errno));
+ 
+ 	if (mount(source, target, type, 0, NULL)) {
+-		ERROR("failed to mount %s : %s", target, strerror(errno));
++		WARN("failed to mount %s : %s", target, strerror(errno));
+ 		return -1;
+ 	}
+ 
+diff -Naur orig_lxc-2.0.4/src/lxc/start.c lxc-2.0.4/src/lxc/start.c
+--- orig_lxc-2.0.4/src/lxc/start.c	2018-03-10 01:21:53.510467587 -0800
++++ lxc-2.0.4/src/lxc/start.c	2018-03-16 02:56:11.231422384 -0700
+@@ -811,6 +811,13 @@
+ 		goto out_warn_father;
+ 	}
+ 
++
++	/* Setup the container, ip, names, utsname, ... */
++	if (lxc_setup(handler)) {
++		ERROR("failed to setup the container");
++		goto out_warn_father;
++	}
++
+ 	/* In order to checkpoint restore, we need to have everything in the
+ 	 * same mount namespace. However, some containers may not have a
+ 	 * reasonable /dev (in particular, they may not have /dev/null), so we
+@@ -829,12 +836,6 @@
+ 		WARN("using host's /dev/null for container init's std fds, migraiton won't work");
+ 	}
+ 
+-	/* Setup the container, ip, names, utsname, ... */
+-	if (lxc_setup(handler)) {
+-		ERROR("failed to setup the container");
+-		goto out_warn_father;
+-	}
+-
+ 	/* ask father to setup cgroups and wait for him to finish */
+ 	if (lxc_sync_barrier_parent(handler, LXC_SYNC_CGROUP))
+ 		goto out_error;
+diff -Naur orig_lxc-2.0.4/src/lxc/tools/lxc_attach.c lxc-2.0.4/src/lxc/tools/lxc_attach.c
+--- orig_lxc-2.0.4/src/lxc/tools/lxc_attach.c	2018-03-10 01:21:53.510467587 -0800
++++ lxc-2.0.4/src/lxc/tools/lxc_attach.c	2018-03-16 02:56:11.231422384 -0700
+@@ -321,7 +321,7 @@
+ err3:
+ 	lxc_mainloop_close(&descr);
+ err2:
+-	if (ts->sigfd != -1)
++	if (ts && ts->sigfd != -1)
+ 		lxc_console_sigwinch_fini(ts);
+ err1:
+ 	lxc_console_delete(&conf->console);
+diff -Naur orig_lxc-2.0.4/src/lxc/tools/lxc_execute.c lxc-2.0.4/src/lxc/tools/lxc_execute.c
+--- orig_lxc-2.0.4/src/lxc/tools/lxc_execute.c	2018-03-10 01:21:53.510467587 -0800
++++ lxc-2.0.4/src/lxc/tools/lxc_execute.c	2018-03-16 02:56:11.231422384 -0700
+@@ -31,6 +31,8 @@
+ #include <sys/stat.h>
+ #include <sys/param.h>
+ 
++#include <lxc/lxccontainer.h>
++
+ #include "caps.h"
+ #include "lxc.h"
+ #include "log.h"
+@@ -45,6 +47,10 @@
+ 
+ static struct lxc_list defines;
+ 
++#define OPT_SHARE_NET OPT_USAGE+1
++#define OPT_SHARE_IPC OPT_USAGE+2
++#define OPT_SHARE_UTS OPT_USAGE+3
++
+ static int my_checker(const struct lxc_arguments* args)
+ {
+ 	if (!args->argc) {
+@@ -60,6 +66,9 @@
+ 	switch (c) {
+ 	case 'f': args->rcfile = arg; break;
+ 	case 's': return lxc_config_define_add(&defines, arg); break;
++    case OPT_SHARE_NET: args->share_ns[LXC_NS_NET] = arg; break;
++	case OPT_SHARE_IPC: args->share_ns[LXC_NS_IPC] = arg; break;
++    case OPT_SHARE_UTS: args->share_ns[LXC_NS_UTS] = arg; break;
+ 	case 'u': args->uid = atoi(arg); break;
+ 	case 'g': args->gid = atoi(arg);
+ 	}
+@@ -71,6 +80,9 @@
+ 	{"define", required_argument, 0, 's'},
+ 	{"uid", required_argument, 0, 'u'},
+ 	{"gid", required_argument, 0, 'g'},
++	{"share-net", required_argument, 0, OPT_SHARE_NET},
++	{"share-ipc", required_argument, 0, OPT_SHARE_IPC},
++	{"share-uts", required_argument, 0, OPT_SHARE_UTS},
+ 	LXC_COMMON_OPTIONS
+ };
+ 
+@@ -93,11 +105,58 @@
+ 	.checker  = my_checker,
+ };
+ 
++static int pid_from_lxcname(const char *lxcname_or_pid, const char *lxcpath) {
++	char *eptr;
++	int pid = strtol(lxcname_or_pid, &eptr, 10);
++	if (*eptr != '\0' || pid < 1) {
++		struct lxc_container *s;
++		s = lxc_container_new(lxcname_or_pid, lxcpath);
++		if (!s) {
++			SYSERROR("'%s' is not a valid pid nor a container name", lxcname_or_pid);
++			return -1;
++		}
++
++		if (!s->may_control(s)) {
++			SYSERROR("Insufficient privileges to control container '%s'", s->name);
++			lxc_container_put(s);
++			return -1;
++		}
++
++		pid = s->init_pid(s);
++		if (pid < 1) {
++			SYSERROR("Is container '%s' running?", s->name);
++			lxc_container_put(s);
++			return -1;
++		}
++
++		lxc_container_put(s);
++	}
++	if (kill(pid, 0) < 0) {
++		SYSERROR("Can't send signal to pid %d", pid);
++		return -1;
++	}
++
++	return pid;
++}
++
++static int open_ns(int pid, const char *ns_proc_name) {
++	int fd;
++	char path[MAXPATHLEN];
++	snprintf(path, MAXPATHLEN, "/proc/%d/ns/%s", pid, ns_proc_name);
++
++	fd = open(path, O_RDONLY);
++	if (fd < 0) {
++		SYSERROR("failed to open %s", path);
++		return -1;
++	}
++	return fd;
++}
++
+ int main(int argc, char *argv[])
+ {
+ 	char *rcfile;
+ 	struct lxc_conf *conf;
+-	int ret;
++	int ret=-1;
+ 
+ 	lxc_list_init(&defines);
+ 
+@@ -151,8 +210,24 @@
+ 	if (my_args.gid)
+ 		conf->init_gid = my_args.gid;
+ 
++	int i;
++	for (i = 0; i < LXC_NS_MAX; i++) {
++		if (my_args.share_ns[i] == NULL)
++			continue;
++
++		int pid = pid_from_lxcname(my_args.share_ns[i], my_args.lxcpath[0]);
++		if (pid < 1)
++			goto out;
++
++		int fd = open_ns(pid, ns_info[i].proc_name);
++		if (fd < 0)
++			goto out;
++		conf->inherit_ns_fd[i] = fd;
++	}
++
+ 	ret = lxc_execute(my_args.name, my_args.argv, my_args.quiet, conf, my_args.lxcpath[0], false);
+ 
++out:
+ 	lxc_conf_free(conf);
+ 
+ 	if (ret < 0)
+diff --git orig_lxc-2.0.4/configure.ac lxc-2.0.4/configure.ac
+--- orig_lxc-2.0.4/configure.ac
++++ lxc-2.0.4/configure.ac
+@@ -601,6 +601,9 @@ AC_CHECK_DECLS([PR_CAPBSET_DROP], [], [], [#include <sys/prctl.h>])
+ # Check for some headers
+ AC_CHECK_HEADERS([sys/signalfd.h pty.h ifaddrs.h sys/capability.h sys/personality.h utmpx.h sys/timerfd.h])
+ 
++# lookup major()/minor()/makedev()
++AC_HEADER_MAJOR
++
+ # Check for some syscalls functions
+ AC_CHECK_FUNCS([setns pivot_root sethostname unshare rand_r confstr faccessat])
+ 
+diff --git orig_lxc-2.0.4/src/lxc/bdev/lxclvm.c lxc-2.0.4/src/lxc/bdev/lxclvm.c
+--- orig_lxc-2.0.4/src/lxc/bdev/lxclvm.c
++++ lxc-2.0.4/src/lxc/bdev/lxclvm.c
+@@ -32,10 +32,19 @@
+ #include <sys/wait.h>
+ 
+ #include "bdev.h"
++#include "config.h"
+ #include "log.h"
+ #include "lxclvm.h"
+ #include "utils.h"
+ 
++/* major()/minor() */
++#ifdef MAJOR_IN_MKDEV
++#    include <sys/mkdev.h>
++#endif
++#ifdef MAJOR_IN_SYSMACROS
++#    include <sys/sysmacros.h>
++#endif
++
+ lxc_log_define(lxclvm, lxc);
+ 
+ extern char *dir_new_path(char *src, const char *oldname, const char *name,
+diff --git orig_lxc-2.0.4/src/lxc/conf.c lxc-2.0.4/src/lxc/conf.c
+--- orig_lxc-2.0.4/src/lxc/conf.c
++++ lxc-2.0.4/src/lxc/conf.c
+@@ -39,6 +39,14 @@
+ #include <grp.h>
+ #include <time.h>
+ 
++/* makedev() */
++#ifdef MAJOR_IN_MKDEV
++#    include <sys/mkdev.h>
++#endif
++#ifdef MAJOR_IN_SYSMACROS
++#    include <sys/sysmacros.h>
++#endif
++
+ #ifdef HAVE_STATVFS
+ #include <sys/statvfs.h>
+ #endif
+diff --git orig_lxc-2.0.4/src/lxc/lxccontainer.c lxc-2.0.4/src/lxc/lxccontainer.c
+--- orig_lxc-2.0.4/src/lxc/lxccontainer.c
++++ lxc-2.0.4/src/lxc/lxccontainer.c
+@@ -61,6 +61,14 @@
+ #include "utils.h"
+ #include "version.h"
+ 
++/* major()/minor() */
++#ifdef MAJOR_IN_MKDEV
++#    include <sys/mkdev.h>
++#endif
++#ifdef MAJOR_IN_SYSMACROS
++#    include <sys/sysmacros.h>
++#endif
++
+ #if HAVE_IFADDRS_H
+ #include <ifaddrs.h>
+ #else
+

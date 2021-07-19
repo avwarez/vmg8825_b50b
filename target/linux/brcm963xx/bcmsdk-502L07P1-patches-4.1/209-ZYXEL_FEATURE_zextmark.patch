@@ -1,0 +1,12 @@
+Index: linux-4.1.45/include/uapi/linux/netfilter/nfnetlink_queue.h
+===================================================================
+--- linux-4.1.45.orig/include/uapi/linux/netfilter/nfnetlink_queue.h	2012-09-15 06:18:55.000000000 +0800
++++ linux-4.1.45/include/uapi/linux/netfilter/nfnetlink_queue.h	2018-07-12 20:00:44.166520700 +0800
+@@ -35,6 +35,7 @@
+ 	NFQA_PACKET_HDR,
+ 	NFQA_VERDICT_HDR,		/* nfqnl_msg_verdict_hrd */
+ 	NFQA_MARK,			/* __u32 nfmark */
++	NFQA_ZEXTMARK,			/* __u32 nfmark */
+ 	NFQA_TIMESTAMP,			/* nfqnl_msg_packet_timestamp */
+ 	NFQA_IFINDEX_INDEV,		/* __u32 ifindex */
+ 	NFQA_IFINDEX_OUTDEV,		/* __u32 ifindex */

@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-09-10 11:35:41.028158611 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-09-10 11:38:25.786841615 +0800
+@@ -1923,7 +1923,7 @@
+ 	if(!needSet)
+ 		if(*optObj) {zcfgFeJsonObjFree(*optObj);}
+ 
+-	printf("fe_dal_broadband.c:%d::%s() toString(*optObj)=%s\n",__LINE__,__FUNCTION__,json_object_to_json_string(*optObj));
++	if(*optObj) printf("%s:%d : *optObj = %s\n", __FUNCTION__, __LINE__, json_object_to_json_string(*optObj));
+ 	return ret;
+ }
+ 

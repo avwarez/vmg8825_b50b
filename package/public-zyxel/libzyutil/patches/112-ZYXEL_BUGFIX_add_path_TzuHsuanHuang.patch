@@ -1,0 +1,32 @@
+Index: libzyutil-1.0/Makefile
+===================================================================
+--- libzyutil-1.0.orig/Makefile	2019-09-20 17:59:22.671634771 +0800
++++ libzyutil-1.0/Makefile	2019-09-20 17:59:39.436797511 +0800
+@@ -18,7 +18,8 @@
+                          -I$(INC_BRCMDRIVER_PRIV_PATH)/$(BRCM_BOARD) \
+                          -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD) \
+                          -I$(BUILD_DIR)/shared/broadcom/include/$(BRCM_BOARD) \
+-                         -I$(BUILD_DIR)/shared/opensource/include/$(BRCM_BOARD)
++                         -I$(BUILD_DIR)/shared/opensource/include/$(BRCM_BOARD) \
++						 -idirafter$(STAGING_DIR)/usr/include
+ 
+ INC_PATH += $(ALLOWED_INCLUDE_PATHS)
+ endif
+@@ -89,7 +90,7 @@
+ LIB_OBJS += libzyutil_encrypt/libzyutil_encrypt.o
+ LIB_OBJS += libzyutil_encrypt/libzyutil_encrypt_SHA256.o
+ LIB_OBJS += libzyutil_encrypt/libzyutil_encrypt_MD5.o
+-
++LDFLAGS += -L$(STAGING_DIR)/usr/lib
+ .PHONY : libzyutil
+ 
+ all: clean libzyutil libdebug.a
+@@ -100,7 +101,7 @@
+ 
+ libzyutil : $(LIB_OBJS)
+ 	@echo $(CFLAGS) 
+-	$(CC) -shared -o libzyutil.so $(LIB_OBJS) $(LINK_LIBS)
++	$(CC) -shared -o libzyutil.so $(LIB_OBJS) $(LINK_LIBS) $(LDFLAGS)
+ 	$(STRIP) libzyutil.so
+ 
+ 

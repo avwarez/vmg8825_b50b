@@ -1,0 +1,12 @@
+Index: linux-4.1.52/fs/compat_ioctl.c
+===================================================================
+--- linux-4.1.52.orig/fs/compat_ioctl.c	2019-12-13 13:29:37.227203000 +0800
++++ linux-4.1.52/fs/compat_ioctl.c	2019-12-13 13:32:32.875203000 +0800
+@@ -1211,6 +1211,7 @@
+ COMPATIBLE_IOCTL(WDIOC_KEEPALIVE)
+ COMPATIBLE_IOCTL(WDIOC_SETTIMEOUT)
+ COMPATIBLE_IOCTL(WDIOC_GETTIMEOUT)
++COMPATIBLE_IOCTL(WDIOC_GETTIMELEFT)
+ /* Big R */
+ COMPATIBLE_IOCTL(RNDGETENTCNT)
+ COMPATIBLE_IOCTL(RNDADDTOENTCNT)

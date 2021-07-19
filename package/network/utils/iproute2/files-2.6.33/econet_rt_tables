@@ -1,0 +1,47 @@
+#
+# reserved values
+#
+255	local
+254	main
+253	default
+0	unspec
+#
+# local
+#
+#1	inr.ruhep
+191	eth0.1
+192	eth0.2
+193 eth0.3
+194	eth0.4
+195	eth0.5
+196	eth0.6
+197 eth0.7
+198	eth0.8
+200	ra0
+201	ra1
+202	ra2
+203	ra3
+204	ra4
+205	ra5
+206	ra6
+207	ra7
+208	rai0
+209	rai1
+210	rai2
+211	rai3
+212	rai4
+213	rai5
+214	rai6
+215	rai7
+216	usb0
+217	wds0
+# routepolicy table
+220 	routep
+221	  routep0
+222	  routep1
+223	  routep2
+224	  routep3
+225	  routep4
+226	  routep5
+227	  routep6
+228	  routep7

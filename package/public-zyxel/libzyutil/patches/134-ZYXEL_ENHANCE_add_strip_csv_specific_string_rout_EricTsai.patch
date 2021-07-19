@@ -1,0 +1,62 @@
+Index: libzyutil-1.0/common.c
+===================================================================
+--- libzyutil-1.0.orig/common.c	2020-07-29 23:51:31.203572264 +0800
++++ libzyutil-1.0/common.c	2020-07-29 23:56:02.328127500 +0800
+@@ -805,6 +805,45 @@
+ 	return p;
+ }
+ 
++char *zyUtilStrCsvStripString(const char *csvStr, const char *string)
++{
++	char *token, *tmp = NULL;
++	char *p = NULL;
++	int cmp;
++	int csvStrLength = 0;
++	char *stripCsvStr = NULL, *outputCsvStr;
++	bool strip = false;
++
++	if(!csvStr || !string || (csvStrLength = strlen(csvStr)) == 0 || strlen(string) == 0)
++		return NULL;
++
++	stripCsvStr = malloc(csvStrLength+1);
++	memset(stripCsvStr, 0, csvStrLength+1);
++	outputCsvStr = NULL;
++
++	token = strtok_r(csvStr, ",", &tmp);
++	int running = token ? 1 : 0;
++
++	while(running) {
++		p = token;
++		outputCsvStr = (strlen(p) && strcmp(p, string) != 0) ? strcat(stripCsvStr, p) : NULL;
++		outputCsvStr = (outputCsvStr) ? strcat(stripCsvStr, ",") : NULL;
++		strip = (!outputCsvStr && !strip) ? true : false;
++
++		token = strtok_r(NULL, ",", &tmp);
++		running = (!token) ? 0 : 1;
++	}
++
++	if((csvStrLength = strlen(stripCsvStr))){
++		*(stripCsvStr+(csvStrLength-1)) = '\0';
++	}
++	if(!strip){
++		free(stripCsvStr);
++	}
++
++	return strip ? stripCsvStr : NULL;
++}
++
+ char *zyUtilCsvStringStripTerm(const char *csv, const char *term)
+ {
+ 	char *new_Csv = NULL;
+Index: libzyutil-1.0/zyutil.h
+===================================================================
+--- libzyutil-1.0.orig/zyutil.h	2020-07-29 23:51:31.099572267 +0800
++++ libzyutil-1.0/zyutil.h	2020-07-29 23:49:54.065987600 +0800
+@@ -57,6 +57,7 @@
+ int zyUtilQueryUtilityEid(const char *name);
+ 
+ char *zyUtilStrCsvString(const char *, const char *);
++char *zyUtilStrCsvStripString(const char *, const char *);
+ void zyUtilStrCsvAppend(char **, const char *);
+ char *zyUtilCsvStringStripTerm(const char *, const char *);
+ 

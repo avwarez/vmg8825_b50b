@@ -1,0 +1,36 @@
+Index: linux-4.1.52/net/bridge/netfilter/ebt_ip.c
+===================================================================
+--- linux-4.1.52.orig/net/bridge/netfilter/ebt_ip.c	2020-07-30 11:17:38.212559300 +0800
++++ linux-4.1.52/net/bridge/netfilter/ebt_ip.c	2020-07-30 13:32:17.962234960 +0800
+@@ -268,8 +268,16 @@
+             memset(payload, 0, sizeof(payload));
+             skb_data_len = skb->len;
+ 
+-            if (skb_copy_bits(skb, 0, payload, skb_data_len))
+-                            printk("Copy packet is failed by ebtables of filtering DHCP Option\n\r");
++		if (skb_data_len > sizeof(payload)){
++			if (skb_copy_bits(skb, 0, payload, sizeof(payload))){
++				printk("Copy packet is failed by ebtables of filtering DHCP Option\n\r");
++			}
++		}else{
++			if (skb_copy_bits(skb, 0, payload, skb_data_len)){
++				printk("Copy packet is failed by ebtables of filtering DHCP Option\n\r");
++			}
++		}	
++
+ 
+             dhcpPtr = (struct dhcpMessage *)(payload + sizeof(struct iphdr) + sizeof(struct udphdr));
+ 
+Index: linux-4.1.52/include/uapi/linux/netfilter_bridge/ebt_ip.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter_bridge/ebt_ip.h	2020-07-30 13:57:16.228148800 +0800
++++ linux-4.1.52/include/uapi/linux/netfilter_bridge/ebt_ip.h	2020-08-03 16:28:38.674402700 +0800
+@@ -43,7 +43,7 @@
+  EBT_IP_SPORT | EBT_IP_DPORT | EBT_IP_LENGTH | EBT_IP_TCP_FLAGS |\
+  EBT_IP_DHCP_OPT60 | EBT_IP_DHCP_OPT61 | EBT_IP_DHCP_OPT77 | EBT_IP_DHCP_OPT125)
+ #endif
+-#define DHCP_OPTION_MAX_LEN 556 /* IP header(20) + UDP header(8)+ DHCP header(528) */
++#define DHCP_OPTION_MAX_LEN 576 /* IP header(20) + UDP header(8)+ DHCP header(548) */
+ 
+ #define DHCP_PADDING                            0x00
+ #define DHCP_VENDOR                             0x3c    /*option 60 */

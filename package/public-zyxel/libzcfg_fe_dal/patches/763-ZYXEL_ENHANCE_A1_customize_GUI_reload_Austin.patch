@@ -1,0 +1,511 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-29 09:51:55.180227728 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-29 09:52:36.510511413 +0800
+@@ -148,8 +148,22 @@
+ 
+ #ifdef ZYXEL_ONESSID
+ bool oneSsidEnable;
++bool oneSsidEnable_ori;
+ #endif
+-
++//compare
++const char* SSID_ori;
++bool wlEnable_ori;
++unsigned int upRate_ori;
++unsigned int downRate_ori;
++bool X_ZYXEL_Multicast_Fwd_ori;
++unsigned bandwidth_ori;
++unsigned int channel_ori;
++unsigned int MaxAssociatedDevices_ori;
++bool wlHide_ori;
++const char* psk_value_ori;
++unsigned int RekeyingInterval_ori;
++int Secmode_ori;
++const char* wlGwMode_ori;
+ //WiFi SSID
+ bool wlEnable;
+ const char* SSID;
+@@ -586,7 +600,8 @@
+ }
+ 
+ 
+-void getBasicWlInfo(struct json_object *Jobj){
++zcfgRet_t getBasicWlInfo(struct json_object *Jobj){
++	zcfgRet_t ret = ZCFG_SUCCESS;
+ 
+ #ifdef ZYXEL_ONESSID
+ /*
+@@ -1377,7 +1392,7 @@
+ 			return ret;
+ 		}
+ 	}
+-	
++
+ 	json_object_object_add(wifiSubnetObj, "Enable", json_object_new_boolean(wlSubnetState));
+ 	json_object_object_add(wifiSubnetObj, "MinAddress", json_object_new_string(MinAddress));
+ 	json_object_object_add(wifiSubnetObj, "MaxAddress", json_object_new_string(MaxAddress));
+@@ -1585,9 +1600,13 @@
+ 
+ 	if((ret = validateWlObj(Jobj,NULL)) != ZCFG_SUCCESS)
+ 		goto dalwlan_edit_fail;
+-
+ 	prepareWlObj(Jobj);
+-	
++	if(wpaMode != NULL)
++		ret = compareWlObj(Jobj);
++	if(ret != ZCFG_SUCCESS){
++		goto dalwlan_edit_fail;
++	}
++
+ 	if((ret = editWifiSsidObjects(Jobj)) != ZCFG_SUCCESS)
+ 		goto dalwlan_edit_fail;
+ 
+@@ -1605,6 +1624,9 @@
+ 		if((!strcmp(subnetObjAction, "POST")) || (!strcmp(subnetObjAction, "PUT")) || (!strcmp(subnetObjAction, "DELETE"))) {
+ 			if((ret = cfgWifiSubnetObject(Jobj, subnetObjAction)) != ZCFG_SUCCESS)
+ 				goto dalwlan_edit_fail;	
++			if((!strcmp(subnetObjAction, "POST")) || (!strcmp(subnetObjAction, "DELETE"))){
++				apply = true;
++			}
+ 		}
+ 	}
+ 	
+@@ -2241,6 +2263,124 @@
+ 	}
+ 	return ZCFG_SUCCESS;
+ }
++zcfgRet_t compareWlObj(struct json_object *Jobj) {
++
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	objIndex_t SsidIid={0};
++	objIndex_t RadioIid={0};
++	objIndex_t APSecIid={0};
++	objIndex_t APIid={0};
++	struct json_object *SsidObj = NULL;
++	struct json_object *RadioObj = NULL;
++	struct json_object *APObj = NULL;
++	struct json_object *APSecObj = NULL;
++	const char *tmpLowerLayer = NULL;
++	int index, pmfMethod = 0;
++	bool enablePMF = false, mainssid, wlEnableGuest_ori;
++	uint8_t tmpRadioIndex;
++	const char *band;
++	char *modeEn;
++#ifdef ZYXEL_ONESSID
++
++	struct json_object *OneSsidObj = NULL;
++	objIndex_t OneSsidIid={0};
++	OneSsidObj = json_object_new_object();
++	IID_INIT(OneSsidIid);
++	if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ONE_SSID, &OneSsidIid, &OneSsidObj) == ZCFG_SUCCESS) {
++		oneSsidEnable_ori = json_object_get_boolean(json_object_object_get(OneSsidObj, "Enable"));
++	}
++#endif
++
++	index = json_object_get_int(json_object_object_get(Jobj, "Index"));
++	SsidIid.level = 1;
++	SsidIid.idx[0] = index;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_SSID, &SsidIid, &SsidObj)) != ZCFG_SUCCESS)
++		return ret;
++	tmpLowerLayer = json_object_get_string(json_object_object_get(SsidObj, "LowerLayers"));
++	sscanf(tmpLowerLayer, "WiFi.Radio.%hhu", &tmpRadioIndex);
++	RadioIid.level = 1;
++	RadioIid.idx[0] = tmpRadioIndex;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_RADIO, &RadioIid, &RadioObj)) != ZCFG_SUCCESS)
++		return ret;
++
++	APIid.level = 1;
++	APIid.idx[0] = index;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT, &APIid, &APObj)) != ZCFG_SUCCESS)
++		return ret;
++
++	APSecIid.level = 1;
++	APSecIid.idx[0] = index;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT_SEC, &APSecIid, &APSecObj)) != ZCFG_SUCCESS)
++		return ret;
++
++
++	mainssid = json_object_get_boolean(json_object_object_get(SsidObj, "X_ZYXEL_MainSSID"));
++	SSID_ori = json_object_get_string(json_object_object_get(SsidObj, "SSID"));
++	upRate_ori = json_object_get_int(json_object_object_get(SsidObj, "X_ZYXEL_UpstreamRate"));
++	downRate_ori = json_object_get_int(json_object_object_get(SsidObj, "X_ZYXEL_DownstreamRate"));
++	wlEnable_ori = json_object_get_boolean(json_object_object_get(SsidObj, "Enable"));
++	X_ZYXEL_Multicast_Fwd_ori = json_object_get_boolean(json_object_object_get(SsidObj, "X_ZYXEL_Multicast_Fwd"));
++	bandwidth_ori = json_object_get_int(json_object_object_get(RadioObj, "OperatingChannelBandwidth"));
++	band = json_object_get_string(json_object_object_get(RadioObj, "OperatingFrequencyBand"));
++    if(json_object_get_boolean(json_object_object_get(RadioObj, "AutoChannelEnable")))
++		channel_ori = AutoChannel;
++    else
++		channel_ori = json_object_get_int(json_object_object_get(RadioObj, "Channel"));
++
++	MaxAssociatedDevices_ori = json_object_get_int(json_object_object_get(APObj, "MaxAssociatedDevices"));
++	wlHide_ori = json_object_get_boolean(json_object_object_get(APObj, "SSIDAdvertisementEnabled"));
++		if(json_object_get_boolean(json_object_object_get(APObj, "IsolationEnable")))
++			wlGwMode_ori = "0";
++		else
++			wlGwMode_ori = "1";
++	wlEnableGuest_ori = json_object_get_boolean(json_object_object_get(APObj, "X_ZYXEL_BssIdIsolation"));
++	psk_value_ori = json_object_get_string(json_object_object_get(APSecObj, "KeyPassphrase"));
++	RekeyingInterval_ori = json_object_get_int(json_object_object_get(APSecObj, "RekeyingInterval"));
++	modeEn = json_object_get_string(json_object_object_get(APSecObj, "ModeEnabled"));
++	if(!strcmp("WPA2-Personal",modeEn))
++		Secmode_ori = SLIDER_POS_MORESECURE;
++	else if (!strcmp("None",modeEn))
++		Secmode_ori = SLIDER_POS_NONE;
++	else
++		Secmode_ori = SLIDER_POS_BASIC;
++
++	if(SSID == NULL || psk_value == NULL){
++		ret = ZCFG_INTERNAL_ERROR;
++	}
++	else{
++		if(mainssid){
++			if ( !strcmp(SSID_ori,SSID) && (upRate_ori == upRate) && (downRate == downRate_ori) &&
++				(wlEnable == wlEnable_ori) && (channel_ori == channel) && ((bandwidth == 0) || (bandwidth == bandwidth_ori)) &&
++				(MaxAssociatedDevices_ori == MaxAssociatedDevices) && (wlHide != wlHide_ori)
++				&& !strcmp(psk_value,psk_value_ori) && (RekeyingInterval == RekeyingInterval_ori) &&
++				(secMode == Secmode_ori)
++#ifdef ZYXEL_ONESSID
++				&& (oneSsidEnable_ori == oneSsidEnable)
++#endif
++				){
++				ret = ZCFG_INTERNAL_ERROR;
++			}
++		}
++		else{
++			if ( !strcmp(SSID_ori,SSID) && (upRate_ori == upRate) && (downRate == downRate_ori) &&
++				(wlEnable == wlEnable_ori) && (wlHide != wlHide_ori) && !strcmp(psk_value,psk_value_ori)
++				&& !strcmp(wlGwMode,wlGwMode_ori) && (wlEnableGuest == wlEnableGuest_ori)) {
++				ret = ZCFG_INTERNAL_ERROR;
++			}
++		}
++	}
++#ifdef ZYXEL_ONESSID
++	if(OneSsidObj)
++		zcfgFeJsonObjFree(OneSsidObj);
++#endif
++	if(SsidObj)
++		zcfgFeJsonObjFree(SsidObj);
++	if(RadioObj)
++		zcfgFeJsonObjFree(RadioObj);
++	if(APSecObj)
++		zcfgFeJsonObjFree(APSecObj);
++	return ret;
++}
+ 
+ void prepareWlObj(struct json_object *Jobj){
+ #ifdef ZYXEL_ONESSID
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_others.c	2020-04-29 09:51:53.912227721 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c	2020-04-29 10:06:10.443928842 +0800
+@@ -55,6 +55,17 @@
+ objIndex_t wifiApWpsOthersIid = {0};
+ objIndex_t wifiSecOthersIid = {0};
+ 
++//compare
++unsigned int wlRtsThrshld_ori;
++unsigned int wlFrgThrshld_ori;
++unsigned int wlTxPwrPcnt_ori;
++unsigned int wlBcnIntvl_ori;
++unsigned int wlDtmIntvl_ori;
++const char* wlMode_ori;
++const char* wlProtect_ori;
++const char* wlPmf_ori;
++bool atf_ori;
++const char* wlPreamble_ori;
+ //WiFi Radio
+ unsigned int wlRtsThrshld;
+ unsigned int wlFrgThrshld;
+@@ -240,7 +251,66 @@
+ 	return ret;
+ }
+ 
+-void getBasicWlOthersInfo(struct json_object *Jobj){
++zcfgRet_t getBasicWlOthersInfo(struct json_object *Jobj){
++
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	objIndex_t SsidIid={0};
++	objIndex_t RadioIid={0};
++	objIndex_t APSecIid={0};
++	struct json_object *SsidObj = NULL;
++	struct json_object *RadioObj = NULL;
++	struct json_object *APSecObj = NULL;
++	const char *tmpLowerLayer = NULL;
++	int index, pmfMethod = 0;
++	bool enablePMF = false;
++	uint8_t tmpRadioIndex;
++
++	index = json_object_get_int(json_object_object_get(Jobj, "Index"));
++	SsidIid.level = 1;
++	SsidIid.idx[0] = index;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_SSID, &SsidIid, &SsidObj)) != ZCFG_SUCCESS)
++		return ret;
++	tmpLowerLayer = json_object_get_string(json_object_object_get(SsidObj, "LowerLayers"));
++	sscanf(tmpLowerLayer, "WiFi.Radio.%hhu", &tmpRadioIndex);
++	RadioIid.level = 1;
++	RadioIid.idx[0] = tmpRadioIndex;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_RADIO, &RadioIid, &RadioObj)) != ZCFG_SUCCESS)
++		return ret;
++
++	APSecIid.level = 1;
++	APSecIid.idx[0] = index;
++	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT_SEC, &APSecIid, &APSecObj)) != ZCFG_SUCCESS)
++		return ret;
++
++	wlRtsThrshld_ori = json_object_get_int(json_object_object_get(RadioObj, "X_ZYXEL_RTS_CTS_Threshold"));
++	wlFrgThrshld_ori = json_object_get_int(json_object_object_get(RadioObj, "X_ZYXEL_Fragment_Threshold"));
++	wlBcnIntvl_ori = json_object_get_int(json_object_object_get(RadioObj, "X_ZYXEL_Beacon_Interval"));
++	wlDtmIntvl_ori = json_object_get_int(json_object_object_get(RadioObj, "X_ZYXEL_DTIM_Interval"));
++	wlMode_ori = json_object_get_string(json_object_object_get(RadioObj, "X_ZYXEL_Wireless_Mode"));
++	wlTxPwrPcnt_ori = json_object_get_int(json_object_object_get(RadioObj, "TransmitPower"));
++	wlProtect_ori = json_object_get_string(json_object_object_get(RadioObj, "X_ZYXEL_Protection"));
++	if(strcmp(wlProtect_ori,"false"))
++		wlProtect_ori = "auto";
++	else
++		wlProtect_ori = "off";
++	wlPreamble_ori = json_object_get_string(json_object_object_get(RadioObj, "X_ZYXEL_Preamble"));
++	atf_ori = json_object_get_boolean(json_object_object_get(RadioObj, "X_ZYXEL_AirtimeFairness"));
++
++	enablePMF = json_object_get_boolean(json_object_object_get(APSecObj, "EnableManagementFrameProtection"));
++	pmfMethod = json_object_get_int(json_object_object_get(APSecObj, "X_ZYXEL_PmfMethod"));
++	if (enablePMF == false) {
++		 wlPmf_ori = json_object_get_string(json_object_new_string("disabled"));
++	}
++	else { //enablePMF = true
++		if (pmfMethod == 0) {
++			 wlPmf_ori = json_object_get_string(json_object_new_string("capable"));
++		}
++		else {
++			 wlPmf_ori = json_object_get_string(json_object_new_string("required"));
++		}
++	}
++
++
+ 	//WiFi Radio
+ 	wlRtsThrshld = json_object_get_int(json_object_object_get(Jobj, "wlRtsThrshld"));
+ 	wlFrgThrshld = json_object_get_int(json_object_object_get(Jobj, "wlFrgThrshld"));
+@@ -268,8 +338,20 @@
+ 	atf = json_object_get_boolean(json_object_object_get(Jobj, "atf"));
+ 	InActiveChan = json_object_get_string(json_object_object_get(Jobj, "InActiveChan"));
+ 	singleSKU = json_object_get_string(json_object_object_get(Jobj, "singleSKU"));
+-	
+-	return;
++
++	if ((atf_ori == atf) && !strcmp(wlPreamble_ori,wlPreamble) && !strcmp(wlProtect_ori,wlProtect) &&
++	(wlTxPwrPcnt_ori == wlTxPwrPcnt) && !strcmp(wlMode_ori,wlMode) && (wlDtmIntvl_ori == wlDtmIntvl) &&
++	(wlBcnIntvl_ori == wlBcnIntvl) && (wlFrgThrshld_ori == wlFrgThrshld) &&
++	(wlRtsThrshld_ori == wlRtsThrshld) && !strcmp(wlPmf_ori,wlPmf)){
++		ret = ZCFG_INTERNAL_ERROR;
++	}
++	if(SsidObj)
++		zcfgFeJsonObjFree(SsidObj);
++	if(RadioObj)
++		zcfgFeJsonObjFree(RadioObj);
++	if(APSecObj)
++		zcfgFeJsonObjFree(APSecObj);
++	return ret;
+ }
+ 
+ void initGlobalWlOthersObjects(){
+@@ -458,8 +540,11 @@
+ 	
+ 	initGlobalWlOthersObjects();
+ 
+-	getBasicWlOthersInfo(Jobj);
+-	
++	ret = getBasicWlOthersInfo(Jobj);
++	if( ret != ZCFG_SUCCESS){
++		goto dalwlan_edit_fail;
++	}
++
+ 	if((ret = editWifiOthersApWpsObject(Jobj)) != ZCFG_SUCCESS){
+ 		printf("editWifiOthersApWpsObject fail", __LINE__);
+ 		goto dalwlan_edit_fail;
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wmm.c	2020-04-29 09:51:54.140227722 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c	2020-04-29 09:51:55.260227729 +0800
+@@ -266,13 +266,13 @@
+ 	char* wlMode = NULL; // e.g. 11anac
+ 	bool forceEnableWMM = false;
+ 	bool printForceEnableMsg = false;
+-		
++	bool WMMEnable_ori = false, UAPSDEnable_ori = false, wmmEn = false, UAPSDEn = false;
+ 	wmmEnableArray = json_object_object_get(Jobj, "WMMEnable");
+ 	iidArray = json_object_object_get(Jobj, "startidxarray");
+ 	mainUapsdEnable = json_object_get_int(json_object_object_get(Jobj, "UAPSDEnable"));
+ 	len = json_object_array_length(iidArray);
+ 	mainWmmEnable = json_object_get_int( json_object_array_get_idx(wmmEnableArray, 0));
+-		
++
+ 	// Check if need forceWMMEnable
+ 	IID_INIT(ssidIid);
+ 	ssidIid.level = 1;
+@@ -321,17 +321,22 @@
+ 		objIid.level = 1;
+ 		objIid.idx[0] = idx;
+ 		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &objIid, &WifiApWmmJobj) == ZCFG_SUCCESS){
+-		if((WMMEnable == 1) || forceEnableWMM)
+-			json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(true));
+-		else
+-			json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(false));
+-		
+-		if(mainUapsdEnable == 1)
+-			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(true));
+-		else
+-			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
+-		
+-			zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++			WMMEnable_ori = json_object_new_boolean(json_object_get_boolean(json_object_object_get(WifiApWmmJobj,"WMMEnable")));
++			UAPSDEnable_ori = json_object_get_boolean(json_object_object_get(WifiApWmmJobj, "UAPSDEnable"));
++			wmmEn = json_object_new_boolean(json_object_get_boolean(json_object_object_get(Jobj, "WMMEnable")));
++			UAPSDEn = json_object_get_boolean(json_object_object_get(Jobj, "UAPSDEnable"));
++			if((WMMEnable == 1) || forceEnableWMM)
++				json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(true));
++			else
++				json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(false));
++
++			if(mainUapsdEnable == 1)
++				json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(true));
++			else
++				json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
++
++			if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
++				zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
+ 			json_object_put(WifiApWmmJobj);
+ 		}
+ 	}
+@@ -341,16 +346,21 @@
+ 	objIid.level = 1;
+ 	objIid.idx[0] = json_object_get_int( json_object_array_get_idx(iidArray, 0));
+ 	if(zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT, &objIid, &WifiApWmmJobj) == ZCFG_SUCCESS){
+-	if((mainWmmEnable == 1) || forceEnableWMM)
+-		json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(true));
+-	else
+-		json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(false));
+-	if(mainUapsdEnable == 1)
+-		json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(true));
+-	else
+-		json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
+-	
+-		zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++		WMMEnable_ori = json_object_new_boolean(json_object_get_boolean(json_object_object_get(WifiApWmmJobj,"WMMEnable")));
++		UAPSDEnable_ori = json_object_get_boolean(json_object_object_get(WifiApWmmJobj, "UAPSDEnable"));
++		wmmEn = json_object_new_boolean(json_object_get_boolean(json_object_object_get(Jobj, "WMMEnable")));
++		UAPSDEn = json_object_get_boolean(json_object_object_get(Jobj, "UAPSDEnable"));
++		if((mainWmmEnable == 1) || forceEnableWMM)
++			json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(true));
++		else
++			json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(false));
++		if(mainUapsdEnable == 1)
++			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(true));
++		else
++			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
++
++		if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
++			zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
+ 	json_object_put(WifiApWmmJobj);
+ 	}
+ 	return ret;
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_easymesh.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_easymesh.c	2020-04-29 09:51:51.784227709 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_easymesh.c	2020-04-29 09:51:55.260227729 +0800
+@@ -49,15 +49,18 @@
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 
+-	bool EasyMeshEnable = false;
++	int EasyMeshEnable = false, EasyMeshEnable_ori = false;
+ 	EasyMeshEnable = json_object_get_int(json_object_object_get(Jobj, "EasyMeshEnable"));
+ 	struct json_object *EasyMeshObj = NULL;
+ 	objIndex_t EasyMeshIid;
+ 
+ 	IID_INIT(EasyMeshIid);
+ 	if(zcfgFeObjJsonGet(RDM_OID_EASY_MESH, &EasyMeshIid, &EasyMeshObj) == ZCFG_SUCCESS){
+-		json_object_object_add(EasyMeshObj, "Enable", json_object_new_boolean(EasyMeshEnable));
+-		zcfgFeObjJsonBlockedSet(RDM_OID_EASY_MESH, &EasyMeshIid, EasyMeshObj, NULL);
++		EasyMeshEnable_ori = json_object_get_int(json_object_object_get(EasyMeshObj, "Enable"));
++		if(EasyMeshEnable != EasyMeshEnable_ori){
++			json_object_object_add(EasyMeshObj, "Enable", json_object_new_boolean(EasyMeshEnable));
++			zcfgFeObjJsonBlockedSet(RDM_OID_EASY_MESH, &EasyMeshIid, EasyMeshObj, NULL);
++		}
+ 		zcfgFeJsonObjFree(EasyMeshObj);
+ 	}
+ 	return ret;
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wps.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wps.c	2020-04-29 09:51:53.844227721 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wps.c	2020-04-29 09:51:55.260227729 +0800
+@@ -217,7 +217,8 @@
+ 	// for wps apply check
+ 	struct json_object *tmpObj = NULL;
+ 	char *secMode = NULL;
+-	
++	bool enableAPPin_ori = false,enableStaPin_ori = false, enablepbc_ori = false, enable_ori = false;
++	bool enable_js = false, enablepbc_js = false, enableAPPin_js = false, enableStaPin_js = false, apply = false;
+ 	wpsBand = json_object_get_string(json_object_object_get(Jobj, "Band"));
+ 	IID_INIT(objIid);
+ 	objIid.level = 1;
+@@ -267,25 +268,48 @@
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT_WPS, &objIid, &WifiApWpsJobj)) != ZCFG_SUCCESS) {
+ 		return ret;
+ 	}
++	enable_ori = json_object_get_boolean(json_object_object_get(WifiApWpsJobj, "Enable"));
++	enablepbc_ori = json_object_get_boolean(json_object_object_get(WifiApWpsJobj, "X_ZYXEL_WPS_EnablePBC"));
++	enableStaPin_ori = json_object_get_boolean(json_object_object_get(WifiApWpsJobj, "X_ZYXEL_WPS_EnableStaPin"));
++	enableAPPin_ori = json_object_get_boolean(json_object_object_get(WifiApWpsJobj, "X_ZYXEL_WPS_EnableAPPin"));
+ 	if(enable = json_object_object_get(Jobj,"Enable")){
++		enable_js = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
++		if (enable_js != enable_ori){
++			apply = true;
++		}
+ 		json_object_object_add(WifiApWpsJobj,"Enable", JSON_OBJ_COPY(enable));
+ 	}
+ 	if(enablePBC = json_object_object_get(Jobj,"EnablePBC")){
++		enablepbc_js = json_object_get_boolean(json_object_object_get(Jobj, "EnablePBC"));
++		if (enablepbc_js != enablepbc_ori){
++			apply = true;
++		}
+ 		json_object_object_add(WifiApWpsJobj,"X_ZYXEL_WPS_EnablePBC", JSON_OBJ_COPY(enablePBC));
+ 	}
+ 	if(enableStaPin = json_object_object_get(Jobj,"EnableStaPin")){
++		enableStaPin_js = json_object_get_boolean(json_object_object_get(Jobj, "EnableStaPin"));
++		if (enableStaPin_js != enableStaPin_ori){
++			apply = true;
++		}
+ 		json_object_object_add(WifiApWpsJobj,"X_ZYXEL_WPS_EnableStaPin", JSON_OBJ_COPY(enableStaPin));
+ 	}
+ 	if(enableAPPin = json_object_object_get(Jobj,"EnableAPPin")){
++		enableAPPin_js = json_object_get_boolean(json_object_object_get(Jobj, "EnableAPPin"));
++		if (enableAPPin_js != enableAPPin_ori){
++			apply = true;
++		}
+ 		json_object_object_add(WifiApWpsJobj,"X_ZYXEL_WPS_EnableAPPin", JSON_OBJ_COPY(enableAPPin));
+ 	}
+ 	if(genDevicePin = json_object_object_get(Jobj,"X_ZYXEL_WPS_GenDevicePin")){
++		apply = true;
+ 		json_object_object_add(WifiApWpsJobj,"X_ZYXEL_WPS_GenDevicePin", JSON_OBJ_COPY(genDevicePin));
+ 	}
+ 	if(stationPin = json_object_object_get(Jobj,"X_ZYXEL_WPS_StationPin")){
++		apply = true;
+ 		json_object_object_add(WifiApWpsJobj,"X_ZYXEL_WPS_StationPin", JSON_OBJ_COPY(stationPin));
+ 	}
+ 	if(configured = json_object_object_get(Jobj,"X_ZYXEL_WPS_Configured")){
++		apply = true;
+ 		json_object_object_add(WifiApWpsJobj,"X_ZYXEL_WPS_Configured", JSON_OBJ_COPY(configured));
+ 	}
+ 	if(method = json_object_object_get(Jobj,"X_ZYXEL_WPS_Method")){
+@@ -294,8 +318,8 @@
+ 	if(configMethodsEnabled = json_object_object_get(Jobj,"ConfigMethodsEnabled")){
+ 		json_object_object_add(WifiApWpsJobj,"ConfigMethodsEnabled", JSON_OBJ_COPY(configMethodsEnabled));
+ 	}
+-
+-	if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_ACCESS_POINT_WPS, &objIid, WifiApWpsJobj, NULL)) != ZCFG_SUCCESS);
++	if(apply)
++		if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_ACCESS_POINT_WPS, &objIid, WifiApWpsJobj, NULL)) != ZCFG_SUCCESS);
+ 	json_object_put(WifiApWpsJobj);
+ 	return ret;
+ }

@@ -1,0 +1,13 @@
+Index: wide-dhcpv6-20080615/Makefile.in
+===================================================================
+--- wide-dhcpv6-20080615.orig/Makefile.in	2019-10-04 17:24:34.160117702 +0800
++++ wide-dhcpv6-20080615/Makefile.in	2019-10-04 17:25:11.716187672 +0800
+@@ -40,7 +40,7 @@
+ INC_PATH = $(ALLOWED_INCLUDE_PATHS)
+ 
+ LIB_PATH = -L$(USRLIBDIR) -L$(INSTALL_DIR)/lib/public -L$(INSTALL_DIR)/lib/private
+-LINK_LIB = -ljson -lzcfg_msg -lzcmd_tool -lzcfg_fe_rdm_access -lzcfg_fe_rdm_struct
++LINK_LIB = -ljson -lzcfg_msg -lzcmd_tool -lzcfg_fe_rdm_access -lzcfg_fe_rdm_struct -lzlog -lzos
+ 
+ prefix=	@prefix@
+ srcdir=	@srcdir@

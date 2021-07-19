@@ -1,0 +1,122 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-09-10 17:55:40.449007887 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-09-10 17:58:15.057003427 +0800
+@@ -2336,10 +2336,9 @@
+ 				zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ATM_LINK, &atmIid, &atmObj);		
+ 				strcpy(WanType, "ATM");
+ 				break;
+-			}
+-			else
+-			{
+-				return ZCFG_REQUEST_REJECT;
++			}else{
++				ret = ZCFG_REQUEST_REJECT;
++				goto out;
+ 			}
+ 		}
+ 		else if(!strncmp(HigherLayer, "PPP.Interface.", 14))
+@@ -2364,7 +2363,8 @@
+ 			}
+ 			else
+ 			{
+-				return ZCFG_REQUEST_REJECT;
++				ret = ZCFG_REQUEST_REJECT;
++				goto out;
+ 			}
+ 		}
+ 		else if(!strncmp("Ethernet.VLANTermination.", HigherLayer, 25))
+@@ -2380,7 +2380,8 @@
+ 			}
+ 			else
+ 			{
+-				return ZCFG_REQUEST_REJECT;
++				ret = ZCFG_REQUEST_REJECT;
++				goto out;
+ 			}
+ 		}
+ 		else if(!strncmp("Ethernet.Link.", HigherLayer, 14))
+@@ -2424,16 +2425,19 @@
+ 			else if(!strcmp("", LowerLayer)){
+ 				if(json_object_get_boolean(json_object_object_get(ethlink, "X_ZYXEL_OrigEthWAN")) == false)
+ 				{
+-					return ZCFG_REQUEST_REJECT;
++					ret = ZCFG_REQUEST_REJECT;
++					goto out;
+ 				}
+ 			}
+ 			else{
+-				return ZCFG_REQUEST_REJECT;
++				ret = ZCFG_REQUEST_REJECT;
++				goto out;
+ 			}
+ 		}
+ 	}
+ 
+ 	//release	
++out:
+ 	if(atmObj) json_object_put(atmObj);
+ 	if(ptmObj) json_object_put(ptmObj);
+ 	if(ethObj) json_object_put(ethObj);
+@@ -3781,8 +3785,10 @@
+ bool checkWanInterfaceLimit(struct json_object * currObj, struct json_object *wanLanList, int isAdd)
+ {
+     struct json_object *listObj = NULL;
++
+     int i, wanIntfCount = 0, len = 0;
+-    int MaxSameWANInterface = 8;
++    int MaxSameWANInterface = WAN_INTERFACES;
++
+ 
+     len = json_object_array_length(wanLanList);
+ 	if(json_object_object_get(currObj, "Type")){
+@@ -3822,7 +3828,7 @@
+ 	bool checkDuplicateVlan = true;
+ 	IID_INIT(iid);
+ 	iid.idx[0] = 0;
+-	if(ZCFG_SUCCESS==zcfgFeObjJsonGetWithoutUpdate(RDM_OID_FEATURE_FLAG, &iid, &featureFlagObj)){
++	if(!featureFlagObj && ZCFG_SUCCESS==zcfgFeObjJsonGetWithoutUpdate(RDM_OID_FEATURE_FLAG, &iid, &featureFlagObj)){
+ 		checkDuplicateVlan = json_object_get_boolean(json_object_object_get(featureFlagObj, "checkDuplicateVlan"));
+ 		if(false ==checkDuplicateVlan){
+ 			//if(obj) zcfgFeJsonObjFree(obj);
+@@ -4712,7 +4718,13 @@
+ 	bool ip6DnsStatic = false;
+ 	int tag = 0;
+ 	bool opt = false;
+-	
++	objIndex_t featureFlagIid;
++
++
++	IID_INIT(featureFlagIid);
++	if(!featureFlagObj)
++		zcfgFeObjJsonGetWithoutUpdate(RDM_OID_FEATURE_FLAG, &featureFlagIid, &featureFlagObj);
++
+ 	//Default
+ 	json_object_object_add(pramJobj, "ipStatic", json_object_new_boolean(false));
+ 	json_object_object_add(pramJobj, "ip6Static", json_object_new_boolean(false));
+@@ -5033,11 +5045,12 @@
+ 	zcfgFeJsonObjFree(jarr);
+ #endif
+ 
+-	initGlobalObjects();
++	//initGlobalObjects();
+ 
+ 	objIndex_t featureFlagIid;
+ 	IID_INIT(featureFlagIid);
+-	zcfgFeObjJsonGetWithoutUpdate(RDM_OID_FEATURE_FLAG, &featureFlagIid, &featureFlagObj);
++	if(!featureFlagObj)
++		zcfgFeObjJsonGetWithoutUpdate(RDM_OID_FEATURE_FLAG, &featureFlagIid, &featureFlagObj);
+ 
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_IP_IFACE, &ipIfaceIid, &ipIfObj) == ZCFG_SUCCESS) {
+ 		
+@@ -5202,7 +5215,10 @@
+ 	else if(!strcmp(method, "DELETE"))
+ 		ret = zcfgFeDalWanDelete(Jobj, NULL);
+ 	else if(!strcmp(method, "GET")){
++		initGlobalObjects();
+ 		ret = zcfgFeDalWanGet(Jobj, Jarray, NULL);
++
++		freeAllObjects();
+ 	}
+ 	else
+ 		printf("Unknown method:%s\n", method);

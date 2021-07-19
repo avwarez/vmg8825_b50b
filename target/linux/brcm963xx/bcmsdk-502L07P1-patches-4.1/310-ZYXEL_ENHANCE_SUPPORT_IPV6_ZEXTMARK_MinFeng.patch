@@ -1,0 +1,438 @@
+Index: linux-4.1.52/include/uapi/linux/fib_rules.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/fib_rules.h	2019-12-27 04:16:30.563432267 +0000
++++ linux-4.1.52/include/uapi/linux/fib_rules.h	2019-12-30 03:06:22.675265747 +0000
+@@ -49,8 +49,10 @@
+ 	FRA_TABLE,	/* Extended table id */
+ 	FRA_FWMASK,	/* mask for netfilter mark */
+ 	FRA_OIFNAME,
++#ifdef CONFIG_ZYXEL_EXT_MARK
+ 	FRA_ZEXTMARK,	/* zextmark */
+ 	FRA_ZEXTMASK,	/* mask for netfilter zextmark */
++#endif
+ 	__FRA_MAX
+ };
+ 
+Index: linux-4.1.52/include/uapi/linux/netfilter/nfnetlink_conntrack.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter/nfnetlink_conntrack.h	2019-12-27 04:16:30.531436950 +0000
++++ linux-4.1.52/include/uapi/linux/netfilter/nfnetlink_conntrack.h	2019-12-30 03:07:37.548308681 +0000
+@@ -51,8 +51,10 @@
+ 	CTA_SECCTX,
+ 	CTA_TIMESTAMP,
+ 	CTA_MARK_MASK,
++#ifdef CONFIG_ZYXEL_EXT_MARK
+ 	CTA_ZEXTMARK,  // zyxel jessy 20180621
+ 	CTA_ZEXTMARK_MASK,  // zyxel jessy 20180621
++#endif
+ 	CTA_LABELS,
+ 	CTA_LABELS_MASK,
+ #if defined(CONFIG_BCM_KF_DPI) && defined(CONFIG_BCM_DPI_MODULE)
+Index: linux-4.1.52/include/uapi/linux/netfilter/nfnetlink_log.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter/nfnetlink_log.h	2019-12-27 04:16:30.527437534 +0000
++++ linux-4.1.52/include/uapi/linux/netfilter/nfnetlink_log.h	2019-12-30 03:10:57.003120082 +0000
+@@ -36,7 +36,9 @@
+ 	NFULA_UNSPEC,
+ 	NFULA_PACKET_HDR,
+ 	NFULA_MARK,			/* __u32 nfmark */
++#ifdef CONFIG_ZYXEL_EXT_MARK
+ 	NFULA_ZEXTMARK,			/* u_int32_t nfzextmark */
++#endif
+ 	NFULA_TIMESTAMP,		/* nfulnl_msg_packet_timestamp */
+ 	NFULA_IFINDEX_INDEV,		/* __u32 ifindex */
+ 	NFULA_IFINDEX_OUTDEV,		/* __u32 ifindex */
+Index: linux-4.1.52/include/uapi/linux/netfilter/nfnetlink_queue.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter/nfnetlink_queue.h	2019-12-27 04:16:30.503441047 +0000
++++ linux-4.1.52/include/uapi/linux/netfilter/nfnetlink_queue.h	2019-12-30 03:22:12.380284095 +0000
+@@ -35,7 +35,9 @@
+ 	NFQA_PACKET_HDR,
+ 	NFQA_VERDICT_HDR,		/* nfqnl_msg_verdict_hrd */
+ 	NFQA_MARK,			/* __u32 nfmark */
++#ifdef CONFIG_ZYXEL_EXT_MARK
+ 	NFQA_ZEXTMARK,			/* __u32 nfmark */
++#endif
+ 	NFQA_TIMESTAMP,			/* nfqnl_msg_packet_timestamp */
+ 	NFQA_IFINDEX_INDEV,		/* __u32 ifindex */
+ 	NFQA_IFINDEX_OUTDEV,		/* __u32 ifindex */
+Index: linux-4.1.52/include/uapi/linux/rtnetlink.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/rtnetlink.h	2019-12-27 04:16:30.567431682 +0000
++++ linux-4.1.52/include/uapi/linux/rtnetlink.h	2019-12-30 03:25:10.506216805 +0000
+@@ -304,7 +304,9 @@
+ 	RTA_MP_ALGO, /* no longer used */
+ 	RTA_TABLE,
+ 	RTA_MARK,
++#ifdef CONFIG_ZYXEL_EXT_MARK
+ 	RTA_ZEXTMARK,
++#endif
+ 	RTA_MFC_STATS,
+ 	RTA_VIA,
+ 	RTA_NEWDST,
+Index: linux-4.1.52/net/decnet/dn_route.c
+===================================================================
+--- linux-4.1.52.orig/net/decnet/dn_route.c	2019-12-27 04:16:30.579429926 +0000
++++ linux-4.1.52/net/decnet/dn_route.c	2019-12-30 05:28:37.886206627 +0000
+@@ -1659,7 +1659,9 @@
+ 	[RTA_MULTIPATH]		= { .type = NLA_NESTED },
+ 	[RTA_TABLE]		= { .type = NLA_U32 },
+ 	[RTA_MARK]		= { .type = NLA_U32 },
++#ifdef CONFIG_ZYXEL_EXT_MARK
+ 	[RTA_ZEXTMARK]		= { .type = NLA_U32 },
++#endif
+ };
+ 
+ /*
+Index: linux-4.1.52/net/netfilter/nf_conntrack_netlink.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nf_conntrack_netlink.c	2019-12-27 04:16:30.531436950 +0000
++++ linux-4.1.52/net/netfilter/nf_conntrack_netlink.c	2019-12-30 05:55:20.479680028 +0000
+@@ -2393,6 +2393,18 @@
+ 			ct->mark = newmark;
+ 	}
+ #endif
++#if defined(CONFIG_ZYXEL_EXT_MARK)
++	if (cda[CTA_ZEXTMARK]) {
++		u32 mask = 0, mark, newmark;
++		if (cda[CTA_ZEXTMARK_MASK])
++			mask = ~ntohl(nla_get_be32(cda[CTA_ZEXTMARK_MASK]));
++
++		mark = ntohl(nla_get_be32(cda[CTA_ZEXTMARK]));
++		newmark = (ct->zextmark & mask) ^ mark;
++		if (newmark != ct->zextmark)
++			ct->zextmark = newmark;
++	}
++#endif
+ 	return 0;
+ }
+ 
+Index: linux-4.1.52/net/netfilter/nfnetlink_log.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nfnetlink_log.c	2019-12-27 04:16:30.527437534 +0000
++++ linux-4.1.52/net/netfilter/nfnetlink_log.c	2019-12-30 06:01:53.306193044 +0000
+@@ -507,8 +507,9 @@
+ 	    nla_put_be32(inst->skb, NFULA_MARK, htonl(skb->mark)))
+ 		goto nla_put_failure;
+ #if defined(CONFIG_SBG_SKB_MARK)//jessy
+-	if (ZLD_CB_DATA(skb)->zextmark)
+-		nla_put_be32(inst->skb, NFULA_ZEXTMARK, htonl(ZLD_CB_DATA(skb)->zextmark));
++	if (ZLD_CB_DATA(skb)->zextmark &&
++		nla_put_be32(inst->skb, NFULA_ZEXTMARK, htonl(ZLD_CB_DATA(skb)->zextmark)))
++		goto nla_put_failure;
+ #endif
+ 
+ 
+@@ -661,6 +662,9 @@
+ 		+ nla_total_size(sizeof(u_int32_t))	/* ifindex */
+ #endif
+ 		+ nla_total_size(sizeof(u_int32_t))	/* mark */
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		+ nla_total_size(sizeof(u_int32_t))	/* zextmark */
++#endif
+ 		+ nla_total_size(sizeof(u_int32_t))	/* uid */
+ 		+ nla_total_size(sizeof(u_int32_t))	/* gid */
+ 		+ nla_total_size(plen)			/* prefix */
+Index: linux-4.1.52/net/netfilter/nfnetlink_queue_core.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nfnetlink_queue_core.c	2019-12-27 04:16:30.527437534 +0000
++++ linux-4.1.52/net/netfilter/nfnetlink_queue_core.c	2019-12-30 06:13:26.760711582 +0000
+@@ -309,6 +309,9 @@
+ 		+ nla_total_size(sizeof(u_int32_t))	/* ifindex */
+ #endif
+ 		+ nla_total_size(sizeof(u_int32_t))	/* mark */
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		+ nla_total_size(sizeof(u_int32_t))	/* zextmark */
++#endif
+ 		+ nla_total_size(sizeof(struct nfqnl_msg_packet_hw))
+ 		+ nla_total_size(sizeof(u_int32_t))	/* skbinfo */
+ 		+ nla_total_size(sizeof(u_int32_t));	/* cap_len */
+Index: linux-4.1.52/net/ipv6/ip6_output.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/ip6_output.c	2019-12-27 04:16:29.795544641 +0000
++++ linux-4.1.52/net/ipv6/ip6_output.c	2019-12-30 07:14:19.530158304 +0000
+@@ -56,6 +56,10 @@
+ #include <net/checksum.h>
+ #include <linux/mroute6.h>
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
++
+ static int ip6_finish_output2(struct sock *sk, struct sk_buff *skb)
+ {
+ 	struct dst_entry *dst = skb_dst(skb);
+@@ -622,6 +626,10 @@
+ 	to->dev = from->dev;
+ 	to->mark = from->mark;
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	ZLD_CB_DATA(to)->zextmark = ZLD_CB_DATA(from)->zextmark;
++#endif
++
+ #ifdef CONFIG_NET_SCHED
+ 	to->tc_index = from->tc_index;
+ #endif
+Index: linux-4.1.52/net/ipv6/ip6mr.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/ip6mr.c	2019-12-27 04:16:29.795544641 +0000
++++ linux-4.1.52/net/ipv6/ip6mr.c	2019-12-30 07:26:30.383203869 +0000
+@@ -54,6 +54,10 @@
+ #include <net/ip6_checksum.h>
+ #include <linux/netconf.h>
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
++
+ struct mr6_table {
+ 	struct list_head	list;
+ 	possible_net_t		net;
+@@ -631,6 +635,9 @@
+ 	struct flowi6 fl6 = {
+ 		.flowi6_iif	= skb->dev->ifindex,
+ 		.flowi6_mark	= skb->mark,
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark,
++#endif
+ 	};
+ 	int reg_vif_num;
+ 
+@@ -701,6 +708,9 @@
+ 		.flowi6_oif	= dev->ifindex,
+ 		.flowi6_iif	= skb->skb_iif ? : LOOPBACK_IFINDEX,
+ 		.flowi6_mark	= skb->mark,
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark,
++#endif
+ 	};
+ 	int err;
+ 
+@@ -1684,6 +1694,9 @@
+ 		.flowi6_iif	= skb->skb_iif ? : LOOPBACK_IFINDEX,
+ 		.flowi6_oif	= skb->dev->ifindex,
+ 		.flowi6_mark	= skb->mark,
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark,
++#endif
+ 	};
+ 
+ 	if (ip6mr_fib_lookup(net, &fl6, &mrt) < 0)
+@@ -2239,6 +2252,9 @@
+ 	struct flowi6 fl6 = {
+ 		.flowi6_iif	= skb->dev->ifindex,
+ 		.flowi6_mark	= skb->mark,
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark,
++#endif
+ 	};
+ 	int err;
+ 
+Index: linux-4.1.52/net/ipv6/netfilter.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/netfilter.c	2019-12-27 04:16:29.799544056 +0000
++++ linux-4.1.52/net/ipv6/netfilter.c	2019-12-30 07:35:51.621071244 +0000
+@@ -18,6 +18,10 @@
+ #include <net/ip6_checksum.h>
+ #include <net/netfilter/nf_queue.h>
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
++
+ int ip6_route_me_harder(struct sk_buff *skb)
+ {
+ 	struct net *net = dev_net(skb_dst(skb)->dev);
+@@ -27,6 +31,9 @@
+ 	struct flowi6 fl6 = {
+ 		.flowi6_oif = skb->sk ? skb->sk->sk_bound_dev_if : 0,
+ 		.flowi6_mark = skb->mark,
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark,
++#endif
+ 		.daddr = iph->daddr,
+ 		.saddr = iph->saddr,
+ 	};
+@@ -87,6 +94,9 @@
+ 	struct in6_addr daddr;
+ 	struct in6_addr saddr;
+ 	u_int32_t mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	u_int32_t zextmark;
++#endif
+ };
+ 
+ static void nf_ip6_saveroute(const struct sk_buff *skb,
+@@ -100,6 +110,9 @@
+ 		rt_info->daddr = iph->daddr;
+ 		rt_info->saddr = iph->saddr;
+ 		rt_info->mark = skb->mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		rt_info->zextmark = ZLD_CB_DATA(skb)->zextmark;
++#endif
+ 	}
+ }
+ 
+@@ -112,7 +125,11 @@
+ 		const struct ipv6hdr *iph = ipv6_hdr(skb);
+ 		if (!ipv6_addr_equal(&iph->daddr, &rt_info->daddr) ||
+ 		    !ipv6_addr_equal(&iph->saddr, &rt_info->saddr) ||
+-		    skb->mark != rt_info->mark)
++		    skb->mark != rt_info->mark
++#ifdef CONFIG_ZYXEL_EXT_MARK
++			|| ZLD_CB_DATA(skb)->zextmark != rt_info->zextmark
++#endif
++		    )
+ 			return ip6_route_me_harder(skb);
+ 	}
+ 	return 0;
+Index: linux-4.1.52/net/ipv6/netfilter/ip6t_rpfilter.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/netfilter/ip6t_rpfilter.c	2018-05-28 02:26:45.000000000 +0000
++++ linux-4.1.52/net/ipv6/netfilter/ip6t_rpfilter.c	2019-12-30 07:45:01.060665201 +0000
+@@ -16,6 +16,10 @@
+ #include <linux/netfilter/xt_rpfilter.h>
+ #include <linux/netfilter/x_tables.h>
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
++
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Florian Westphal <fw@strlen.de>");
+ MODULE_DESCRIPTION("Xtables: IPv6 reverse path filter match");
+@@ -48,6 +52,9 @@
+ 	}
+ 
+ 	fl6.flowi6_mark = flags & XT_RPFILTER_VALID_MARK ? skb->mark : 0;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	fl6.flowi6_zextmark = flags & XT_RPFILTER_VALID_MARK ? ZLD_CB_DATA(skb)->zextmark : 0;
++#endif
+ 	if ((flags & XT_RPFILTER_LOOSE) == 0) {
+ 		fl6.flowi6_oif = dev->ifindex;
+ 		lookup_flags |= RT6_LOOKUP_F_IFACE;
+Index: linux-4.1.52/net/ipv6/route.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/route.c	2019-12-27 04:16:29.799544056 +0000
++++ linux-4.1.52/net/ipv6/route.c	2019-12-30 07:50:36.183622666 +0000
+@@ -65,6 +65,10 @@
+ #include <linux/sysctl.h>
+ #endif
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
++
+ enum rt6_nud_state {
+ 	RT6_NUD_FAIL_HARD = -3,
+ 	RT6_NUD_FAIL_PROBE = -2,
+@@ -1017,6 +1021,9 @@
+ 
+ 	fl6.flowi6_iif  = skb->dev->ifindex;
+ 	fl6.flowi6_mark = skb->mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	fl6.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark;
++#endif
+ 	fl6.flowi6_proto = iph->nexthdr;
+ 	fl6.daddr = iph->daddr;
+ 	fl6.saddr = iph->saddr;
+@@ -1029,6 +1036,9 @@
+ 		.saddr = iph->saddr,
+ 		.flowlabel = ip6_flowinfo(iph),
+ 		.flowi6_mark = skb->mark,
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		.flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark,
++#endif
+ 		.flowi6_proto = iph->nexthdr,
+ 	};
+ #endif
+Index: linux-4.1.52/net/ipv6/xfrm6_policy.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/xfrm6_policy.c	2018-05-28 02:26:45.000000000 +0000
++++ linux-4.1.52/net/ipv6/xfrm6_policy.c	2019-12-30 07:56:43.561859831 +0000
+@@ -24,6 +24,10 @@
+ #include <net/mip6.h>
+ #endif
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++#include "zld/zld_cb_data.h"
++#endif
++
+ static struct xfrm_policy_afinfo xfrm6_policy_afinfo;
+ 
+ static struct dst_entry *xfrm6_dst_lookup(struct net *net, int tos,
+@@ -146,6 +150,9 @@
+ 
+ 	memset(fl6, 0, sizeof(struct flowi6));
+ 	fl6->flowi6_mark = skb->mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	fl6->flowi6_zextmark = ZLD_CB_DATA(skb)->zextmark;
++#endif
+ 	fl6->flowi6_oif = reverse ? skb->skb_iif : oif;
+ 
+ 	fl6->daddr = reverse ? hdr->saddr : hdr->daddr;
+Index: linux-4.1.52/net/ipv4/netfilter.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv4/netfilter.c	2019-12-27 04:16:30.563432267 +0000
++++ linux-4.1.52/net/ipv4/netfilter.c	2019-12-30 08:25:47.330673362 +0000
+@@ -94,6 +94,9 @@
+ 	__be32 saddr;
+ 	u_int8_t tos;
+ 	u_int32_t mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	u_int32_t zextmark;
++#endif
+ };
+ 
+ static void nf_ip_saveroute(const struct sk_buff *skb,
+@@ -108,6 +111,9 @@
+ 		rt_info->daddr = iph->daddr;
+ 		rt_info->saddr = iph->saddr;
+ 		rt_info->mark = skb->mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		rt_info->zextmark = ZLD_CB_DATA(skb)->zextmark;
++#endif
+ 	}
+ }
+ 
+@@ -121,6 +127,9 @@
+ 
+ 		if (!(iph->tos == rt_info->tos &&
+ 		      skb->mark == rt_info->mark &&
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		      ZLD_CB_DATA(skb)->zextmark == rt_info->zextmark &&
++#endif
+ 		      iph->daddr == rt_info->daddr &&
+ 		      iph->saddr == rt_info->saddr))
+ 			return ip_route_me_harder(skb, RTN_UNSPEC);
+Index: linux-4.1.52/net/ipv4/ip_output.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv4/ip_output.c	2019-12-27 04:16:30.571431097 +0000
++++ linux-4.1.52/net/ipv4/ip_output.c	2019-12-30 08:29:45.599804601 +0000
+@@ -476,6 +476,10 @@
+ 	to->dev = from->dev;
+ 	to->mark = from->mark;
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	ZLD_CB_DATA(to)->zextmark = ZLD_CB_DATA(from)->zextmark;
++#endif
++
+ 	/* Copy the flags to each fragment. */
+ 	IPCB(to)->flags = IPCB(from)->flags;
+ 
+Index: linux-4.1.52/net/ipv6/netfilter/nf_log_ipv6.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/netfilter/nf_log_ipv6.c	2018-05-28 02:26:45.000000000 +0000
++++ linux-4.1.52/net/ipv6/netfilter/nf_log_ipv6.c	2019-12-30 08:32:52.356474272 +0000
+@@ -283,6 +283,11 @@
+ 	/* Max length: 16 "MARK=0xFFFFFFFF " */
+ 	if (recurse && skb->mark)
+ 		nf_log_buf_add(m, "MARK=0x%x ", skb->mark);
++
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	if (recurse && ZLD_CB_DATA(skb)->zextmark)
++		nf_log_buf_add(m, "ZEXTMARK=0x%x ", ZLD_CB_DATA(skb)->zextmark);
++#endif
+ }
+ 
+ static void dump_ipv6_mac_header(struct nf_log_buf *m,

@@ -1,0 +1,192 @@
+Index: ivictl-1.0/ivi_config.h
+===================================================================
+--- ivictl-1.0.orig/ivi_config.h	2020-02-11 02:55:36.422475514 +0000
++++ ivictl-1.0/ivi_config.h	2019-07-29 19:43:56.000000000 +0000
+@@ -109,6 +109,7 @@
+ 	__u16 adjacent;
+ 	__u8 format;
+ 	__u8 transport;
++	__u8 extension;
+ };
+ 
+ #define MAPT_PORTMAP_TCP	0
+@@ -119,6 +120,7 @@
+ 	__u32 lanAddr;
+ 	__u32 wanAddr;
+ 	__u16 port;
++	__u16 intPort;
+ 	__u16 proto;
+ };
+ 
+Index: ivictl-1.0/ivictl.c
+===================================================================
+--- ivictl-1.0.orig/ivictl.c	2020-02-11 02:55:36.422475514 +0000
++++ ivictl-1.0/ivictl.c	2019-07-29 19:43:56.000000000 +0000
+@@ -73,7 +73,7 @@
+ static char hgw;
+ static char nat44;
+ static char xeabits;
+-static char transpt;
++static char transpt[2];
+ static char psidoff;
+ static char dev[IVI_IOCTL_LEN];
+ static __u16 gma[2];  // Store R and PSID, M is stored in 'rule.adjacent'
+@@ -169,7 +169,7 @@
+ 		specify the address sharing ratio in GMA\n\
+ 	-d --default\n\
+ 		specify the ipv4 prefix is '0.0.0.0/0' instead of using '-p 0.0.0.0 -l 0'\n\
+-	-E --encapsulate\n\
++	-E --encapsulate EXTENSION\n\
+ 		specify the mapping rule is used for MAP-E\n\
+ 	-T --translate\n\
+ 		specify the mapping rule is used for MAP-T\n\
+@@ -181,7 +181,11 @@
+ 		specify the protocol TCP UDP ICMP as bitmask\n\
+ 		Example: 100 (TCP only) 110 (TCP+UDP) 001(ICMP only)\n\
+ 	-p PORTNUM\n\
++		specify the port within PSID setup\n\
++		(external port)\n\
++	-q PORTNUM\n\
+ 		specify the port of LAN server\n\
++		(internal port)\n\
+ 	-A REMOTEADDR\n\
+ 		specify the remote address of WAN client\n\
+ \n\
+@@ -213,7 +217,7 @@
+ 			specify the local address sharing ratio in GMA\n\
+ 		-X --noeabits\n\
+ 			specify that the HGW doesn't use eabits to constitute the IPv6 address\n\
+-		-E --encapsulate\n\
++		-E --encapsulate EXTENSION\n\
+ 			specify that the HGW supports MAP-E mode\n\
+ 		-T --translate\n\
+ 			specify that the HGW supports MAP-T\n\
+@@ -227,13 +231,15 @@
+ 	nat44 = 0;
+ 	xeabits = 0;
+ 	psidoff = 6;  // default PSID offset value
+-	transpt = MAP_T;
++	transpt[0] = MAP_T;
++	transpt[1] = 1;
+ 	gma[0] = gma[1] = 0;
+ 	memset(&rule, 0, sizeof(rule));
+ 	rule.ratio = 1;
+ 	rule.adjacent = 1;
+ 	rule.format = ADDR_FMT_MAPT;
+ 	rule.transport = MAP_T;
++	rule.extension = 1;
+ 	memset(&portmap, 0, sizeof(portmap));
+ }
+ 
+@@ -288,7 +294,7 @@
+ 	}
+ 	
+ rule_opt:
+-	while ((optc = getopt_long(argc, argv, "p:P:R:z:fdET", longopts, NULL)) != -1)
++	while ((optc = getopt_long(argc, argv, "p:P:R:z:E:fdT", longopts, NULL)) != -1)
+ 	{
+ 		switch(optc)
+ 		{
+@@ -372,6 +378,13 @@
+ 				}
+ 				break;
+ 			case 'E':
++				rule.extension = atoi(optarg);
++				if (rule.extension > 1 || rule.extension < 0) {
++					printf("\nError*****: extension is out of scope.\n\n");
++					usage(EXIT_FAILURE);
++					retval = -1;
++					goto out;
++				}
+ 				rule.transport = MAP_E;
+ 				break;
+ 			case 'T':
+@@ -410,7 +423,7 @@
+ 	goto out;
+ 
+ portmapping_opt:
+-	while ((optc = getopt_long(argc, argv, "p:P:a:A", longopts, NULL)) != -1)
++	while ((optc = getopt_long(argc, argv, "p:P:a:A:q:", longopts, NULL)) != -1)
+ 	{
+ 		switch(optc)
+ 		{
+@@ -424,7 +437,16 @@
+ 			case 'p':
+ 				portmap.port = atoi(optarg);
+ 				if (portmap.port > 65535 || portmap.port < 1024) {
+-					printf("\nError*****: invalid port number.\n\n");
++					printf("\nError*****: invalid external port number.\n\n");
++					usage(EXIT_FAILURE);
++					retval = -1;
++					goto out;
++				}
++				break;
++			case 'q':
++				portmap.intPort = atoi(optarg);
++				if (portmap.intPort > 65535 || portmap.intPort < 0) {
++					printf("\nError*****: invalid internal port number.\n\n");
+ 					usage(EXIT_FAILURE);
+ 					retval = -1;
+ 					goto out;
+@@ -494,6 +516,10 @@
+ 		portmap.wanAddr = MAPPORTMAP_INVALID_ADDRESS;
+ 	}
+ 
++	if (portmap.intPort == 0) {
++		portmap.intPort = portmap.port;
++	}
++
+ 	// Insert port mapping rule
+ 	if ((retval = ioctl(fd, isAdd?IVI_IOC_ADD_PORTMAP:IVI_IOC_DEL_PORTMAP, &portmap)) < 0) {
+ 		printf("\nError*****: failed to add/delete port mapping rule, code %d.\n\n", retval);
+@@ -505,7 +531,7 @@
+ 	goto out;
+ 
+ start_opt:
+-	while ((optc = getopt_long(argc, argv, "i:I:A:a:P:R:z:o:fc:HNXET", longopts, NULL)) != -1)
++	while ((optc = getopt_long(argc, argv, "i:I:A:a:P:R:z:o:fc:E:HNXT", longopts, NULL)) != -1)
+ 	{
+ 		switch(optc)
+ 		{
+@@ -675,10 +701,17 @@
+ 				gma[1] = atoi(optarg);
+ 				break;
+ 			case 'E':
+-				transpt = MAP_E;
++				transpt[1] = atoi(optarg);
++				if (transpt[1] > 1 || transpt[1] < 0) {
++					printf("\nError*****: extension is out of scope.\n\n");
++					usage(EXIT_FAILURE);
++					retval = -1;
++					goto out;
++				}
++				transpt[0] = MAP_E;
+ 				break;
+ 			case 'T':
+-				transpt = MAP_T;
++				transpt[0] = MAP_T;
+ 				break;
+ 			default:
+ 				close(fd);
+@@ -716,7 +749,7 @@
+ 			}
+ 		}
+ 		
+-		if ((retval = ioctl(fd, IVI_IOC_TRANSPT, &transpt)) < 0) {
++		if ((retval = ioctl(fd, IVI_IOC_TRANSPT, transpt)) < 0) {
+ 			printf("\nError*****: failed to set MAP transport, code %d.\n\n", retval);
+ 			goto out;
+ 		}
+Index: ivictl-1.0/ivi_ioctl.h
+===================================================================
+--- ivictl-1.0.orig/ivi_ioctl.h	2020-02-11 02:55:36.430475514 +0000
++++ ivictl-1.0/ivi_ioctl.h	2019-07-29 19:43:56.000000000 +0000
+@@ -42,8 +42,6 @@
+ 
+ #define IVI_DEVNAME	"ivi"
+ 
+-#define IVI_IOCTL	3015
+-
+ typedef enum IviIoctl
+ {
+     IVI_IOC_DUMMY = 999,

@@ -1,0 +1,25 @@
+Index: libzcfg_fe_tr98-1.0/wanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev.c	2019-11-27 18:28:55.040604823 +0800
++++ libzcfg_fe_tr98-1.0/wanDev.c	2019-11-27 18:34:38.094421371 +0800
+@@ -2960,8 +2960,18 @@
+ 			paramValue = json_object_object_get(ipIfaceJobj, "Status");
+ 			if(paramValue != NULL) {
+ 				connStatus = json_object_get_string(paramValue);
+-				if(connStatus && !strcmp(connStatus, "Up"))
+-					json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Connected"));
++				if(connStatus && !strcmp(connStatus, "Up")){
++					const char *ipv4AddrStatus = NULL;
++					if(ipAddrJobj != NULL){
++						ipv4AddrStatus =json_object_get_string(json_object_object_get(ipAddrJobj, "Status"));
++						if(!strcmp(ipv4AddrStatus, "Enabled"))
++							json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Connected"));
++						else
++							json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Connecting"));
++					}
++					else
++						json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Connecting"));
++				}
+ 				else if (connStatus && (!strcmp(connStatus, "Down") ||!strcmp(connStatus, "LowerLayerDown")))
+ 					json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string("Disconnected"));
+ 				else

@@ -1,0 +1,260 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-04-16 13:09:16.535428740 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2020-04-16 13:09:16.611428742 +0800
+@@ -357,6 +357,10 @@
+ CFLAGS += -DZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE),y)
++CFLAGS += -DZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE
++endif
++
+ #WiFi PMF can be set manually instead of automatically enable by WPA mode
+ ifeq ($(CONFIG_ZYXEL_PMF_SET_MANUALLY),y)
+ CFLAGS += -DZYXEL_PMF_SET_MANUALLY
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-16 13:09:16.579428742 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-16 14:58:46.282587865 +0800
+@@ -78,8 +78,12 @@
+ #ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ 	{"wpaMode",				dalType_string,		0,	0,	NULL,		"wpapsk|wpawpa2psk|wpa2psk|wpawpa2|wpa3sae|wpa2pskwpa3sae",	0},
+ #else
++#ifdef ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE
++	{"wpaMode",				dalType_string,		0,	0,	NULL,		"wpapsk|wpa2psk|wpa2|wpa3sae|wpa2pskwpa3sae",			0},
++#else
+ 	{"wpaMode",				dalType_string,		0,	0,	NULL,		"wpa2psk|wpa2|wpa3sae|wpa2pskwpa3sae",			0},
+ #endif
++#endif
+ 	// {"X_ZYXEL_AutoGenPSK",	dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ 	{"AutoGenPSK",	dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ 	{"psk_value",			dalType_string, 	0,	0,	NULL,		NULL,			0},
+@@ -94,7 +98,7 @@
+ #endif
+ 	{"X_ZYXEL_Preauth",		dalType_boolean,	0,	0,	NULL,		NULL,			dalcmd_Forbid},
+ 	{"X_ZYXEL_ReauthInterval",dalType_int,		0,	0,	NULL,		NULL,			0},
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 	{"encryp",				dalType_string, 	0,	0,	NULL,		"tkip|tkipaes|aes",		0},
+ #else
+ 	{"encryp",				dalType_string, 	0,	0,	NULL,		"aes",			0},
+@@ -168,6 +172,7 @@
+ unsigned int RekeyingInterval_ori;
+ int Secmode_ori;
+ const char* wlGwMode_ori;
++const char* encryp_ori;
+ //WiFi SSID
+ bool wlEnable;
+ const char* SSID;
+@@ -394,7 +399,7 @@
+ 				//if(!strcmp("None",modeEn)){
+ 				//	json_object_object_add(pramJobj, "PskDisplay", json_object_new_string("None"));
+ 				//}
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 				if(!strcmp("WPA-Personal",modeEn) || !strcmp("WPA2-Personal",modeEn)|| !strcmp("WPA-WPA2-Personal",modeEn) || !strcmp("None",modeEn) || !strcmp("WPA3-Personal",modeEn) || !strcmp("WPA3-Personal-Transition",modeEn)){
+ #else
+ 				if(!strcmp("WPA2-Personal",modeEn) || !strcmp("None",modeEn) || !strcmp("WPA3-Personal",modeEn) || !strcmp("WPA3-Personal-Transition",modeEn)){
+@@ -692,7 +697,7 @@
+ 	SubnetMask = json_object_get_string(json_object_object_get(Jobj, "SubnetMask"));
+ 	LANIP = json_object_get_string(json_object_object_get(Jobj, "LANIP"));
+ 	subnetObjAction = json_object_get_string(json_object_object_get(Jobj, "subnetObjAction"));
+-	
++
+ 	return;
+ }
+ 
+@@ -1053,7 +1058,7 @@
+ 	}
+ 	else if(secMode == SLIDER_POS_MORESECURE)
+ 	{
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 		if(!strcmp(wpaMode,"wpa2psk") || !strcmp(wpaMode,"wpapsk") || !strcmp(wpaMode,"wpawpa2psk"))
+ #else
+ 		if(!strcmp(wpaMode,"wpa2psk"))
+@@ -1072,9 +1077,10 @@
+ 				}
+ 			#endif
+ 			}
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+-			else if(!strcmp(wpaMode,"wpapsk"))
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
++			else if(!strcmp(wpaMode,"wpapsk")){
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA-Personal"));
++			}
+ 			else{
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA-WPA2-Personal"));
+ 			}
+@@ -1109,7 +1115,7 @@
+ 				}
+ 			}
+ 		}
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined( ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 		else if(!strcmp(wpaMode,"wpa"))
+ 			json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA-Enterprise"));
+ #endif
+@@ -1177,7 +1183,7 @@
+ 			}
+ 		}
+ 		if(json_object_object_get(Jobj, "encryp")){
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 			if(!strcmp(encryp, "tkip")){
+ 				json_object_object_add(wifiSecObj, "X_ZYXEL_Encryption", json_object_new_string("tkip"));
+ 			}
+@@ -1275,7 +1281,7 @@
+ 		}
+ 		else if(secMode == SLIDER_POS_MORESECURE)
+ 		{
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined( ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 			if(!strcmp(wpaMode,"wpa2psk") || !strcmp(wpaMode,"wpapsk") || !strcmp(wpaMode,"wpawpa2psk"))
+ #else
+ 			if(!strcmp(wpaMode,"wpa2psk"))
+@@ -1284,7 +1290,7 @@
+ 				if(!strcmp(wpaMode,"wpa2psk")){
+ 					json_object_object_add(syncWifiSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal"));
+ 				}
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 				else if(!strcmp(wpaMode,"wpapsk")){
+ 					json_object_object_add(syncWifiSecObj, "ModeEnabled", json_object_new_string("WPA-Personal"));
+ 				}
+@@ -1359,7 +1365,7 @@
+ 			if(!strcmp(encryp, "aes")){
+ 				json_object_object_add(syncWifiSecObj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
+ 			}
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 			if(!strcmp(encryp, "tkip")){
+ 				json_object_object_add(syncWifiSecObj, "X_ZYXEL_Encryption", json_object_new_string("tkip"));
+ 			}
+@@ -2193,7 +2199,7 @@
+ 	
+ #ifndef ZYXEL_SUPPORT_8021X
+ 		// wpaMode must be set to a proper value
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 		if(showwpa3mode == 1 && strstr(ModesSupported, "WPA3")){
+ 			if(strcmp(wpaMode,"wpapsk") && strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpawpa2psk") && strcmp(wpaMode,"wpa3sae") && strcmp(wpaMode,"wpa2pskwpa3sae")){
+ 				printf("wpaMode must be set to \"wpapsk\" or \"wpa2psk\" or \"wpawpa2psk\" or \"wpa3sae\" or \"wpa2pskwpa3sae\".\n");
+@@ -2201,11 +2207,19 @@
+ 			}
+ 		}
+ 		else{
++#ifdef ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE
++			if(strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpapsk")  && strcmp(wpaMode,"wpawpa2psk")){
++				printf("wpa3 is not support!!\n");
++				printf("wpaMode must be set to \"wpapsk\", \"wpa2psk\" or \"wpawpa2psk\".\n");
++				return ZCFG_INVALID_PARAM_VALUE;
++			}
++#else
+ 			if(strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpawpa2psk") ){
+ 				printf("wpa3 is not support!!\n");
+ 				printf("wpaMode must be set to \"wpa2psk\" or \"wpawpa2psk\".\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;
+ 			}
++#endif
+  		}
+ 		// for main SSID, if WPS is on, then wpapsk is not available
+ 		if(!strcmp(wpaMode,"wpapsk") && wpsEnabled && isMainSSID){
+@@ -2214,21 +2228,35 @@
+ 		}
+ #else
+  		if(showwpa3mode == 1 && strstr(ModesSupported, "WPA3")){
++#ifdef ZYXEL_WIFI_SUPPORT_WPA_MIX_MODE
++			if(strcmp(wpaMode,"wpapsk") && strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpa2") && strcmp(wpaMode,"wpa3sae") && strcmp(wpaMode,"wpa2pskwpa3sae")){
++				printf("wpaMode must be set to \"wpapsk\" or \"wpa2psk\" or \"wpa2\" or \"wpa3sae\" or \"wpa2pskwpa3sae\".\n");
++				return ZCFG_INVALID_PARAM_VALUE;
++			}
++#else
+ 			if(strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpa2") && strcmp(wpaMode,"wpa3sae") && strcmp(wpaMode,"wpa2pskwpa3sae")){
+ 				printf("wpaMode must be set to \"wpa2psk\" or \"wpa2\" or \"wpa3sae\" or \"wpa2pskwpa3sae\".\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;
+ 			}
++#endif
+ 		}
+ 		else{
++#ifdef ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE
++			if(strcmp(wpaMode,"wpapsk")  && strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpa2")){
++				printf("wpa3 is not support!!\n");
++				printf("wpaMode must be set to \"wpapsk\", \"wpa2psk\" or \"wpa2\".\n");
++				return ZCFG_INVALID_PARAM_VALUE;
++			}
++#else
+ 			if(strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpa2")){
+ 				printf("wpa3 is not support!!\n");
+ 				printf("wpaMode must be set to \"wpa2psk\" or \"wpa2\".\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;
+ 			}
++#endif
+ 		}
+ #endif
+ #endif
+-
+ 		// AutoGenPSK is optional
+ 		if(!json_object_object_get(Jobj, "AutoGenPSK")){
+ 			if(json_object_object_get(Jobj, "psk_value")){
+@@ -2247,7 +2275,7 @@
+ 
+ 		// encryp must be set
+ 		if(json_object_object_get(Jobj, "encryp")){
+-#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 			if(strcmp(encryp, "tkip") && strcmp(encryp, "tkipaes") && strcmp(encryp, "aes")){
+ 				printf("encryp must be set to \"tkip\" or \"tkipaes\" or \"aes\".\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;
+@@ -2283,7 +2311,8 @@
+ 	bool enablePMF = false, mainssid, wlEnableGuest_ori;
+ 	uint8_t tmpRadioIndex;
+ 	const char *band;
+-	char *modeEn;
++	char *modeEn_ori;
++	char modeEn[16];
+ #ifdef ZYXEL_ONESSID
+ 
+ 	struct json_object *OneSsidObj = NULL;
+@@ -2340,10 +2369,18 @@
+ 	wlEnableGuest_ori = json_object_get_boolean(json_object_object_get(APObj, "X_ZYXEL_BssIdIsolation"));
+ 	psk_value_ori = json_object_get_string(json_object_object_get(APSecObj, "KeyPassphrase"));
+ 	RekeyingInterval_ori = json_object_get_int(json_object_object_get(APSecObj, "RekeyingInterval"));
+-	modeEn = json_object_get_string(json_object_object_get(APSecObj, "ModeEnabled"));
+-	if(!strcmp("WPA2-Personal",modeEn))
++	modeEn_ori = json_object_get_string(json_object_object_get(APSecObj, "ModeEnabled"));
++	encryp_ori = json_object_get_string(json_object_object_get(APSecObj, "X_ZYXEL_Encryption"));
++	if(!strcmp(wpaMode,"wpa2psk"))
++		strcpy(modeEn,"WPA2-Personal");
++	else if (!strcmp(wpaMode,"wpapsk"))
++		strcpy(modeEn,"WPA-Personal");
++	else
++		strcpy(modeEn,"None");
++
++	if(!strcmp("WPA2-Personal",modeEn_ori))
+ 		Secmode_ori = SLIDER_POS_MORESECURE;
+-	else if (!strcmp("None",modeEn))
++	else if (!strcmp("None",modeEn_ori))
+ 		Secmode_ori = SLIDER_POS_NONE;
+ 	else
+ 		Secmode_ori = SLIDER_POS_BASIC;
+@@ -2357,7 +2394,7 @@
+ 				(wlEnable == wlEnable_ori) && (channel_ori == channel) && ((bandwidth == 0) || (bandwidth == bandwidth_ori)) &&
+ 				(MaxAssociatedDevices_ori == MaxAssociatedDevices) && (wlHide != wlHide_ori)
+ 				&& !strcmp(psk_value,psk_value_ori) && (RekeyingInterval == RekeyingInterval_ori) &&
+-				(secMode == Secmode_ori)
++				(secMode == Secmode_ori) && !strcmp(modeEn_ori, modeEn) && !strcmp(encryp_ori, encryp)
+ #ifdef ZYXEL_ONESSID
+ 				&& (oneSsidEnable_ori == oneSsidEnable)
+ #endif
+@@ -2368,7 +2405,8 @@
+ 		else{
+ 			if ( !strcmp(SSID_ori,SSID) && (upRate_ori == upRate) && (downRate == downRate_ori) &&
+ 				(wlEnable == wlEnable_ori) && (wlHide != wlHide_ori) && !strcmp(psk_value,psk_value_ori)
+-				&& !strcmp(wlGwMode,wlGwMode_ori) && (wlEnableGuest == wlEnableGuest_ori)) {
++				&& !strcmp(wlGwMode,wlGwMode_ori) && (wlEnableGuest == wlEnableGuest_ori) &&
++				!strcmp(modeEn_ori, modeEn) && !strcmp(encryp_ori, encryp)) {
+ 				ret = ZCFG_INTERNAL_ERROR;
+ 			}
+ 		}

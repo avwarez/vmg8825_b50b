@@ -1,0 +1,46 @@
+Index: c-ares-1.14.0/ares_private.h
+===================================================================
+--- c-ares-1.14.0.orig/ares_private.h	2020-03-25 10:48:38.884447972 +0800
++++ c-ares-1.14.0/ares_private.h	2020-03-25 10:48:41.264447972 +0800
+@@ -338,6 +338,9 @@
+ 
+   const struct ares_socket_functions * sock_funcs;
+   void *sock_func_cb_data;
++
++  /*ZyXEL To support Multi-interface*/
++  unsigned int ifMark; //interface Mark
+ };
+ 
+ /* Memory management functions */
+Index: c-ares-1.14.0/ares_process.c
+===================================================================
+--- c-ares-1.14.0.orig/ares_process.c	2017-07-03 17:04:19.000000000 +0800
++++ c-ares-1.14.0/ares_process.c	2020-03-25 11:01:29.397836971 +0800
+@@ -1122,6 +1122,13 @@
+         }
+     }
+ 
++  /*ZyXEL Multi-interface*/
++  //printf("%s(): Ares IfMark:0x%08X.\n", __FUNCTION__, channel->ifMark);
++  if (setsockopt(s, SOL_SOCKET, SO_MARK, &channel->ifMark, sizeof(channel->ifMark)) == -1)
++    {
++      printf("%s(): <<Error>> Ares 'setsockopt()' Failed for the IfMark:0x%08X !!!\n", __FUNCTION__, channel->ifMark);
++    }
++
+   /* Connect to the server. */
+   if (connect_socket(channel, s, sa, salen) == -1)
+     {
+@@ -1217,6 +1224,13 @@
+         }
+     }
+ 
++  /*ZyXEL Multi-interface*/
++  //printf("%s(): Ares IfMark:0x%08X.\n", __FUNCTION__, channel->ifMark);
++  if (setsockopt(s, SOL_SOCKET, SO_MARK, &channel->ifMark, sizeof(channel->ifMark)) == -1)
++    {
++      printf("%s(): <<Error>> Ares 'setsockopt()' Failed for the IfMark:0x%08X !!!\n", __FUNCTION__, channel->ifMark);
++    }
++
+   /* Connect to the server. */
+   if (connect_socket(channel, s, sa, salen) == -1)
+     {

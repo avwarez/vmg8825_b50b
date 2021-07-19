@@ -1,0 +1,102 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-08-12 17:12:54.435796587 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-08-12 17:14:16.813863172 +0800
+@@ -378,6 +378,10 @@
+ CFLAGS += -DZYXEL_SECOND_LAN_IP_ALIAS
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_ONECONNECT_PARENTCTL_OPTION),y)
++CFLAGS += -DZYXEL_ONECONNECT_PARENTCTL_OPTION
++endif
++
+ LDFLAGS += $(LIB_PATH) $(LINK_LIB)
+ CFLAGS += $(INC_PATH) -std=gnu99
+ 
+Index: libzcfg_fe_dal-1.0/network/homeConnectivity/zcfg_fe_dal_homeConnectivity.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/homeConnectivity/zcfg_fe_dal_homeConnectivity.c	2019-08-12 17:12:49.887774035 +0800
++++ libzcfg_fe_dal-1.0/network/homeConnectivity/zcfg_fe_dal_homeConnectivity.c	2019-08-12 17:17:50.706310604 +0800
+@@ -15,6 +15,9 @@
+ 
+ dal_param_t HOME_CONNECTIVYITY_param[]={
+ 	{"one_connect_Enable", 			dalType_boolean,	0,	0,	NULL,	NULL,	NULL},
++#ifdef ZYXEL_ONECONNECT_PARENTCTL_OPTION
++	{"IsParenCtlFromGUI", 			dalType_boolean,	0,	0,	NULL,	NULL,	NULL},
++#endif
+ #ifdef APSTEERING
+ 	{"WiFi_Enable", 				dalType_boolean,	0,	0,	NULL,	NULL,	NULL},
+ 	{"WiFi_24G_NormalToBad_Threshold", 	dalType_int,		0,	0,	NULL,	NULL,	NULL},
+@@ -54,10 +57,13 @@
+ 	struct json_object *oneconnectObj = NULL;
+ 	struct json_object *wifiObj = NULL;
+ 	objIndex_t oneconnectIid = {0};
+-#ifdef APSTEERING	
++#ifdef APSTEERING
+ 	objIndex_t wifiIid = {0};
+ #endif
+ 	bool oneconnect_Enable = false;
++#ifdef ZYXEL_ONECONNECT_PARENTCTL_OPTION
++	bool IsParenCtlFromGUI = false;
++#endif
+ #ifdef APSTEERING
+ 	bool wifi_Enable = false;
+ 	int wifi_24G_NormalToBad_Threshold = 0;
+@@ -69,6 +75,9 @@
+ #endif
+ 	IID_INIT(oneconnectIid);
+ 	oneconnect_Enable = json_object_get_boolean(json_object_object_get(Jobj, "one_connect_Enable"));
++#ifdef ZYXEL_ONECONNECT_PARENTCTL_OPTION
++	IsParenCtlFromGUI = json_object_get_boolean(json_object_object_get(Jobj, "IsParenCtlFromGUI"));
++#endif
+ #ifdef APSTEERING
+ 	wifi_Enable = json_object_get_boolean(json_object_object_get(Jobj, "WiFi_Enable"));
+ 	wifi_24G_NormalToBad_Threshold = json_object_get_int(json_object_object_get(Jobj, "WiFi_24G_NormalToBad_Threshold"));
+@@ -77,14 +86,18 @@
+ 	wifi_5G_NormalToGood_Threshold = json_object_get_int(json_object_object_get(Jobj, "WiFi_5G_NormalToGood_Threshold"));
+ 	wifi_24G_Upgrade_Threshold = json_object_get_int(json_object_object_get(Jobj, "WiFi_24G_Upgrade_Threshold"));
+ #endif
+-	if(zcfgFeObjJsonGet(RDM_OID_ZY_ONE_CONNECT, &oneconnectIid, &oneconnectObj) == ZCFG_SUCCESS){	
++	if(zcfgFeObjJsonGet(RDM_OID_ZY_ONE_CONNECT, &oneconnectIid, &oneconnectObj) == ZCFG_SUCCESS){
+ 		if(json_object_object_get(Jobj, "one_connect_Enable"))
+-		json_object_object_add(oneconnectObj, "Enable", json_object_new_boolean(oneconnect_Enable));
++			json_object_object_add(oneconnectObj, "Enable", json_object_new_boolean(oneconnect_Enable));
++#ifdef ZYXEL_ONECONNECT_PARENTCTL_OPTION
++		if(json_object_object_get(Jobj, "IsParenCtlFromGUI"))
++			json_object_object_add(oneconnectObj, "IsParenCtlFromGUI", json_object_new_boolean(IsParenCtlFromGUI));
++#endif
+ 		zcfgFeObjJsonSet(RDM_OID_ZY_ONE_CONNECT, &oneconnectIid, oneconnectObj, NULL);
+ 		zcfgFeJsonObjFree(oneconnectObj);
+ 	}
+ #ifdef APSTEERING
+-	if(zcfgFeObjJsonGet(RDM_OID_WIFI_AP_STEERING, &wifiIid, &wifiObj) == ZCFG_SUCCESS){	
++	if(zcfgFeObjJsonGet(RDM_OID_WIFI_AP_STEERING, &wifiIid, &wifiObj) == ZCFG_SUCCESS){
+ 		if(json_object_object_get(Jobj, "WiFi_Enable"))
+ 		json_object_object_add(wifiObj, "Enable", json_object_new_boolean(wifi_Enable));
+ 		if(json_object_object_get(Jobj, "WiFi_24G_NormalToBad_Threshold"))
+@@ -114,6 +127,9 @@
+ 	paramJobj = json_object_new_object();
+ 	if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ZY_ONE_CONNECT, &oneconnectIid, &oneconnectObj) == ZCFG_SUCCESS){
+ 		json_object_object_add(paramJobj, "one_connect_Enable", JSON_OBJ_COPY(json_object_object_get(oneconnectObj, "Enable")));
++#ifdef ZYXEL_ONECONNECT_PARENTCTL_OPTION
++		json_object_object_add(paramJobj, "IsParenCtlFromGUI", JSON_OBJ_COPY(json_object_object_get(oneconnectObj, "IsParenCtlFromGUI")));
++#endif
+ 	zcfgFeJsonObjFree(oneconnectObj);
+ 	}
+ #ifdef APSTEERING
+@@ -134,12 +150,12 @@
+ 
+ zcfgRet_t zcfgFeDalHomeConnectivity(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-	
++
+ 	if(!strcmp(method, "PUT")){
+-		ret = zcfgFeDal_Home_Connect_Edit(Jobj, NULL);		
++		ret = zcfgFeDal_Home_Connect_Edit(Jobj, NULL);
+ 	}
+ 	else if(!strcmp(method, "GET"))
+-		ret = zcfgFeDal_Home_Connect_Get(Jobj, Jarray, NULL);	
++		ret = zcfgFeDal_Home_Connect_Get(Jobj, Jarray, NULL);
+ 	else
+ 		printf("Unknown method:%s\n", method);
+ 

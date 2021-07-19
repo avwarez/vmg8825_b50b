@@ -1,0 +1,23 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-05-14 18:39:59.563873000 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-05-14 18:41:01.318735000 +0800
+@@ -565,6 +565,9 @@
+ 	wlEnable_ori = json_object_get_boolean(json_object_object_get(SsidObj, "Enable"));
+ 	X_ZYXEL_Multicast_Fwd_ori = json_object_get_boolean(json_object_object_get(SsidObj, "X_ZYXEL_Multicast_Fwd"));
+ 	bandwidth_ori = json_object_get_int(json_object_object_get(RadioObj, "OperatingChannelBandwidth"));
++	if(json_object_get_boolean(json_object_object_get(RadioObj, "X_ZYXEL_OBSS_coex")))
++		bandwidth_ori = 0;
++
+ 	band = json_object_get_string(json_object_object_get(RadioObj, "OperatingFrequencyBand"));
+     if(json_object_get_boolean(json_object_object_get(RadioObj, "AutoChannelEnable")))
+ 		channel_ori = AutoChannel;
+@@ -603,7 +606,7 @@
+ 
+ 	if(mainssid){
+ 		if ( !strcmp(SSID_ori,SSID) && (upRate_ori == upRate) && (downRate == downRate_ori) &&
+-			(wlEnable == wlEnable_ori) && (channel_ori == channel) && ((bandwidth == 0) || (bandwidth == bandwidth_ori)) &&
++			(wlEnable == wlEnable_ori) && (channel_ori == channel) && (bandwidth == bandwidth_ori) &&
+ 			(MaxAssociatedDevices_ori == MaxAssociatedDevices) && (wlHide != wlHide_ori)
+ 			&& !strcmp(psk_value,psk_value_ori) && (RekeyingInterval == RekeyingInterval_ori) &&
+ 			(secMode == Secmode_ori) && !strcmp(modeEn_ori, modeEn) && !strcmp(encryp_ori, encryp)

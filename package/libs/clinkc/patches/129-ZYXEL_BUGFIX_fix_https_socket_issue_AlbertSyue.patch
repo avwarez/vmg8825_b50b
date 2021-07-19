@@ -1,0 +1,52 @@
+Index: clinkc/src/cybergarage/http/chttp_server.c
+===================================================================
+--- clinkc.orig/src/cybergarage/http/chttp_server.c	2020-03-16 16:24:54.574857467 +0800
++++ clinkc/src/cybergarage/http/chttp_server.c	2020-03-16 16:33:10.528801022 +0800
+@@ -586,6 +586,14 @@
+ #else
+ 		clientSock = cg_socket_stream_new();
+ #endif
++
++		if(cg_socket_isserver(clientSock)){
++			unsigned int timeout = 10000; // 10s
++			if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout, sizeof(timeout))){
++				printf("set TCP_USER_TIMEOUT error\n");
++			}
++		}
++
+ 		if (cg_socket_accept(serverSock, clientSock) == FALSE) {
+ 			cg_socket_delete(clientSock);
+ 			continue;
+Index: clinkc/src/cybergarage/net/csocket.c
+===================================================================
+--- clinkc.orig/src/cybergarage/net/csocket.c	2020-03-16 16:24:54.618857467 +0800
++++ clinkc/src/cybergarage/net/csocket.c	2020-03-16 16:34:43.792524873 +0800
+@@ -882,6 +882,28 @@
+ #ifdef ZYXEL_PATCH /*support ssl, ZyXEL 2013*/
+ 	cg_socket_setdirection(clientSock, CG_NET_SOCKET_SERVER);
+ 
++	if(cg_socket_isserver(clientSock)){
++		int keep_alive = 1; // enable
++		if(-1 == setsockopt(clientSock->id, SOL_SOCKET, SO_KEEPALIVE, &keep_alive , sizeof(keep_alive))){
++			printf("enable SO_KEEPALIVE error\n");
++		}
++
++		int keep_idle = 30; // default 2 hours, currently set 30 seconds.
++		if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_KEEPIDLE, &keep_idle, sizeof(keep_idle))){
++		    printf("set TCP_KEEPIDLE error\n");
++		}
++
++		int keep_interval = 30; // default 75 second, currently set 30 seconds.
++		if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_KEEPINTVL, &keep_interval, sizeof(keep_interval))){
++		    printf("set TCP_KEEPINTVL error\n");
++		}
++
++		int keep_count = 3; // default 9 times, currently set 3 times.
++		if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_KEEPCNT, &keep_count, sizeof(keep_count))){
++		    printf("set TCP_KEEPCNT error\n");
++		}
++	}
++
+ #if defined(CG_USE_OPENSSL)
+ 	if (cg_socket_isssl(clientSock) == TRUE){
+ 		cg_ssl_set_ctx(clientSock, clientSock->ctxdata);

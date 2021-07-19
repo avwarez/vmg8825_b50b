@@ -1,0 +1,52 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-02-25 10:59:04.237204641 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2020-02-25 11:05:36.915277200 +0800
+@@ -339,6 +339,11 @@
+ CFLAGS += -DZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ endif
+ 
++#WiFi PMF can be set manually instead of automatically enable by WPA mode
++ifeq ($(CONFIG_ZYXEL_PMF_SET_MANUALLY),y)
++CFLAGS += -DZYXEL_PMF_SET_MANUALLY
++endif
++
+ ifeq ($(CONFIG_ZYXEL_FEATURE_BITS),y)
+ CFLAGS += -DZYXEL_FEATURE_BITS
+ endif
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-02-25 11:12:57.894277200 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-02-25 11:15:05.928277200 +0800
+@@ -1038,6 +1038,7 @@
+ 		{
+ 			if(!strcmp(wpaMode,"wpa2psk")){
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal"));
++			#ifndef ZYXEL_PMF_SET_MANUALLY
+ 				if (wlEnable == true) { //interface enable
+ 					json_object_object_add(wifiSecObj, "EnableManagementFrameProtection", json_object_new_boolean(true));
+ 					json_object_object_add(wifiSecObj, "X_ZYXEL_PmfMethod", json_object_new_int(0));
+@@ -1046,6 +1047,7 @@
+ 						return ret;
+ 					}
+ 				}
++			#endif
+ 			}
+ #ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ 			else if(!strcmp(wpaMode,"wpapsk"))
+@@ -1107,6 +1109,7 @@
+ 		{
+ 			if(!strcmp(wpaMode,"wpa3sae")){
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal"));
++			#ifndef ZYXEL_PMF_SET_MANUALLY
+ 				if (wlEnable == true) { //interface enable
+ 					json_object_object_add(wifiSecObj, "EnableManagementFrameProtection", json_object_new_boolean(true));
+ 					json_object_object_add(wifiSecObj, "X_ZYXEL_PmfMethod", json_object_new_int(0));
+@@ -1115,6 +1118,7 @@
+ 						return ret;
+ 					}
+ 				}
++			#endif
+ 			}
+ 			else{
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal-Transition"));

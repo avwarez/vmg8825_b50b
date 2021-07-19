@@ -1,0 +1,100 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-06-03 10:50:16.047077862 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-06-03 13:58:28.842877420 +0800
+@@ -1531,13 +1531,18 @@
+ 	return ret;
+ }
+ 
+-zcfgRet_t cfgWifiSubnetObject(struct json_object *Jobj, const char* action){
++zcfgRet_t cfgWifiSubnetObject(struct json_object *Jobj, const char* action, bool *apply){
+ 
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-	
++	objIndex_t subnetIid;
++	struct json_object *subnetObj = NULL;
++	int Index = 0, subnetInterface = 0;
++	bool Enable_ori = false;
++	char *SubnetMask_ori = NULL, *LANIP_ori = NULL, *MinAddress_ori = NULL, *MaxAddress_ori = NULL;
+ 	if(!strcmp(action, "DELETE"))
+ 	{
+ 		zcfgFeObjJsonDel(RDM_OID_DHCPV4_SRV_SUBNET, &wifiSubnetIid, NULL);
++		*apply = true;
+ 			return ret;
+ 	}
+ 	else if(!strcmp(action, "POST"))
+@@ -1546,6 +1551,8 @@
+ 		if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_DHCPV4_SRV_SUBNET, &wifiSubnetIid, &wifiSubnetObj)) != ZCFG_SUCCESS) {
+ 			return ret;
+ 		}
++		*apply = true;
++		goto set_subnet;
+ 	}
+ 	else if(!strcmp(action, "PUT"))
+ 	{
+@@ -1554,6 +1561,25 @@
+ 		}
+ 	}
+ 
++	Index = json_object_get_int(json_object_object_get(Jobj, "Index"));
++	IID_INIT(subnetIid);
++	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_DHCPV4_SRV_SUBNET, &subnetIid, &subnetObj) == ZCFG_SUCCESS){
++		sscanf(json_object_get_string(json_object_object_get(subnetObj, "Interface")), "WiFi.SSID.%u", &subnetInterface);
++		if(subnetInterface == Index){
++			MinAddress_ori = json_object_get_string(json_object_object_get(subnetObj, "MinAddress"));
++			MaxAddress_ori = json_object_get_string(json_object_object_get(subnetObj, "MaxAddress"));
++			SubnetMask_ori = json_object_get_string(json_object_object_get(subnetObj, "SubnetMask"));
++			LANIP_ori = json_object_get_string(json_object_object_get(subnetObj, "LANIP"));
++			break;
++		}
++	}
++
++	if(strcmp(MinAddress_ori,MinAddress) || strcmp(MaxAddress_ori,MaxAddress) ||
++		strcmp(SubnetMask_ori,SubnetMask) || strcmp(LANIP_ori,LANIP)){
++		*apply = true;
++	}
++
++set_subnet:
+ 	json_object_object_add(wifiSubnetObj, "Enable", json_object_new_boolean(wlSubnetState));
+ 	json_object_object_add(wifiSubnetObj, "MinAddress", json_object_new_string(MinAddress));
+ 	json_object_object_add(wifiSubnetObj, "MaxAddress", json_object_new_string(MaxAddress));
+@@ -1561,6 +1587,8 @@
+ 	json_object_object_add(wifiSubnetObj, "LANIP", json_object_new_string(LANIP));
+ 	json_object_object_add(wifiSubnetObj, "Interface", json_object_new_string(Interface));
+ 
++	if(subnetObj)
++		zcfgFeJsonObjFree(subnetObj);
+ 	return ret;
+ }
+ 
+@@ -1766,14 +1794,14 @@
+ 	if(json_object_get_string(json_object_object_get(Jobj, "cmdtype"))!= NULL) {
+ 		if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
+ 			compareWlObj(Jobj, &apply);
+-			if(apply != true){
++			if(apply != true && !div_wifiSubnet){
+ 				goto dalwlan_edit_fail;
+ 			}
+ 		}
+ 	}
+ 	else{
+ 		compareWlObj(Jobj, &apply);
+-		if(apply != true){
++		if(apply != true && !div_wifiSubnet){
+ 			goto dalwlan_edit_fail;
+ 		}
+ 	}
+@@ -1793,11 +1821,8 @@
+ 	if(div_wifiSubnet)
+ 	{
+ 		if((!strcmp(subnetObjAction, "POST")) || (!strcmp(subnetObjAction, "PUT")) || (!strcmp(subnetObjAction, "DELETE"))) {
+-			if((ret = cfgWifiSubnetObject(Jobj, subnetObjAction)) != ZCFG_SUCCESS)
+-				goto dalwlan_edit_fail;	
+-			if((!strcmp(subnetObjAction, "POST")) || (!strcmp(subnetObjAction, "DELETE"))){
+-				apply = true;
+-			}
++			if((ret = cfgWifiSubnetObject(Jobj, subnetObjAction, &apply)) != ZCFG_SUCCESS || apply != true)
++				goto dalwlan_edit_fail;
+ 		}
+ 	}
+ 	

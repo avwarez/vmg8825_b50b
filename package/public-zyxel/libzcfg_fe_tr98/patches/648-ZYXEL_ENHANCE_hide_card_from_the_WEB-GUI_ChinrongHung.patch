@@ -1,0 +1,27 @@
+diff -urN libzcfg_fe_tr98-1.0.org/Makefile libzcfg_fe_tr98-1.0/Makefile
+--- libzcfg_fe_tr98-1.0.org/Makefile	2019-10-31 13:44:57.788858500 +0800
++++ libzcfg_fe_tr98-1.0/Makefile	2019-10-31 16:01:55.451364069 +0800
+@@ -117,6 +117,10 @@
+ CFLAGS += -DZYXEL_SUPPORT_TR98_LOGIN_ACCOUNT
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_WEB_GUI_HIDE_CARD),y)
++CFLAGS += -DZYXEL_WEB_GUI_HIDE_CARD
++endif
++
+ #define SONIQ
+ ifeq ($(CONFIG_ZYXEL_SONIQ),y)
+ 	CFLAGS += -DBUILD_SONIQ
+diff -urN libzcfg_fe_tr98-1.0.org/zyExt_parameter.h libzcfg_fe_tr98-1.0/zyExt_parameter.h
+--- libzcfg_fe_tr98-1.0.org/zyExt_parameter.h	2019-10-31 13:44:57.792858500 +0800
++++ libzcfg_fe_tr98-1.0/zyExt_parameter.h	2019-10-31 16:03:23.258499369 +0800
+@@ -146,6 +146,9 @@
+ 	{ "AutoGenPwdBySn", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "GetConfigByFtp", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "Privilege", PARAMETER_ATTR_WRITE, 65, json_type_string},
++#ifdef ZYXEL_WEB_GUI_HIDE_CARD
++	{ "CardHide", PARAMETER_ATTR_WRITE, 513, json_type_string},
++#endif
+ 	{ "SshKeyBaseAuthPublicKey", PARAMETER_ATTR_WRITE | PARAMETER_ATTR_PASSWORD, 4097, json_type_string},
+ 	{ NULL, 0, 0}
+ };

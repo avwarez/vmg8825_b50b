@@ -1,0 +1,2716 @@
+Index: ivi-1.0/ivi_config.h
+===================================================================
+--- ivi-1.0.orig/ivi_config.h	2019-12-30 08:35:19.194691742 +0000
++++ ivi-1.0/ivi_config.h	2019-12-30 08:36:33.422691034 +0000
+@@ -111,6 +111,17 @@
+ 	__u8 transport;
+ };
+ 
++#define MAPT_PORTMAP_TCP	0
++#define MAPT_PORTMAP_UDP	1
++#define MAPT_PORTMAP_ICMP	2
++
++struct portmap_info {
++	__u32 lanAddr;
++	__u32 wanAddr;
++	__u16 port;
++	__u16 proto;
++};
++
+ #ifdef __KERNEL__
+ 
+ // comment this line out if you don't want to track any debug information
+@@ -132,13 +143,13 @@
+ };
+ 
+ #define IVI_HTABLE_SIZE		32
+-#define GOLDEN_RATIO_16		0x9e37
+-#define GOLDEN_RATIO_32		0x9e370001
++#define IVI_GOLDEN_RATIO_16		0x9e37
++#define IVI_GOLDEN_RATIO_32		0x9e370001
+ 
+ // Generic hash function for a 16 bit value, see 'Introduction to Algorithms, 2nd Edition' Section 11.3.2
+ static inline int port_hashfn(__be16 port)
+ {
+-	unsigned int m = port * GOLDEN_RATIO_16;
++	unsigned int m = port * IVI_GOLDEN_RATIO_16;
+ 	return ((m & 0xf800) >> 11);  // extract highest 6 bits as hash result
+ }
+ 
+@@ -146,7 +157,7 @@
+ static inline int v4addr_port_hashfn(__be32 addr, __be16 port)
+ {
+ 	__be32 m = addr + port;
+-	m *= GOLDEN_RATIO_32;
++	m *= IVI_GOLDEN_RATIO_32;
+ 	return ((m & 0xf8000000) >> 27);
+ }
+ 
+Index: ivi-1.0/ivi_ioctl.c
+===================================================================
+--- ivi-1.0.orig/ivi_ioctl.c	2019-12-30 08:35:19.210691742 +0000
++++ ivi-1.0/ivi_ioctl.c	2019-12-30 08:36:33.422691034 +0000
+@@ -46,12 +46,14 @@
+ #include "ivi_rule.h"
+ #include "ivi_rule6.h"
+ #include "ivi_config.h"
++#include "ivi_portmap.h"
+ 
+ static long ivi_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+ 	int retval = 0;
+ 	struct net_device *dev;
+ 	char temp[IVI_IOCTL_LEN];
+ 	struct rule_info rule;
++	struct portmap_info portmap;
+ 	
+ 	switch (cmd) {
+ 		case IVI_IOC_V4DEV:
+@@ -200,6 +202,47 @@
+ 			printk(KERN_INFO "ivi_ioctl: transport set to %d.\n", hgw_transport);
+ 			break;
+ 				
++		case IVI_IOC_ADD_PORTMAP:
++			{
++			u32 idx;
++
++			if (copy_from_user(&portmap, (void *)arg, sizeof(struct portmap_info)) > 0)
++				return -EACCES;
++
++			portmap.lanAddr = htonl(portmap.lanAddr);
++			portmap.wanAddr = htonl(portmap.wanAddr);
++			idx = mapportmap_lookup(&(portmap.lanAddr), portmap.wanAddr, portmap.port, 
++					portmap.proto, MAPPORTMAP_MODE_ADD);
++			if (idx == MAPPORTMAP_IX_INVALID) {
++				printk(KERN_DEBUG "ivi_ioctl: fail to insert portmap " NIP4_FMT NIP4_FMT "%d %d\n", 
++						NIP4(portmap.lanAddr), NIP4(portmap.wanAddr), portmap.port, portmap.proto);
++				return -EINVAL;
++			}
++			break;
++			}
++			
++		case IVI_IOC_DEL_PORTMAP:
++			{
++			u32 idx;
++
++			if (copy_from_user(&portmap, (void *)arg, sizeof(struct portmap_info)) > 0)
++				return -EACCES;
++
++			portmap.lanAddr = htonl(portmap.lanAddr);
++			portmap.wanAddr = htonl(portmap.wanAddr);
++			idx = mapportmap_lookup(&(portmap.lanAddr), portmap.wanAddr, portmap.port, 
++					portmap.proto, MAPPORTMAP_MODE_DEL);
++			if (idx == MAPPORTMAP_IX_INVALID) {
++				printk(KERN_DEBUG "ivi_ioctl: fail to delete portmap, does not exist! " NIP4_FMT NIP4_FMT "%d %d\n", 
++						NIP4(portmap.lanAddr), NIP4(portmap.wanAddr), portmap.port, portmap.proto);
++				return -EINVAL;
++			}
++			else
++				mapportmap_delete(idx);
++
++			break;
++			}
++			
+ 		default:
+ 			retval = -ENOTTY;
+ 	}
+@@ -223,6 +266,9 @@
+ struct file_operations ivi_ops = {
+ 	.owner		=	THIS_MODULE,
+ 	.unlocked_ioctl = ivi_ioctl,
++#if defined(CONFIG_COMPAT)
++    .compat_ioctl = ivi_ioctl,
++#endif
+ 	.open		=	ivi_open,
+ 	.release	=	ivi_release,
+ };
+Index: ivi-1.0/ivi_ioctl.h
+===================================================================
+--- ivi-1.0.orig/ivi_ioctl.h	2019-12-30 08:35:19.190691742 +0000
++++ ivi-1.0/ivi_ioctl.h	2019-12-30 08:36:33.422691034 +0000
+@@ -42,33 +42,32 @@
+ 
+ #define IVI_DEVNAME	"ivi"
+ 
+-#define IVI_IOCTL	24
++#define IVI_IOCTL	3015
+ 
+-#define IVI_IOC_V4DEV	_IOW(IVI_IOCTL, 0x10, int)
+-#define IVI_IOC_V6DEV	_IOW(IVI_IOCTL, 0x11, int)
+-#define IVI_IOC_START	_IO(IVI_IOCTL, 0x12)
+-#define IVI_IOC_STOP	_IO(IVI_IOCTL, 0x13)
+-
+-#define IVI_IOC_V4NET	_IOW(IVI_IOCTL, 0x14, int)
+-#define IVI_IOC_V4MASK	_IOW(IVI_IOCTL, 0x15, int)
+-#define IVI_IOC_V6NET	_IOW(IVI_IOCTL, 0x16, int)
+-#define IVI_IOC_V6MASK	_IOW(IVI_IOCTL, 0x17, int)
+-#define IVI_IOC_V4PUB	_IOW(IVI_IOCTL, 0x18, int)
+-#define IVI_IOC_V4PUBMASK	_IOW(IVI_IOCTL, 0x1f, int)
+-
+-#define IVI_IOC_NAT	_IO(IVI_IOCTL, 0x19)
+-#define IVI_IOC_NONAT	_IO(IVI_IOCTL, 0x1a)
+-#define IVI_IOC_HGW_MAPX	_IOW(IVI_IOCTL, 0x29, int)
+-
+-#define IVI_IOC_MAPT	_IOW(IVI_IOCTL, 0x1e, int)
+-
+-#define IVI_IOC_MSS_LIMIT	_IOW(IVI_IOCTL, 0x1d, int)
+-
+-#define IVI_IOC_ADJACENT	_IOW(IVI_IOCTL, 0x20, int)
+-
+-#define IVI_IOC_ADD_RULE	_IOW(IVI_IOCTL, 0x21, int)
+-
+-#define IVI_IOC_TRANSPT	_IOW(IVI_IOCTL, 0x23, int)
++typedef enum IviIoctl
++{
++    IVI_IOC_DUMMY = 999,
++    IVI_IOC_V4DEV,
++    IVI_IOC_V6DEV,
++    IVI_IOC_START,
++    IVI_IOC_STOP,
++    IVI_IOC_V4NET,
++    IVI_IOC_V4MASK,
++    IVI_IOC_V6NET,
++    IVI_IOC_V6MASK,
++    IVI_IOC_V4PUB,
++    IVI_IOC_V4PUBMASK,
++    IVI_IOC_NAT,
++    IVI_IOC_NONAT,
++    IVI_IOC_HGW_MAPX,
++    IVI_IOC_MAPT,
++    IVI_IOC_MSS_LIMIT,
++    IVI_IOC_ADJACENT,
++    IVI_IOC_ADD_RULE,
++    IVI_IOC_TRANSPT,
++    IVI_IOC_ADD_PORTMAP,
++    IVI_IOC_DEL_PORTMAP,
++} IviIoctl_t;
+ 
+ #define IVI_IOCTL_LEN	32
+ 
+Index: ivi-1.0/ivi_map.c
+===================================================================
+--- ivi-1.0.orig/ivi_map.c	2019-12-30 08:35:19.178691742 +0000
++++ ivi-1.0/ivi_map.c	2019-12-30 08:36:33.422691034 +0000
+@@ -37,10 +37,25 @@
+  ************************************************************************/
+ 
+ #include "ivi_map.h"
++#include "ivi_portmap.h"
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++#include <linux/blog.h>
++#endif
+ 
++struct map_list tcp_list;
+ struct map_list udp_list;
+ struct map_list icmp_list;
+ 
++typedef struct {
++    MapFrag_t      * htable[ MAPFRAG_HTABLE_SIZE ];
++    MapFrag_t        etable[ MAPFRAG_MAX_ENTRIES ];
++
++    Dll_t         frlist;
++    time_t        timeout;
++} __attribute__((aligned(16))) MapFragment_t;
++
++MapFragment_t mapfragment;    /* Global map fragment context */
++
+ 
+ /* ratio and offset together indicate the port pool range */
+ u16 hgw_ratio = 1;
+@@ -60,7 +75,7 @@
+ }
+ 
+ // Init list
+-static void init_map_list(struct map_list *list, time_t timeout)
++static void init_map_list(struct map_list *list, time_t timeout, int type)
+ {
+ 	int i;
+ 	spin_lock_init(&list->lock);
+@@ -73,6 +88,7 @@
+ 	list->port_num = 0;
+ 	list->last_alloc_port = 0;
+ 	list->timeout = timeout;
++	list->type = type;
+ }
+ 
+ // Check whether a newport is in use now, must be protected by spin lock when calling this function
+@@ -92,6 +108,9 @@
+ 		}
+ 	}
+ 
++	if (ret == 0)
++		ret = mapportmap_port(port, (1<<list->type));
++
+ 	return ret;
+ }
+ 
+@@ -110,6 +129,10 @@
+ 	map->oldport = oldp;
+ 	map->dstaddr = dstaddr;
+ 	map->newport = newp;
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++    map->blog_key[BLOG_PARAM1_MAP_DIR_US] = BLOG_KEY_FC_INVALID;
++    map->blog_key[BLOG_PARAM1_MAP_DIR_DS] = BLOG_KEY_FC_INVALID;
++#endif
+ 	do_gettimeofday(&map->timer);
+ 	
+ 	hash = v4addr_port_hashfn(oldaddr, oldp);
+@@ -140,6 +163,31 @@
+ 		hlist_for_each_entry_safe(iter, loop, &list->out_chain[i], out_node) {
+ 			delta = now.tv_sec - iter->timer.tv_sec;
+ 			if (delta >= list->timeout) {
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++	            blog_lock();
++                if (iter->blog_key[BLOG_PARAM1_MAP_DIR_US] != BLOG_KEY_FC_INVALID || 
++		            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS] != BLOG_KEY_FC_INVALID) {
++		            if (blog_query(QUERY_MAP_TUPLE, (void*)iter, 
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_US],
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS], 0)) {
++	                    blog_unlock();
++                        continue;
++                    }
++                }
++                else {
++                    // flow cache flow might have disassociated itself from map tuple.
++                    if (iter->evict_time.tv_sec) {
++			            iter->timer.tv_sec = iter->evict_time.tv_sec;
++			            delta = now.tv_sec - iter->timer.tv_sec;
++			            if (delta < list->timeout) {
++	                        blog_unlock();
++                            continue;
++                        }
++                    }
++                }
++	            blog_unlock();
++#endif
++
+ #ifdef IVI_DEBUG_MAP
+ 				printk(KERN_INFO "refresh_map_list: time out map " NIP4_FMT ":%d -> " NIP4_FMT " ------> %d on out_chain[%d]\n", NIP4(iter->oldaddr), iter->oldport, NIP4(iter->dstaddr), iter->newport, i);
+ #endif
+@@ -165,7 +213,20 @@
+  					printk(KERN_INFO "refresh_map_list: port_num is decreased by 1 to %d(%d)\n", list->port_num, iter->newport);
+ #endif
+  				}
+-				
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++	            blog_lock();
++                if (iter->blog_key[BLOG_PARAM1_MAP_DIR_US] != BLOG_KEY_FC_INVALID || 
++		            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS] != BLOG_KEY_FC_INVALID) {
++		            blog_notify(DESTROY_MAP_TUPLE, (void*)iter, 
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_US],
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS]);
++                    iter->blog_key[BLOG_PARAM1_MAP_DIR_US] = BLOG_KEY_FC_INVALID;
++                    iter->blog_key[BLOG_PARAM1_MAP_DIR_DS] = BLOG_KEY_FC_INVALID;
++                }
++	            blog_unlock();
++#endif
++
+ 				kfree(iter);
+ 			}
+ 		}
+@@ -201,12 +262,13 @@
+ /* mapping operations */
+ 
+ // Get mapped port for outflow packet, input and output are in host byte order, return -1 if failed
+-int get_outflow_map_port(struct map_list *list, __be32 oldaddr, __be16 oldp, __be32 dstaddr, u16 ratio, u16 adjacent, u16 offset, __be16 *newp)
++int get_outflow_map_port(struct map_list *list, __be32 oldaddr, __be16 oldp, __be32 dstaddr, u16 ratio, u16 adjacent, u16 offset, __be16 *newp, struct sk_buff *skb)
+ {
+ 	int hash, reusing, status, start_port;
+ 	__be16 retport;
+ 	struct map_tuple *multiplex_state;
+ 	struct map_tuple *iter;
++	struct map_tuple *tuple = NULL;
+ 	struct hlist_node *loop;
+ 		
+ 	*newp = 0;
+@@ -227,6 +289,9 @@
+ 				if (iter->dstaddr == dstaddr) {	
+ 					retport = iter->newport;
+ 					do_gettimeofday(&iter->timer);
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++                    blog_link(MAP_TUPLE, blog_ptr(skb), (void*)iter, BLOG_PARAM1_MAP_DIR_US, 0);
++#endif
+ #ifdef IVI_DEBUG_MAP
+ 					//printk(KERN_INFO "get_outflow_map_port: find map " NIP4_FMT ":%d -> " NIP4_FMT " ------> %d on out_chain[%d]\n", NIP4(iter->oldaddr), iter->oldport, NIP4(iter->dstaddr), iter->newport, hash);
+ #endif
+@@ -364,10 +429,16 @@
+ 		}
+ 	}
+ 	
+-	if (add_new_map(oldaddr, oldp, dstaddr, retport, list) == NULL) {
++	tuple = add_new_map(oldaddr, oldp, dstaddr, retport, list);
++
++	if (tuple == NULL) {
+ 		spin_unlock_bh(&list->lock);
+ 		return -1;
+ 	}
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++    blog_link(MAP_TUPLE, blog_ptr(skb), (void*)tuple, BLOG_PARAM1_MAP_DIR_US, 0);
++#endif
+ 	
+ 	if (status == 0 && reusing == 0) { // we generated a new mapping port
+ 		list->last_alloc_port = retport;
+@@ -385,7 +456,7 @@
+ }
+ 
+ // Get mapped port and address for inflow packet, input and output are in host bypt order, return -1 if failed
+-int get_inflow_map_port(struct map_list *list, __be16 newp, __be32 dstaddr, __be32* oldaddr, __be16 *oldp)
++int get_inflow_map_port(struct map_list *list, __be16 newp, __be32 dstaddr, __be32* oldaddr, __be16 *oldp, struct sk_buff *skb)
+ {
+ 	struct map_tuple *iter;
+ 	int ret, hash;
+@@ -403,6 +474,9 @@
+ 			*oldaddr = iter->oldaddr;
+ 			*oldp = iter->oldport;
+ 			do_gettimeofday(&iter->timer);
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++            blog_link(MAP_TUPLE, blog_ptr(skb), (void*)iter, BLOG_PARAM1_MAP_DIR_DS, 0);
++#endif
+ #ifdef IVI_DEBUG_MAP
+ 			//printk(KERN_INFO "get_inflow_map_port: find map " NIP4_FMT ":%d -> " NIP4_FMT 
+ 			//                 " ------> %d on in_chain[%d]\n", NIP4(iter->oldaddr), 
+@@ -414,21 +488,273 @@
+ 	}
+ 	
+ 	if (ret == 1) {	// fail to find a mapping either in list.
+-#ifdef IVI_DEBUG_MAP_TCP
++		u32 idx;
++#ifdef IVI_DEBUG_MAP
+ 		printk(KERN_INFO "get_inflow_map_port: in_chain[%d] empty.\n", hash);
+ #endif
+ 		
+-		ret = -1;
++		idx = mapportmap_lookup(oldaddr, dstaddr, newp, (1<<MAPPORTMAP_PROTO_UDP), MAPPORTMAP_MODE_FIND);
++		if (idx != MAPPORTMAP_IX_INVALID) {
++			struct map_tuple *tuple = NULL;
++
++			*oldp = newp;
++			if ((tuple=add_new_map(*oldaddr, *oldp, dstaddr, newp, list)) != NULL) {
++				list->last_alloc_port = newp;
++				list->port_num++;
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++				blog_link(MAP_TUPLE, blog_ptr(skb), (void*)tuple, BLOG_PARAM1_MAP_DIR_DS, 0);
++#endif
++	
++			}
++			else {
++				printk("fail add new map for portmap case\n");
++				ret = -1;
++			}
++		}
++		else
++			ret = -1;
+ 	}
+ 	
+ 	spin_unlock_bh(&list->lock);
+ 	return ret;
+ }
+ 
++static MapFrag_t * mapfrag_alloc( void )
++{
++    MapFrag_t * frag_p = MAPFRAG_NULL;
++
++    if (unlikely(dll_empty(&mapfragment.frlist)))
++    {
++        return frag_p;
++    }
++
++    if (likely(!dll_empty(&mapfragment.frlist)))
++    {
++        frag_p = (MapFrag_t*)dll_head_p(&mapfragment.frlist);
++        dll_delete(&frag_p->node);
++    }
++
++    return frag_p;
++}
++
++static inline u32 _hash( u32 hash_val )
++{
++    hash_val ^= ( hash_val >> 16 );
++    hash_val ^= ( hash_val >>  8 );
++    hash_val ^= ( hash_val >>  3 );
++
++    return ( hash_val );
++}
++
++static inline u32 _mapfrag_hash( u32 ipid )
++{
++    u32 hashix;
++
++    hashix = _hash(ipid);
++
++    return hashix % MAPFRAG_HTABLE_SIZE;
++}
++
++static inline u32 _mapfrag_match( const MapFrag_t *frag_p,
++                                  u32 ipid, 
++                                  const struct in6_addr *v6addr )
++{
++    return ( (frag_p->ipid == ipid) && 
++             !memcmp((const void *)&(frag_p->v6addr), (const void *)v6addr, sizeof(struct in6_addr)) );
++}
++
++static void mapfrag_hashin( MapFrag_t * frag_p, u32 hashix )
++{
++    frag_p->chain_p = mapfragment.htable[ hashix ];
++    mapfragment.htable[ hashix ] = frag_p;
++}
++
++static u32 mapfrag_new( const struct in6_addr *v6addr, u32 ipid, u32 hashix )
++{
++    MapFrag_t * frag_p;
++
++    frag_p = mapfrag_alloc();
++    if ( unlikely(frag_p == MAPFRAG_NULL) )
++    {
++        return MAPFRAG_IX_INVALID;
++    }
++
++    memcpy((void *)&(frag_p->v6addr), (const void *)v6addr, sizeof(struct in6_addr));
++    frag_p->ipid = ipid;
++    mapfrag_hashin(frag_p, hashix);
++   	do_gettimeofday(&frag_p->timer);
++
++    return frag_p->idx;
++}
++
++static void mapfrag_unhash(MapFrag_t * frag_p, u32 hashix)
++{
++    register MapFrag_t * hFrag_p = mapfragment.htable[hashix];
++
++    if ( unlikely(hFrag_p == MAPFRAG_NULL) )
++    {
++        goto mapfrag_notfound;
++    }
++
++    if ( likely(hFrag_p == frag_p) )                /* At head */
++    {
++        mapfragment.htable[ hashix ] = frag_p->chain_p;  /* Delete at head */
++    }
++    else
++    {
++        u32 found = 0;
++
++        /* Traverse the single linked hash collision chain */
++        for ( hFrag_p = mapfragment.htable[ hashix ];
++              likely(hFrag_p->chain_p != MAPFRAG_NULL);
++              hFrag_p = hFrag_p->chain_p )
++        {
++            if ( hFrag_p->chain_p == frag_p )
++            {
++                hFrag_p->chain_p = frag_p->chain_p;
++                found = 1;
++                break;
++            }
++        }
++
++        if ( unlikely(found == 0) )
++        {
++            goto mapfrag_notfound;
++        }
++    }
++
++mapfrag_notfound:
++    return; /* SUCCESS */
++}
++
++static void mapfrag_free( MapFrag_t * frag_p )
++{
++    frag_p->ipid = 0;
++    frag_p->isdefrag4 = 0;
++    frag_p->v4addr = 0;
++    memset((void *)&(frag_p->v6addr), 0, sizeof(struct in6_addr));
++    frag_p->timer.tv_sec = 0;
++    frag_p->timer.tv_usec = 0;
++
++    dll_delete( &frag_p->node );
++    dll_prepend(&mapfragment.frlist, &frag_p->node);
++}
++
++void mapfrag_delete( u32 idx )
++{
++    MapFrag_t * frag_p;
++    u32 hashix;
++
++    frag_p = &mapfragment.etable[idx];
++    hashix = _mapfrag_hash(frag_p->ipid);
++
++    mapfrag_unhash(frag_p, hashix);
++    mapfrag_free(frag_p);
++}
++
++static void refresh_mapfrag_list( void )
++{
++	struct timeval now;
++	time_t delta;
++    MapFrag_t * frag_p;
++	int id;	
++	do_gettimeofday(&now);
++	
++    for ( id=MAPFRAG_IX_INVALID; id < MAPFRAG_MAX_ENTRIES; id++ ) {
++        frag_p = &mapfragment.etable[id];
++
++        if ( frag_p->timer.tv_sec == 0 )
++            continue;
++		else {
++			delta = now.tv_sec - frag_p->timer.tv_sec;
++			if (delta >= mapfragment.timeout) {
++				/* idle too long! */
++				mapfrag_delete(id);
++			}
++		}
++    }
++}
++
++u32 mapfrag_lookup( const struct in6_addr *v6addr, u32 ipid )
++{
++    MapFrag_t * frag_p;
++    u32 idx;
++    u32 hashix;
++
++	refresh_mapfrag_list();
++    hashix = _mapfrag_hash(ipid);
++
++    for ( frag_p = mapfragment.htable[ hashix ]; frag_p != MAPFRAG_NULL;
++          frag_p = frag_p->chain_p)
++    {
++        if (likely( _mapfrag_match(frag_p, ipid, v6addr) ))
++        {
++    		do_gettimeofday(&frag_p->timer);
++            return frag_p->idx;
++        }
++    }
++
++    idx = mapfrag_new(v6addr, ipid, hashix);
++
++    return idx;
++}
++
++void mapfrag_get( u32 idx, u32 *isdefrag4, __be32 *v4addr, struct timeval *timer )
++{
++    MapFrag_t * frag_p;
++
++    frag_p = &mapfragment.etable[idx];
++		*isdefrag4 = frag_p->isdefrag4;
++    *v4addr = frag_p->v4addr;
++    timer->tv_sec = frag_p->timer.tv_sec;
++    timer->tv_usec = frag_p->timer.tv_usec;
++
++    return;
++}
++
++void mapfrag_set( u32 idx, u32 isdefrag4, __be32 v4addr )
++{
++    MapFrag_t * frag_p;
++
++    frag_p = &mapfragment.etable[idx];
++    frag_p->isdefrag4 = isdefrag4;
++    frag_p->v4addr = v4addr;
++
++    return;
++}
++
++int init_mapfrag_list( time_t timeout )
++{
++    register int id;
++    MapFrag_t * frag_p;
++
++    memset( (void*)&mapfragment, 0, sizeof(MapFragment_t) );
++
++    /* Initialize list */
++    dll_init( &mapfragment.frlist );
++
++    /* Initialize each entry and insert into free list */
++    for ( id=MAPFRAG_IX_INVALID; id < MAPFRAG_MAX_ENTRIES; id++ )
++    {
++        frag_p = &mapfragment.etable[id];
++        frag_p->idx = id;
++
++        if ( unlikely(id == MAPFRAG_IX_INVALID) )
++            continue;           /* Exclude this entry from the free list */
++
++        dll_append(&mapfragment.frlist, &frag_p->node);/* Insert into free list */
++    }
++
++    mapfragment.timeout = timeout;
++    
++    return 0;
++}
+ 
+ int ivi_map_init(void) {
+-	init_map_list(&udp_list, 15);
+-	init_map_list(&icmp_list, 15);
++	init_map_list(&tcp_list, 15, MAPPORTMAP_PROTO_TCP);
++	init_map_list(&udp_list, 15, MAPPORTMAP_PROTO_UDP);
++	init_map_list(&icmp_list, 15, MAPPORTMAP_PROTO_ICMP);
++	init_mapfrag_list(15);
+ #ifdef IVI_DEBUG
+ 	printk(KERN_DEBUG "IVI: ivi_map loaded.\n");
+ #endif 
+@@ -436,6 +762,7 @@
+ }
+ 
+ void ivi_map_exit(void) {
++	free_map_list(&tcp_list);
+ 	free_map_list(&udp_list);
+ 	free_map_list(&icmp_list);
+ #ifdef IVI_DEBUG
+Index: ivi-1.0/ivi_map.h
+===================================================================
+--- ivi-1.0.orig/ivi_map.h	2019-12-30 08:35:19.202691742 +0000
++++ ivi-1.0/ivi_map.h	2019-12-30 08:36:33.422691034 +0000
+@@ -43,12 +43,19 @@
+ #include <linux/list.h>
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
++#include <linux/brcm_dll.h>
+ 
+ #include "ivi_config.h"
++#if 0
+ #include "ivi_map_tcp.h"
++#endif
+ 
+ /* map entry structure */
+ struct map_tuple {
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++	uint32_t blog_key[2];
++	struct timeval evict_time;  // flow evict time from flow cache 
++#endif
+ 	struct hlist_node out_node;  // Inserted to out_chain
+ 	struct hlist_node in_node;   // Inserted to in_chain
+ 	struct hlist_node dest_node;   // Inserted to dest_chain
+@@ -69,14 +76,40 @@
+ 	int port_num;            // Number of MAP ports allocated in the map list
+ 	__be16 last_alloc_port;  // Save the last allocate port number
+ 	time_t timeout;
++	int type;
+ };
+ 
++#define MAPFRAG_HTABLE_SIZE 64
++#define MAPFRAG_MAX_ENTRIES 256
++#define MAPFRAG_IX_INVALID 0
++#define MAPFRAG_NULL ((MapFrag_t*)NULL)
++/* map list to map fragmented IPv6 to LAN nated address */
++typedef struct mapfrag_t {
++	struct dll_t node;
++	struct mapfrag_t *chain_p;
++
++	u32 idx;
++	u32 ipid;
++	u32 isdefrag4;
++	struct in6_addr v6addr;
++	__be32 v4addr;
++	struct timeval timer;
++} __attribute__ ((packed)) MapFrag_t;
++
++extern u32 mapfrag_lookup( const struct in6_addr *v6addr, u32 ipid );
++extern void mapfrag_get( u32 idx, u32 *isdefrag4, __be32 * v4addr, struct timeval *timer );
++extern void mapfrag_set( u32 idx, u32 isdefrag4, __be32 v4addr );
++extern void mapfrag_delete( u32 ipid );
++extern int init_mapfrag_list( time_t timeout );
++
++
+ /* global map list variables */
+ extern u16 hgw_ratio;
+ extern u16 hgw_offset;
+ extern u16 hgw_suffix;
+ extern u16 hgw_adjacent;
+ 
++extern struct map_list tcp_list;
+ extern struct map_list udp_list;
+ extern struct map_list icmp_list;
+ 
+@@ -86,8 +119,8 @@
+ extern void free_map_list(struct map_list *list);
+ 
+ /* mapping operations */
+-extern int get_outflow_map_port(struct map_list *list, __be32 oldaddr, __be16 oldp, __be32 dstaddr, u16 ratio, u16 adjacent, u16 offset, __be16 *newp);
+-extern int get_inflow_map_port(struct map_list *list, __be16 newp, __be32 dstaddr, __be32* oldaddr, __be16 *oldp);
++extern int get_outflow_map_port(struct map_list *list, __be32 oldaddr, __be16 oldp, __be32 dstaddr, u16 ratio, u16 adjacent, u16 offset, __be16 *newp, struct sk_buff *skb);
++extern int get_inflow_map_port(struct map_list *list, __be16 newp, __be32 dstaddr, __be32* oldaddr, __be16 *oldp, struct sk_buff *skb);
+ 
+ extern int ivi_map_init(void);
+ extern void ivi_map_exit(void);
+Index: ivi-1.0/ivi_map_tcp.c
+===================================================================
+--- ivi-1.0.orig/ivi_map_tcp.c	2019-12-30 08:35:19.170691742 +0000
++++ ivi-1.0/ivi_map_tcp.c	2019-12-30 08:36:33.422691034 +0000
+@@ -36,6 +36,7 @@
+  ************************************************************************/
+ 
+ #include "ivi_map_tcp.h"
++#include "ivi_portmap.h"
+ 
+ #define SECS * 1
+ #define MINS * 60 SECS
+@@ -371,6 +372,7 @@
+ }
+ 
+ 
++#if 0
+ static void tcp_sack(struct tcphdr *th, __u32 *sack)
+ {
+ 	unsigned char *ptr = (unsigned char *)(th) + sizeof(struct tcphdr);
+@@ -589,6 +591,7 @@
+ #endif
+ 	return res;
+ }
++#endif
+ 
+ 
+ FILTER_STATUS CreateTcpStateContext(struct tcphdr *th, __u32 len, PTCP_STATE_CONTEXT StateContext)
+@@ -640,7 +643,7 @@
+ }
+ 
+ 
+-FILTER_STATUS UpdateTcpStateContext(struct tcphdr *th, __u32 len, PACKET_DIR dir, PTCP_STATE_CONTEXT StateContext)
++FILTER_STATUS UpdateTcpStateContext(struct tcphdr *th, __u32 len, PACKET_DIR dir, PTCP_STATE_CONTEXT StateContext, struct sk_buff *skb)
+ {
+ 	PTCP_STATE_INFO sender = &(StateContext->Seen[dir]);
+ 	PTCP_STATE_INFO receiver = &(StateContext->Seen[!dir]);
+@@ -703,6 +706,9 @@
+ 			StateContext->LastSeq = ntohl(th->seq);
+ 			StateContext->LastAck = ntohl(th->ack_seq);
+ 			StateContext->LastEnd = segment_seq_plus_len(StateContext->LastSeq, len, th);
++#if defined(CONFIG_BLOG)
++			blog_skip(skb, blog_skip_reason_map_tcp);
++#endif
+ #ifdef IVI_DEBUG_TCP
+ 			printk(KERN_DEBUG "UpdateTcpStateContext: ignore packet on map %d -> %d, state %d\n", 
+ 				StateContext->oldport, StateContext->newport, OldStatus);
+@@ -735,10 +741,12 @@
+ 			break;
+ 	}
+ 
++#if 0 // liberal mode
+ 	if (tcp_in_window(th, len, dir, StateContext) == false) {
+ 		// Segment is outside the window.
+ 		return FILTER_DROP;
+ 	}
++#endif
+ 
+ 	// From now on we have got in-window packets.
+ 	StateContext->LastControlBits = (unsigned char)index;
+@@ -751,6 +759,10 @@
+ 	if (OldStatus != NewStatus && NewStatus == TCP_STATUS_FIN_WAIT) {
+ 		sender->Options |= STATE_OPTION_CLOSE_INIT;
+ 	}
++#if defined(CONFIG_BLOG)
++	if (StateContext->Status != sES)
++		blog_skip(skb, blog_skip_reason_map_tcp);
++#endif
+ 
+ 	// Update State Timer.
+ 	if (StateContext->RetransCount >= TcpMaxRetrans && StateContext->StateTimeOut > TcpTimeOutMaxRetrans) {
+@@ -803,7 +815,32 @@
+ 		hlist_for_each_entry_safe(iter, loop, &tcp_list.out_chain[i], out_node) {
+ 			delta = now.tv_sec - iter->StateSetTime.tv_sec;
+ 			//if (delta >= iter->StateTimeOut || iter->Status == TCP_STATUS_TIME_WAIT || iter->state_seq <= threshold) {
+-			if (delta >= iter->StateTimeOut) {				
++			if (delta >= iter->StateTimeOut) {
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++	            blog_lock();
++                if (iter->blog_key[BLOG_PARAM1_MAP_DIR_US] != BLOG_KEY_FC_INVALID || 
++		            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS] != BLOG_KEY_FC_INVALID) {
++		            if (blog_query(QUERY_MAP_TUPLE, (void*)iter, 
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_US],
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS], 0)) {
++	                    blog_unlock();
++                        continue;
++                    }
++                }
++                else {
++                    // flow cache flow might have disassociated itself from map tuple.
++                    if (iter->evict_time.tv_sec) {
++			            iter->StateSetTime.tv_sec = iter->evict_time.tv_sec;
++			            delta = now.tv_sec - iter->StateSetTime.tv_sec;
++			            if (delta < iter->StateTimeOut) {
++	                        blog_unlock();
++                            continue;
++                        }
++                    }
++                }
++	            blog_unlock();
++#endif
++
+ 				hlist_del(&iter->out_node);
+ 				hlist_del(&iter->in_node);
+ 				hlist_del(&iter->dest_node);
+@@ -844,7 +881,18 @@
+  					                 tcp_list.port_num, iter->newport);
+ #endif
+  				}				
+-				
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++	            blog_lock();
++                if (iter->blog_key[BLOG_PARAM1_MAP_DIR_US] != BLOG_KEY_FC_INVALID || 
++		            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS] != BLOG_KEY_FC_INVALID) {
++		            blog_notify(DESTROY_MAP_TUPLE, (void*)iter, 
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_US],
++                            iter->blog_key[BLOG_PARAM1_MAP_DIR_DS]);
++                    iter->blog_key[BLOG_PARAM1_MAP_DIR_US] = BLOG_KEY_FC_INVALID;
++                    iter->blog_key[BLOG_PARAM1_MAP_DIR_DS] = BLOG_KEY_FC_INVALID;
++                }
++	            blog_unlock();
++#endif
+ 				kfree(iter);
+ 			}
+ 		}
+@@ -1083,7 +1131,7 @@
+ }
+ 
+ int get_outflow_tcp_map_port(__be32 oldaddr, __be16 oldp, __be32 dstaddr, __be16 dstp, u16 ratio, 
+-                             u16 adjacent, u16 offset, struct tcphdr *th, __u32 len, __be16 *newp)
++                             u16 adjacent, u16 offset, struct tcphdr *th, __u32 len, __be16 *newp, struct sk_buff *skb)
+ {	
+ 	int hash, reusing, status, flag, start_port;
+ 	__be16 retport;
+@@ -1109,7 +1157,7 @@
+ 			if (StateContext->oldport == oldp && StateContext->oldaddr == oldaddr) {
+ 				if (StateContext->dstaddr == dstaddr && StateContext->dstport == dstp) {
+ 					// Update state context.
+-					ftState = UpdateTcpStateContext(th, len, PACKET_DIR_LOCAL, StateContext);
++					ftState = UpdateTcpStateContext(th, len, PACKET_DIR_LOCAL, StateContext, skb);
+ 			
+ 					if (ftState == FILTER_ACCEPT) {
+ 						retport = StateContext->newport;
+@@ -1169,8 +1217,11 @@
+ 						                NIP4(dstaddr), dstp, retport, hash, StateContext->Status);
+ #endif
+                		}
+-               		
+                		*newp = retport;
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++                    blog_link(MAP_TUPLE, blog_ptr(skb), (void*)StateContext, BLOG_PARAM1_MAP_DIR_US, 0);
++#endif
+ 					spin_unlock_bh(&tcp_list.lock);
+ 					return (retport == 0 ? -1 : 0);
+                	}
+@@ -1254,7 +1305,7 @@
+ 	}
+ }
+ 
+-int get_inflow_tcp_map_port(__be16 newp, __be32 dstaddr,  __be16 dstp, struct tcphdr *th, __u32 len, __be32 *oldaddr, __be16 *oldp)
++int get_inflow_tcp_map_port(__be16 newp, __be32 dstaddr,  __be16 dstp, struct tcphdr *th, __u32 len, __be32 *oldaddr, __be16 *oldp, struct sk_buff *skb)
+ {
+ 	FILTER_STATUS ftState;
+ 	PTCP_STATE_CONTEXT  StateContext = NULL, i0;
+@@ -1276,11 +1327,14 @@
+ 			*oldp = StateContext->oldport;
+ 			
+ 			// Update state context.
+-			ftState = UpdateTcpStateContext(th, len, PACKET_DIR_REMOTE, StateContext);
++			ftState = UpdateTcpStateContext(th, len, PACKET_DIR_REMOTE, StateContext, skb);
+ 
+ 			if (ftState == FILTER_ACCEPT) {
+ 				ret = 0;
+-				
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++                blog_link(MAP_TUPLE, blog_ptr(skb), (void*)StateContext, BLOG_PARAM1_MAP_DIR_DS, 0);
++#endif
+ #ifdef IVI_DEBUG_MAP_TCP
+ 				printk(KERN_INFO "get_inflow_tcp_map_port: Found map " NIP4_FMT ":%d -> " NIP4_FMT ":%d -----> %d "
+ 				                 "on in_chain[%d], TCP state %d\n", NIP4(*oldaddr), *oldp, NIP4(dstaddr), dstp, newp, 
+@@ -1343,14 +1397,30 @@
+ 	}
+ 	
+ 	if (ret == 1) {	// fail to find a mapping either in tcp_list.
++		u32 idx;
+ #ifdef IVI_DEBUG_MAP_TCP
+ 		printk(KERN_INFO "get_inflow_tcp_map_port: in_chain[%d] empty.\n", hash);
+ #endif
+-		
+-		ret = -1;
++		idx = mapportmap_lookup(oldaddr, dstaddr, newp, (1<<MAPPORTMAP_PROTO_TCP), MAPPORTMAP_MODE_FIND);
++		if (idx != MAPPORTMAP_IX_INVALID) {
++
++			spin_unlock_bh(&tcp_list.lock);
++			if (create_tcp_mapping(*oldaddr, *oldp, dstaddr, dstp, newp, th, len, 0) < 0) {
++#ifdef IVI_DEBUG_MAP_TCP
++				printk(KERN_ERR "fail add new map for portmap TCP case\n");
++#endif
++				return -1;
++			}
++			*oldp = newp;
++
++			goto out;
++		}
++		else
++			ret = -1;
+ 	}
+ 
+ 	spin_unlock_bh(&tcp_list.lock);
++out:
+ 	return ret;
+ }
+ 
+Index: ivi-1.0/ivi_map_tcp.h
+===================================================================
+--- ivi-1.0.orig/ivi_map_tcp.h	2019-12-30 08:35:19.166691742 +0000
++++ ivi-1.0/ivi_map_tcp.h	2019-12-30 08:36:33.422691034 +0000
+@@ -95,6 +95,10 @@
+ } TCP_STATE_INFO, *PTCP_STATE_INFO;
+ 
+ typedef struct _TCP_STATE_CONTEXT {
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++	uint32_t          blog_key[2];
++	struct timeval evict_time;  // flow evict time from flow cache 
++#endif
+ 	struct hlist_node out_node;  // Inserted to out_chain
+ 	struct hlist_node in_node;   // Inserted to in_chain
+ 	struct hlist_node dest_node;   // Inserted to dest_chain
+@@ -136,8 +140,8 @@
+ extern int port_reserve(__be16);
+ 
+ /* mapping operations */
+-extern int get_outflow_tcp_map_port(__be32 oldaddr, __be16 oldp, __be32 dstaddr, __be16 dstp, u16 ratio, u16 adjacent, u16 offset, struct tcphdr *th, __u32 len, __be16 *newp);
+-extern int get_inflow_tcp_map_port(__be16 newp, __be32 dstaddr, __be16 dstp, struct tcphdr *th, __u32 len, __be32 *oldaddr, __be16 *oldp);
++extern int get_outflow_tcp_map_port(__be32 oldaddr, __be16 oldp, __be32 dstaddr, __be16 dstp, u16 ratio, u16 adjacent, u16 offset, struct tcphdr *th, __u32 len, __be16 *newp, struct sk_buff *skb);
++extern int get_inflow_tcp_map_port(__be16 newp, __be32 dstaddr, __be16 dstp, struct tcphdr *th, __u32 len, __be32 *oldaddr, __be16 *oldp, struct sk_buff *skb);
+ 
+ extern int ivi_map_tcp_init(void);
+ extern void ivi_map_tcp_exit(void);
+Index: ivi-1.0/ivi_module.c
+===================================================================
+--- ivi-1.0.orig/ivi_module.c	2019-12-30 08:35:19.174691742 +0000
++++ ivi-1.0/ivi_module.c	2019-12-30 08:36:33.422691034 +0000
+@@ -38,7 +38,10 @@
+ #include "ivi_rule.h"
+ #include "ivi_rule6.h"
+ #include "ivi_map.h"
++#if 0
+ #include "ivi_map_tcp.h"
++#endif
++#include "ivi_portmap.h"
+ #include "ivi_nf.h"
+ #include "ivi_ioctl.h"
+ 
+@@ -53,9 +56,14 @@
+ 	if ((retval = ivi_map_init()) < 0) {
+ 		return retval;
+ 	}
++#if 0
+ 	if ((retval = ivi_map_tcp_init()) < 0) {
+ 		return retval;
+ 	}
++#endif
++	if ((retval = init_mapportmap_list()) < 0) {
++		return retval;
++	}
+ 	if ((retval = ivi_nf_init()) < 0) {
+ 		return retval;
+ 	}
+@@ -69,7 +77,9 @@
+ static void __exit ivi_module_exit(void) {
+ 	ivi_ioctl_exit();
+ 	ivi_nf_exit();
++#if 0
+ 	ivi_map_tcp_exit();
++#endif
+ 	ivi_map_exit();
+ 	ivi_rule6_exit();
+ 	ivi_rule_exit();
+Index: ivi-1.0/ivi_portmap.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ ivi-1.0/ivi_portmap.c	2019-12-30 08:36:33.422691034 +0000
+@@ -0,0 +1,265 @@
++/*************************************************************************
++ *
++ * ivi_portmap.c :
++ *
++ * MAP-T/MAP-E 4to6 Prefix Mapping Kernel Module
++ *
++ * This file is part of MAP-T/MAP-E Kernel Module.
++ *
++ * Permission to use, copy, modify, and distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * You should have received a copy of the GNU General Public License 
++ * along with MAP-T/MAP-E Kernel Module. If not, see 
++ * <http://www.gnu.org/licenses/>.
++ *
++ * LIC: GPLv2
++ *
++ ************************************************************************/
++
++#include "ivi_portmap.h"
++#include "ivi_map.h"
++
++typedef struct {
++    MapPortmap_t      * htable[ MAPPORTMAP_HTABLE_SIZE ];
++    MapPortmap_t        etable[ MAPPORTMAP_MAX_ENTRIES ];
++
++    Dll_t         frlist;
++} __attribute__((aligned(16))) MapPortmapping_t;
++
++MapPortmapping_t mapportmapping;
++
++static MapPortmap_t * mapportmap_alloc( void )
++{
++    MapPortmap_t * pmap_p = MAPPORTMAP_NULL;
++
++    if (unlikely(dll_empty(&mapportmapping.frlist)))
++    {
++        return pmap_p;
++    }
++
++    if (likely(!dll_empty(&mapportmapping.frlist)))
++    {
++        pmap_p = (MapPortmap_t*)dll_head_p(&mapportmapping.frlist);
++        dll_delete(&pmap_p->node);
++    }
++
++    return pmap_p;
++}
++
++static inline u32 _hash( u32 hash_val )
++{
++    hash_val ^= ( hash_val >> 16 );
++    hash_val ^= ( hash_val >>  8 );
++    hash_val ^= ( hash_val >>  3 );
++
++    return ( hash_val );
++}
++
++static inline u32 _mapportmap_hash( u32 port )
++{
++    u32 hashix;
++
++    hashix = _hash(port);
++
++    return hashix % MAPPORTMAP_HTABLE_SIZE;
++}
++
++static inline u32 _mapportmap_match( const MapPortmap_t *pmap_p,
++                                  u32 *lanAddr, u32 wanAddr, u32 port,
++                                  u32 proto, int mode )
++{
++	if ((mode == MAPPORTMAP_MODE_ADD) || (mode == MAPPORTMAP_MODE_DEL)) {
++    	return ((pmap_p->info.lanAddr == *lanAddr) && 
++				(pmap_p->info.wanAddr == wanAddr) &&
++				(pmap_p->info.port == port) && (pmap_p->info.proto == proto));
++	}
++	else {
++		if (pmap_p->info.wanAddr != MAPPORTMAP_INVALID_ADDRESS) 
++			return ((pmap_p->info.wanAddr == wanAddr) &&
++					(pmap_p->info.port == port) && 
++					(pmap_p->info.proto & proto));
++		else
++			return ((pmap_p->info.port == port) && 
++					(pmap_p->info.proto & proto));
++	}
++}
++
++static void mapportmap_hashin( MapPortmap_t * pmap_p, u32 hashix )
++{
++    pmap_p->chain_p = mapportmapping.htable[ hashix ];
++    mapportmapping.htable[ hashix ] = pmap_p;
++}
++
++static inline bool port_in_range(u16 _port, u16 _ratio, u16 _adjacent, u16 _offset)
++{
++	if (_ratio == 1)
++		return true;
++	else {
++		u16 temp;
++		_ratio = fls(_ratio) - 1;
++		_adjacent = fls(_adjacent) - 1;
++		temp = (_port >> _adjacent);
++		return (temp - ((temp >> _ratio) << _ratio) == _offset);
++	}
++}
++
++static u32 mapportmap_new( u32 *lanAddr, u32 wanAddr, u32 port, u32 proto, u32 hashix )
++{
++    MapPortmap_t * pmap_p;
++
++	if (!port_in_range(port, hgw_ratio, hgw_adjacent, hgw_offset)) {
++		printk("port<%u> not in MAP-T range\n", port);
++        return MAPPORTMAP_IX_INVALID;
++	}
++
++    pmap_p = mapportmap_alloc();
++    if ( unlikely(pmap_p == MAPPORTMAP_NULL) ) {
++        return MAPPORTMAP_IX_INVALID;
++    }
++
++    pmap_p->info.lanAddr = *lanAddr;
++    pmap_p->info.wanAddr = wanAddr;
++    pmap_p->info.port = port;
++    pmap_p->info.proto = proto;
++    mapportmap_hashin(pmap_p, hashix);
++
++    return pmap_p->idx;
++}
++
++static void mapportmap_unhash(MapPortmap_t * pmap_p, u32 hashix)
++{
++    register MapPortmap_t * hFrag_p = mapportmapping.htable[hashix];
++
++    if ( unlikely(hFrag_p == MAPPORTMAP_NULL) )
++    {
++        goto mapportmap_notfound;
++    }
++
++    if ( likely(hFrag_p == pmap_p) )                /* At head */
++    {
++        mapportmapping.htable[ hashix ] = pmap_p->chain_p;  /* Delete at head */
++    }
++    else
++    {
++        u32 found = 0;
++
++        /* Traverse the single linked hash collision chain */
++        for ( hFrag_p = mapportmapping.htable[ hashix ];
++              likely(hFrag_p->chain_p != MAPPORTMAP_NULL);
++              hFrag_p = hFrag_p->chain_p )
++        {
++            if ( hFrag_p->chain_p == pmap_p )
++            {
++                hFrag_p->chain_p = pmap_p->chain_p;
++                found = 1;
++                break;
++            }
++        }
++
++        if ( unlikely(found == 0) )
++        {
++            goto mapportmap_notfound;
++        }
++    }
++
++mapportmap_notfound:
++    return; /* SUCCESS */
++}
++
++static void mapportmap_free( MapPortmap_t * pmap_p )
++{
++    pmap_p->info.lanAddr = 0;
++    pmap_p->info.wanAddr = 0;
++    pmap_p->info.port = 0;
++    pmap_p->info.proto = 0;
++
++    dll_delete( &pmap_p->node );
++    dll_prepend(&mapportmapping.frlist, &pmap_p->node);
++}
++
++void mapportmap_delete( u32 idx )
++{
++    MapPortmap_t * pmap_p;
++    u32 hashix;
++
++    pmap_p = &mapportmapping.etable[idx];
++    hashix = _mapportmap_hash(pmap_p->info.port);
++
++    mapportmap_unhash(pmap_p, hashix);
++    mapportmap_free(pmap_p);
++}
++
++u32 mapportmap_lookup( u32 *lanAddr, u32 wanAddr, u32 port, u32 proto, int mode )
++{
++    MapPortmap_t * pmap_p;
++    u32 idx;
++    u32 hashix;
++
++    hashix = _mapportmap_hash(port);
++
++    for ( pmap_p = mapportmapping.htable[ hashix ]; pmap_p != MAPPORTMAP_NULL;
++          pmap_p = pmap_p->chain_p)
++    {
++        if (likely( _mapportmap_match(pmap_p, lanAddr, wanAddr, port, proto, mode) )) {
++			if (mode == MAPPORTMAP_MODE_FIND)
++				*lanAddr = pmap_p->info.lanAddr;
++
++            return pmap_p->idx;
++		}
++    }
++
++	if (mode == MAPPORTMAP_MODE_ADD)
++		idx = mapportmap_new(lanAddr, wanAddr, port, proto, hashix);
++	else
++		idx = MAPPORTMAP_IX_INVALID;
++
++    return idx;
++}
++
++int mapportmap_port( u16 port, int type )
++{
++    MapPortmap_t * pmap_p;
++    u32 hashix;
++	int ret = 0;
++
++    hashix = _mapportmap_hash(port);
++
++    for ( pmap_p = mapportmapping.htable[ hashix ]; pmap_p != MAPPORTMAP_NULL;
++          pmap_p = pmap_p->chain_p)
++    {
++        if (unlikely( (pmap_p->info.port == port) &&
++				   	  (pmap_p->info.proto & type) )) {
++			ret = 1;
++			break;
++		}
++    }
++
++	return ret;
++}
++
++int init_mapportmap_list( void )
++{
++    register int id;
++    MapPortmap_t * pmap_p;
++
++    memset( (void*)&mapportmapping, 0, sizeof(MapPortmapping_t) );
++
++    /* Initialize list */
++    dll_init( &mapportmapping.frlist );
++
++    /* Initialize each entry and insert into free list */
++    for ( id=MAPPORTMAP_IX_INVALID; id < MAPPORTMAP_MAX_ENTRIES; id++ )
++    {
++        pmap_p = &mapportmapping.etable[id];
++        pmap_p->idx = id;
++
++        if ( unlikely(id == MAPPORTMAP_IX_INVALID) )
++            continue;           /* Exclude this entry from the free list */
++
++        dll_append(&mapportmapping.frlist, &pmap_p->node);/* Insert into free list */
++    }
++
++    return 0;
++}
+Index: ivi-1.0/ivi_portmap.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ ivi-1.0/ivi_portmap.h	2019-12-30 08:36:33.422691034 +0000
+@@ -0,0 +1,58 @@
++/*************************************************************************
++ *
++ * ivi_portmap.h :
++ *
++ * This file is the header file for the 'ivi_portmap.c' file.
++ *
++ * Contributions:
++ *
++ * This file is part of MAP-T/MAP-E Kernel Module.
++ *
++ * Permission to use, copy, modify, and distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * You should have received a copy of the GNU General Public License 
++ * along with MAP-T/MAP-E Kernel Module. If not, see 
++ * <http://www.gnu.org/licenses/>.
++ *
++ * LIC: GPLv2
++ *
++ ************************************************************************/
++
++
++#ifndef IVI_PORTMAP_H
++#define IVI_PORTMAP_H
++
++#include <net/ip.h>
++#include "ivi_config.h"
++#include <linux/brcm_dll.h>
++
++#define MAPPORTMAP_HTABLE_SIZE 32
++#define MAPPORTMAP_MAX_ENTRIES 128
++#define MAPPORTMAP_IX_INVALID 0
++#define MAPPORTMAP_NULL ((MapPortmap_t*)NULL)
++
++#define MAPPORTMAP_INVALID_ADDRESS 0xFFFFFFFF
++
++#define MAPPORTMAP_MODE_ADD		0
++#define MAPPORTMAP_MODE_FIND	1
++#define MAPPORTMAP_MODE_DEL		2
++
++#define MAPPORTMAP_PROTO_TCP	0
++#define MAPPORTMAP_PROTO_UDP	1
++#define MAPPORTMAP_PROTO_ICMP	2
++
++typedef struct mapportmap_t {
++	struct dll_t node;
++	u32 idx;
++	struct mapportmap_t *chain_p;
++	struct portmap_info info;
++} __attribute__ ((packed)) MapPortmap_t;
++
++extern u32 mapportmap_lookup( u32 *lanAddr, u32 wanAddr, u32 port, u32 proto, int mode );
++extern void mapportmap_delete( u32 idx );
++extern int mapportmap_port( u16 port, int type );
++extern int init_mapportmap_list(void);
++
++#endif /* IVI_PORTMAP_H */
+Index: ivi-1.0/ivi_rule.h
+===================================================================
+--- ivi-1.0.orig/ivi_rule.h	2019-12-30 08:35:19.158691742 +0000
++++ ivi-1.0/ivi_rule.h	2019-12-30 08:36:33.426691034 +0000
+@@ -39,6 +39,7 @@
+ 
+ #include <linux/module.h>
+ #include <linux/list.h>
++//#include "list.h"
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
+ #include <net/ip.h>
+Index: ivi-1.0/ivi_xmit.c
+===================================================================
+--- ivi-1.0.orig/ivi_xmit.c	2019-12-30 08:35:19.182691742 +0000
++++ ivi-1.0/ivi_xmit.c	2019-12-30 08:36:33.426691034 +0000
+@@ -35,6 +35,11 @@
+  ************************************************************************/
+ 
+ #include "ivi_xmit.h"
++#if defined(CONFIG_BCM_KF_BLOG)
++#include <linux/blog.h>
++#endif
++#include <net/icmp.h>
++#include <net/netfilter/ipv6/nf_defrag_ipv6.h>
+ 
+ 
+ static inline int link_local_addr(const struct in6_addr *addr) {
+@@ -74,7 +79,7 @@
+ 
+ u8 hgw_transport = 0;  // header manipulation manner
+ 
+-u16 mss_limit = 1440;  // max mss supported
++u16 mss_limit = 1432;  // max mss supported
+ 
+ 
+ #define ADDR_DIR_SRC 0
+@@ -168,13 +173,15 @@
+  				v6addr->s6_addr[i] += (unsigned char)((eabits >> o) & 0xff);
+  				o -= 8;
+   			}
++
+   			v6addr->s6_addr[8] = 0x00;
+-			v6addr->s6_addr[9] = (unsigned char)(addr >> 24);
+-			v6addr->s6_addr[10] = (unsigned char)((addr >> 16) & 0xff);
+-			v6addr->s6_addr[11] = (unsigned char)((addr >> 8) & 0xff);
+-			v6addr->s6_addr[12] = (unsigned char)(addr & 0xff);
+-			v6addr->s6_addr[13] = (suffix >> 8) & 0xff;
+-			v6addr->s6_addr[14] = suffix & 0xff;
++  			v6addr->s6_addr[9] = 0x00;
++			v6addr->s6_addr[10] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[11] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[12] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[13] = (unsigned char)(addr & 0xff);
++			v6addr->s6_addr[14] = (suffix >> 8) & 0xff;
++			v6addr->s6_addr[15] = suffix & 0xff;
+ 		} else {
+ #ifdef IVI_DEBUG_RULE
+ 			printk(KERN_DEBUG "ipaddr_4to6: cannot map v4 addr " NIP4_FMT \
+@@ -191,11 +198,45 @@
+ 		v6addr->s6_addr[13] = (suffix >> 8) & 0xff;
+ 		v6addr->s6_addr[14] = suffix & 0xff;
+ 	} else {
+-		// DMR translation: just copy the addr
+-		v6addr->s6_addr[9] = (unsigned char)(addr >> 24);
+-		v6addr->s6_addr[10] = (unsigned char)((addr >> 16) & 0xff);
+-		v6addr->s6_addr[11] = (unsigned char)((addr >> 8) & 0xff);
+-		v6addr->s6_addr[12] = (unsigned char)(addr & 0xff);
++		// DMR translation: RFC 6052 Section 2.2 Figure 1
++		switch(prefixlen) {
++		case 4:
++			v6addr->s6_addr[4] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[5] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[6] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[7] = (unsigned char)(addr & 0xff);
++			break;
++		case 5:
++			v6addr->s6_addr[5] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[6] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[7] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[9] = (unsigned char)(addr & 0xff);
++			break;
++		case 6:
++			v6addr->s6_addr[6] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[7] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[9] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[10] = (unsigned char)(addr & 0xff);
++			break;
++		case 7:
++			v6addr->s6_addr[7] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[9] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[10] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[11] = (unsigned char)(addr & 0xff);
++			break;
++		case 8:
++			v6addr->s6_addr[9] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[10] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[11] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[12] = (unsigned char)(addr & 0xff);
++			break;
++		case 12:
++			v6addr->s6_addr[12] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[13] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[14] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[15] = (unsigned char)(addr & 0xff);
++			break;
++		}
+ 	}
+ 
+ 	return 0;
+@@ -226,13 +267,13 @@
+ 		return -1;
+ 	}
+ 	
+-	addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
+-	addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
+-	addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
+-	addr |= ((unsigned int)v6addr->s6_addr[12]);
+-	*v4addr = htonl(addr);
+-
+ 	if (_dir == ADDR_DIR_DST) {		
++		addr |= ((unsigned int)v6addr->s6_addr[10]) << 24;
++		addr |= ((unsigned int)v6addr->s6_addr[11]) << 16;
++		addr |= ((unsigned int)v6addr->s6_addr[12]) << 8;
++		addr |= ((unsigned int)v6addr->s6_addr[13]);
++		*v4addr = htonl(addr);
++
+ 		// Do not translate native IPv6 address
+ 		if (ivi_mode == IVI_MODE_HGW && ((addr & v4mask) != (v4address & v4mask))) {
+ 			//printk(KERN_DEBUG "ipaddr6to4: destination address not translated\n");
+@@ -250,6 +291,7 @@
+ 	}
+ 
+ 	else if (_dir == ADDR_DIR_SRC) {
++
+ 		if (ivi_rule6_lookup(v6addr, &prefixlen, &prefix4, &plen4, ratio, adjacent, &fmt) != 0) {
+ 			// Solve the problem of "MAP-T packet's src address doesn't have a matching rule in MAP-E opposite end"
+ 			*ratio = 1;
+@@ -260,28 +302,144 @@
+ 
+ 		/* offset is obtained from Interface Identifier */	
+ 		if (fmt == ADDR_FMT_MAPT)
++		{
+ 			*offset = (v6addr->s6_addr[13] << 8) + v6addr->s6_addr[14];
++			addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
++			addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
++			addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
++			addr |= ((unsigned int)v6addr->s6_addr[12]);
++			*v4addr = htonl(addr);
++		}
+ 		else if (fmt == ADDR_FMT_NONE)
++		{
+ 			*offset = 0;
++
++			switch(prefixlen) {
++			case 32:
++				addr |= ((unsigned int)v6addr->s6_addr[4]) << 24;
++				addr |= ((unsigned int)v6addr->s6_addr[5]) << 16;
++				addr |= ((unsigned int)v6addr->s6_addr[6]) << 8;
++				addr |= ((unsigned int)v6addr->s6_addr[7]);
++				*v4addr = htonl(addr);
++				break;
++			case 40:
++				addr |= ((unsigned int)v6addr->s6_addr[5]) << 24;
++				addr |= ((unsigned int)v6addr->s6_addr[6]) << 16;
++				addr |= ((unsigned int)v6addr->s6_addr[7]) << 8;
++				addr |= ((unsigned int)v6addr->s6_addr[9]);
++				*v4addr = htonl(addr);
++				break;
++			case 48:
++				addr |= ((unsigned int)v6addr->s6_addr[6]) << 24;
++				addr |= ((unsigned int)v6addr->s6_addr[7]) << 16;
++				addr |= ((unsigned int)v6addr->s6_addr[9]) << 8;
++				addr |= ((unsigned int)v6addr->s6_addr[10]);
++				*v4addr = htonl(addr);
++				break;
++			case 56:
++				addr |= ((unsigned int)v6addr->s6_addr[7]) << 24;
++				addr |= ((unsigned int)v6addr->s6_addr[9]) << 16;
++				addr |= ((unsigned int)v6addr->s6_addr[10]) << 8;
++				addr |= ((unsigned int)v6addr->s6_addr[11]);
++				*v4addr = htonl(addr);
++				break;
++			case 64:
++				addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
++				addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
++				addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
++				addr |= ((unsigned int)v6addr->s6_addr[12]);
++				*v4addr = htonl(addr);
++				break;
++			case 96:
++				addr |= ((unsigned int)v6addr->s6_addr[12]) << 24;
++				addr |= ((unsigned int)v6addr->s6_addr[13]) << 16;
++				addr |= ((unsigned int)v6addr->s6_addr[14]) << 8;
++				addr |= ((unsigned int)v6addr->s6_addr[15]);
++				*v4addr = htonl(addr);
++				break;
++			}
++		}
+ 	}
+ 
+ 	return retval;
+ }
+ 
+-int ivi_v4v6_xmit(struct sk_buff *skb) {
++static inline
++int native_v6_daddr(const struct in6_addr *v6addr) {
++	u32 addr = 0;
++
++	// Caller is responsible for providing IPv6 destination address
++	addr |= ((unsigned int)v6addr->s6_addr[10]) << 24;
++	addr |= ((unsigned int)v6addr->s6_addr[11]) << 16;
++	addr |= ((unsigned int)v6addr->s6_addr[12]) << 8;
++	addr |= ((unsigned int)v6addr->s6_addr[13]);
++
++	return (ivi_mode == IVI_MODE_HGW ? (addr & v4mask) != (v4address & v4mask) : (addr & v4publicmask) != (v4publicaddr & v4publicmask));
++}
++
++static inline
++uint16_t _compute_icsum32(uint16_t csum16, uint32_t old32, uint32_t new32)
++{
++	register uint16_t *optr = (uint16_t *)&old32;
++	register uint16_t *nptr = (uint16_t *)&new32;
++	register uint32_t csum32;
++
++	/* build delta checksum */
++	csum32 = ( (__force uint32_t)(csum16  ^ 0xFFFF)
++				+ (__force uint32_t)(optr[0] ^ 0xFFFF)
++				+ (__force uint32_t)(optr[1] ^ 0xFFFF)
++				+ (__force uint32_t)nptr[0]
++				+ (__force uint32_t)nptr[1]
++	);
++	while (csum32 >> 16)/* factor in carry over to effect 1's complement sum */
++		csum32 = (csum32 & 0xFFFF) + (csum32 >> 16);
++
++	return ((__force uint16_t)csum32 ^ 0xFFFF); /* 1's complement */
++}
++
++static inline
++uint16_t _compute_icsum16(uint16_t csum16, uint16_t old16, uint16_t new16)
++{
++	register uint32_t csum32;
++
++	/* build delta checksum */
++	csum32 = ( (__force uint32_t)(csum16 ^ 0xFFFF)
++				+ (__force uint32_t)(old16  ^ 0xFFFF)
++				+ (__force uint32_t)new16
++	);
++	while (csum32 >> 16)/* factor in carry over to effect 1's complement sum */
++		csum32 = (csum32 & 0xFFFF) + (csum32 >> 16);
++
++	return ((__force uint16_t)csum32 ^ 0xFFFF); /* 1's complement */
++}
++
++static inline
++u16 _apply_icsum( u16 csum16, u32 delta32)
++{
++	u32 csum32 = (__force u32)csum16 + delta32;
++
++	while (csum32 >> 16)/* factor in carry over to effect 1's complement sum */
++		csum32 = (csum32 & 0xFFFF) + (csum32 >> 16);
++
++	return ((__force u16)csum32);
++}
++
++int ivi_v4v6_xmit(struct sk_buff *skb, unsigned int mtu) {
+ 	struct sk_buff *newskb;
+ 	struct ethhdr *eth4, *eth6;
+ 	struct iphdr *ip4h;
+ 	struct ipv6hdr *ip6h;
+ 	struct tcphdr *tcph;
+ 	struct udphdr *udph;
+-	struct icmphdr *icmph;
++	struct icmphdr *icmph=NULL;
+ 	struct icmp6hdr *icmp6h;
++	struct frag_hdr *fh=NULL;
+ 	__u8 *payload;
+ 	unsigned int hlen, plen;
+ 	u16 newp, s_port, d_port;
+ 	u8 transport;
+ 	char flag_udp_nullcheck;
++	u8 frag_mode = 0;
+ 	
+ 	eth4 = eth_hdr(skb);
+ 	if (unlikely(eth4->h_proto != __constant_ntohs(ETH_P_IP))) {
+@@ -302,6 +460,13 @@
+ 		return -EINVAL;  // Just accept.
+ 	}
+ 
++	if (ipv4_is_multicast(ip4h->saddr) || ipv4_is_zeronet(ip4h->saddr) || ipv4_is_loopback(ip4h->saddr)) {
++#ifdef IVI_DEBUG
++		printk(KERN_DEBUG "ivi_v4v6_xmit: by pass ipv4 multicast/zeronet/loopback src address.\n");
++#endif
++		return -EINVAL;  // Just accept.
++	}
++
+ 	// Do not translate ipv4 packets (hair pin) that are toward v4network.
+ 	if (addr_in_v4network(&(ip4h->daddr))) {
+ #ifdef IVI_DEBUG
+@@ -314,16 +479,134 @@
+ 		return -EINVAL;  // Just accept.
+ 	}
+ 	
++	if (ip4h->protocol == IPPROTO_ICMP || (hgw_transport == MAP_E && ip4h->protocol == IPPROTO_UDP)) {
++		if ((ip4h->frag_off & htons(IP_MF)) || (ip4h->frag_off & htons(IP_OFFSET))) {
++			u32 isdefrag4 = 0;
++			int err;
++
++			if (hgw_transport == MAP_E && ip4h->protocol == IPPROTO_UDP) {
++				struct in6_addr v6addr;
++				u32 idx, ipid;
++
++				ipv6_addr_set_v4mapped(ip4h->saddr, &v6addr);
++				ipid = ntohs(ip4h->id);
++
++				if (!(ip4h->frag_off & htons(IP_OFFSET))) {
++					u16 len_assembled, len_each;
++
++					payload = (__u8 *)(ip4h) + (ip4h->ihl << 2);
++					udph = (struct udphdr *)payload;
++					len_assembled = ntohs(udph->len) + sizeof(struct ipv6hdr) + 8/* dest(8) */ + sizeof(struct iphdr);
++					len_each = ntohs(ip4h->tot_len) + sizeof(struct ipv6hdr) + 8/* dest(8) */;
++
++					if (len_assembled <= mtu || len_each > mtu)
++						isdefrag4 = 1;
++
++					if ((idx = mapfrag_lookup(&v6addr, ipid)) != MAPFRAG_IX_INVALID) {
++						mapfrag_set(idx, isdefrag4, ip4h->saddr);
++					}
++				}
++				else if ((idx = mapfrag_lookup(&v6addr, ipid)) != MAPFRAG_IX_INVALID) {
++					__be32 v4addr;
++					struct timeval timer;
++
++					mapfrag_get(idx, &isdefrag4, &v4addr, &timer);
++
++					if (v4addr == 0) {
++						/* never receive/forward first fragment, drop it */
++						mapfrag_delete(idx);
++						return 0;
++					}
++
++					if (!(ip4h->frag_off & htons(IP_MF)))
++						mapfrag_delete(idx);
++				}
++			}
++
++			if (ip4h->protocol == IPPROTO_ICMP || isdefrag4) {
++				/* 
++				 * receive fragmented ICMP:
++				 * Need to reassemble it before processing.
++				 */
++				local_bh_disable();
++				err = ip_defrag(skb, IP_DEFRAG_MAP);
++				local_bh_enable();
++
++				if (!err) {
++					ip_send_check(ip_hdr(skb));
++					skb->ignore_df = 1;
++					ip4h = ip_hdr(skb);
++				}
++				else
++					return NF_STOLEN;
++			}
++		}
++	}
++
+ 	plen = ntohs(ip4h->tot_len) - (ip4h->ihl * 4);
+ 	payload = (__u8 *)(ip4h) + (ip4h->ihl << 2);
+ 	s_port = d_port = newp = 0;
+ 	transport = 0;
+ 	flag_udp_nullcheck = 0;
+ 
++	/*
++	 * RFC 6145:
++	 * IPv4 with DF flag set:
++	 *    - If translated IPv6 packet is less than mtu, send IPv6 packet without FH.
++	 *    - If translated IPv6 packet exceeds mtu, drop the packet and send ICMPv4
++	 *      with fragmentation needed code back to sender.
++	 * IPv4 with DF flag not set:
++	 *    - If translated IPv6 packet is less than mtu, send IPv6 packet WITH FH.
++	 *    - If translated IPv6 packet exceeds mtu, fragment IPv6 packet to fit mtu
++	 * IPv4 received as fragmentation already:
++	 *    - If translated IPv6 packet is less than mtu, send IPv6 packet WITH FH with 
++	 *      corresponding IPv4 fragment info.
++	 *    - If translated IPv6 packet exceeds mtu, fragment IPv6 packet to fit mtu
++	 */
++	if (ip4h->frag_off & htons(IP_DF))
++	{
++		if (plen + sizeof(struct ipv6hdr) > mtu)
++		{
++			u32 dst_mtu;
++
++			//MTU for LAN = WAN MTU - extra 20 or 40 in ipv6 header - frag header 8 byte
++			dst_mtu = (u32)mtu - (hgw_transport == MAP_T ? 20 : 40) - 8;
++			send_icmp_frag(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED, htonl(dst_mtu));
++			return 0;
++		}
++		frag_mode = 0;
++	}
++	else if (ip4h->frag_off == 0)
++	{
++		if ((hgw_transport == MAP_T ? plen : ntohs(ip4h->tot_len)) + sizeof(struct ipv6hdr) + sizeof(struct frag_hdr) > mtu)
++			frag_mode = 2;
++		else
++			frag_mode = 1;
++	}
++	else
++	{
++		if (ip4h->protocol == IPPROTO_ICMP) {
++			/* should not happen, we reassemble at beginning */
++			return 0;
++		}
++
++		if ((hgw_transport == MAP_T ? plen : ntohs(ip4h->tot_len)) + sizeof(struct ipv6hdr) + sizeof(struct frag_hdr) > mtu)
++			frag_mode = 2;
++		else
++			frag_mode = 3;
++	}
++
++	if (hgw_transport == MAP_T)
++		mss_limit = mtu - 40 - 8 - 20; //ipv6(40) frag(8) tcp(20)
++	else
++		mss_limit = mtu - 40 - 8 - 20 - 20; //ipv6(40) dest(8) ipv4(20) tcp(20)
++
++	if (!(ip4h->frag_off & htons(IP_OFFSET)))
++	{
+ 	switch (ip4h->protocol) {
+ 		case IPPROTO_TCP:
+ 			tcph = (struct tcphdr *)payload;
+-			
++
+ 			if (tcph->syn && (tcph->doff > 5)) {
+ 				__u16 *option = (__u16*)tcph;
+ 				if (option[10] == htons(0x0204)) {
+@@ -338,8 +621,13 @@
+ 				newp = ntohs(tcph->source);
+ 			}
+ 			
++#if 0
+ 			else if (get_outflow_tcp_map_port(ntohl(ip4h->saddr), ntohs(tcph->source), ntohl(ip4h->daddr), \
+-				ntohs(tcph->dest), hgw_ratio, hgw_adjacent, hgw_offset, tcph, plen, &newp) == -1) {
++				ntohs(tcph->dest), hgw_ratio, hgw_adjacent, hgw_offset, tcph, plen, &newp, skb) == -1) {
++#else
++			else if (get_outflow_map_port(&tcp_list, ntohl(ip4h->saddr), ntohs(tcph->source), \
++				ntohl(ip4h->daddr), hgw_ratio, hgw_adjacent, hgw_offset, &newp, skb) == -1) {
++#endif
+ #ifdef IVI_DEBUG
+ 				printk(KERN_ERR "ivi_v4v6_xmit: fail to perform nat44 mapping for " NIP4_FMT \
+ 				                ":%d (TCP).\n", NIP4(ip4h->saddr), ntohs(tcph->source));
+@@ -370,7 +658,7 @@
+ 			}
+ 			
+ 			else if (get_outflow_map_port(&udp_list, ntohl(ip4h->saddr), ntohs(udph->source), \
+-				ntohl(ip4h->daddr), hgw_ratio, hgw_adjacent, hgw_offset, &newp) == -1) {
++				ntohl(ip4h->daddr), hgw_ratio, hgw_adjacent, hgw_offset, &newp, skb) == -1) {
+ #ifdef IVI_DEBUG
+ 				printk(KERN_ERR "ivi_v4v6_xmit: fail to perform nat44 mapping for " NIP4_FMT \
+ 				                ":%d (UDP).\n", NIP4(ip4h->saddr), ntohs(udph->source));
+@@ -400,7 +688,7 @@
+ 
+ 			if (icmph->type == ICMP_ECHO) {
+ 				if (get_outflow_map_port(&icmp_list, ntohl(ip4h->saddr), ntohs(icmph->un.echo.id), \
+-					ntohl(ip4h->daddr), hgw_ratio, hgw_adjacent, hgw_offset, &newp) == -1) {
++					ntohl(ip4h->daddr), hgw_ratio, hgw_adjacent, hgw_offset, &newp, skb) == -1) {
+ #ifdef IVI_DEBUG
+ 					printk(KERN_ERR "ivi_v4v6_xmit: fail to perform nat44 mapping for " NIP4_FMT \
+ 					                ":%d (ICMP).\n", NIP4(ip4h->saddr), ntohs(icmph->un.echo.id));
+@@ -439,9 +727,19 @@
+ 			printk(KERN_ERR "ivi_v4v6_xmit: unsupported protocol %d in IPv4 packet.\n", ip4h->protocol);
+ #endif
+ 	}
++	}
++	else
++	{
++		if (ivi_mode == IVI_MODE_HGW_NAT44) {
++			if (hgw_transport == MAP_E) {
++				csum_replace4(&ip4h->check, ip4h->saddr, htonl(v4publicaddr));
++			}
++			ip4h->saddr = htonl(v4publicaddr);
++		}
++	}
+ 
+ 	hlen = sizeof(struct ipv6hdr);
+-	if (!(newskb = dev_alloc_skb(2 + ETH_HLEN + hlen + htons(ip4h->tot_len)))) {
++	if (!(newskb = dev_alloc_skb(2 + ETH_HLEN + hlen + ntohs(ip4h->tot_len) + 8/* dest(8) */))) {
+ 		// Allocation size is enough for both E and T;
+ 		// Even in ICMP translation case, it's enough for two IP headers' translation. 
+ 		printk(KERN_ERR "ivi_v4v6_xmit: failed to allocate new socket buffer.\n");
+@@ -467,39 +765,176 @@
+ 	}
+ 
+ 	*(__u32 *)ip6h = __constant_htonl(0x60000000);
++
++	if (frag_mode == 2 || frag_mode == 3) {
++		u16 j, k, m, A;
++
++		/*
++		 *                    0                   1
++		 *     RFC 7597       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
++		 *                   +-----------+-----------+-------+
++		 *     Ports in      |     A     |    PSID   |   j   |
++		 *  the CE port set  |    > 0    |           |       |
++		 *                   +-----------+-----------+-------+
++		 *                   |  a bits   |  k bits   |m bits |
++		 */
++		k = fls(hgw_ratio) - 1;
++		m = fls(hgw_adjacent) - 1;
++		j = ntohs(ip4h->id) << (16 - m);
++		A = ntohs(ip4h->id) >> (k + m) ? ntohs(ip4h->id) >> (k + m) : 1;
++
++		/*
++		 * RFC 7599 Section 10.3 (or RFC 7597 Section 8.3.3):
++		 * Two IPv4 hosts behind two different MAP CEs with the same IPv4
++		 * address sending fragments to an IPv4 destination host outside the
++		 * domain may happen to use the same IPv4 fragmentation identifier,
++		 * resulting in incorrect reassembly of the fragments at the destination
++		 * host.  Given that the IPv4 fragmentation identifier is a 16-bit
++		 * field, it can be used similarly to port ranges.  Thus, a MAP CE
++		 * SHOULD rewrite the IPv4 fragmentation identifier to a value
++		 * equivalent to a port of its allocated port set.
++		 */
++		newp = (A << (k + m)) | (hgw_offset/* PSID */ << m) | (j >> (16 - m));
++	}
+ 	
+ 	if (transport == MAP_E) {
+ 		// Encapsulation
+-		ip6h->payload_len = ip4h->tot_len;
++		ip6h->payload_len = htons(ntohs(ip4h->tot_len) + 8/* dest(8) */);
+ 		plen = ntohs(ip4h->tot_len);
+-		ip6h->nexthdr = IPPROTO_IPIP;
++		ip6h->nexthdr = IPPROTO_IPIP; // 4
+ 		ip6h->hop_limit = 64 + 1; // we have to put translated IPv6 packet into the protocol stack again
++
++		if (frag_mode == 3)
++		{
++			csum_replace2(&ip4h->check, ip4h->id, htons(newp));
++			ip4h->id = htons(newp);
++		}
++
++		// Making Destination Options Header, constant and 8 bytes long
++		fh = (struct frag_hdr *)skb_put(newskb, sizeof(struct frag_hdr));
++		*(__u64 *)fh = __constant_cpu_to_be64(0x0000040104010100); // dest(8)
++
+ 		payload = (__u8 *)skb_put(newskb, plen);
+ 		skb_copy_bits(skb, 0, payload, plen);
++		fh->nexthdr = ip6h->nexthdr;
++		ip6h->nexthdr = NEXTHDR_DEST;
++
++		if (frag_mode == 1 || frag_mode == 3)
++		{
++			newskb->map_forward = MAP_FORWARD_MODE1;
++		}
++		else if (frag_mode == 2)
++		{
++			newskb->map_id = htons(newp);
++			newskb->map_forward = MAP_FORWARD_MODE3;
++		}
+ 	} 
+ 	
+ 	else {
+ 		// Translation
+ 		ip6h->hop_limit = ip4h->ttl;
+-		ip6h->payload_len = htons(plen);
+ 		ip6h->nexthdr = ip4h->protocol;  /* Need to be xlated for ICMP protocol */
++		ip6_flow_hdr(ip6h, ip4h->tos, 0);
++
++		if (frag_mode == 1)
++		{
++			fh = (struct frag_hdr *)skb_put(newskb, sizeof(struct frag_hdr));
++			fh->reserved = 0;
++			fh->frag_off = 0;
++			fh->identification = htonl(ntohs(ip4h->id));
++
++			ip6h->payload_len = htons(plen+sizeof(struct frag_hdr));
++		}
++		else if (frag_mode == 3)
++		{
++			u16 mf;
++			u16 frag_off;
++
++			fh = (struct frag_hdr *)skb_put(newskb, sizeof(struct frag_hdr));
++			fh->reserved = 0;
++
++			mf = ntohs(ip4h->frag_off) & IP_MF;
++			frag_off = ntohs(ip4h->frag_off) & IP_OFFSET;
++			fh->frag_off = htons(((frag_off<<3) & IP6_OFFSET) | (mf?IP6_MF:0));
++			fh->identification = htonl(newp);
++
++			ip6h->payload_len = htons(plen+sizeof(struct frag_hdr));
++		}
++		else
++			ip6h->payload_len = htons(plen);
+ 
+ 		payload = (__u8 *)skb_put(newskb, plen);
++		if (!(ip4h->frag_off & htons(IP_OFFSET)))
++		{
+ 		switch (ip6h->nexthdr) {
+ 			case IPPROTO_TCP:
+ 				skb_copy_bits(skb, ip4h->ihl * 4, payload, plen);
+ 				tcph = (struct tcphdr *)payload;
++				if (!(ip4h->frag_off & htons(IP_MF)))
++				{
+ 				tcph->check = 0;
+ 				tcph->check = csum_ipv6_magic(&(ip6h->saddr), &(ip6h->daddr), plen, IPPROTO_TCP, \
+ 				                                csum_partial(payload, plen, 0));
++				}
++				else
++				{
++					u16 csum16;
++					u32 *addr;
++
++					addr = (u32 *)&(ip6h->saddr);
++					csum16 = _compute_icsum32( 0, ip4h->saddr, addr[0] );
++					csum16 = _compute_icsum32( csum16, 0, addr[1] );
++					csum16 = _compute_icsum32( csum16, 0, addr[2] );
++					csum16 = _compute_icsum32( csum16, 0, addr[3] );
++
++					addr = (u32 *)&(ip6h->daddr);
++					csum16 = _compute_icsum32( csum16, ip4h->daddr, addr[0] );
++					csum16 = _compute_icsum32( csum16, 0, addr[1] );
++					csum16 = _compute_icsum32( csum16, 0, addr[2] );
++					csum16 = _compute_icsum32( csum16, 0, addr[3] );
++
++					if (tcph->syn && (tcph->doff > 5)) {
++						__u16 *option = (__u16*)tcph;
++						if (option[10] == htons(0x0204)) {
++							if (ntohs(option[11]) > mss_limit) {
++								csum16 = _compute_icsum16( csum16, option[11], htons(mss_limit) );
++								option[11] = htons(mss_limit);
++							}
++						}
++					}
++
++					tcph->check = _apply_icsum( tcph->check, (__force u32) csum16 );
++				}
+ 				break;
+ 
+ 			case IPPROTO_UDP:
+ 				skb_copy_bits(skb, ip4h->ihl * 4, payload, plen);
+ 				udph = (struct udphdr *)payload;
++				if (!(ip4h->frag_off & htons(IP_MF)))
++				{
+ 				udph->check = 0;
+ 				udph->check = csum_ipv6_magic(&(ip6h->saddr), &(ip6h->daddr), plen, IPPROTO_UDP, \
+ 				                                csum_partial(payload, plen, 0));
++				}
++				else
++				{
++					u16 csum16;
++					u32 *addr;
++
++					addr = (u32 *)&(ip6h->saddr);
++					csum16 = _compute_icsum32( 0, ip4h->saddr, addr[0] );
++					csum16 = _compute_icsum32( csum16, 0, addr[1] );
++					csum16 = _compute_icsum32( csum16, 0, addr[2] );
++					csum16 = _compute_icsum32( csum16, 0, addr[3] );
++
++					addr = (u32 *)&(ip6h->daddr);
++					csum16 = _compute_icsum32( csum16, ip4h->daddr, addr[0] );
++					csum16 = _compute_icsum32( csum16, 0, addr[1] );
++					csum16 = _compute_icsum32( csum16, 0, addr[2] );
++					csum16 = _compute_icsum32( csum16, 0, addr[3] );
++
++					udph->check = _apply_icsum( udph->check, (__force u32) csum16 );
++				}
+ 				break;
+ 
+ 			case IPPROTO_ICMP: 
+@@ -514,10 +949,44 @@
+ 					else
+ 						icmp6h->icmp6_type = ICMPV6_ECHO_REPLY;
+ 					
++					if (!(ip4h->frag_off & htons(IP_MF)))
++					{
+ 					icmp6h->icmp6_cksum = 0;
+ 					icmp6h->icmp6_cksum = csum_ipv6_magic(&(ip6h->saddr), &(ip6h->daddr), plen, \
+ 					                            IPPROTO_ICMPV6, csum_partial(payload, plen, 0));
+-					
++					}
++					else
++					{
++						u16 csum16;
++						u16 *typecode4, *typecode6;
++						u32 *addr;
++
++						/* 
++						 * compute incremental checksum:
++						 * 1. ICMPv6 pseudo header
++						 * 2. type change
++						 */
++						addr = (u32 *)&(ip6h->saddr);
++						csum16 = _compute_icsum32( 0, 0, addr[0] );
++						csum16 = _compute_icsum32( csum16, 0, addr[1] );
++						csum16 = _compute_icsum32( csum16, 0, addr[2] );
++						csum16 = _compute_icsum32( csum16, 0, addr[3] );
++
++						addr = (u32 *)&(ip6h->daddr);
++						csum16 = _compute_icsum32( csum16, 0, addr[0] );
++						csum16 = _compute_icsum32( csum16, 0, addr[1] );
++						csum16 = _compute_icsum32( csum16, 0, addr[2] );
++						csum16 = _compute_icsum32( csum16, 0, addr[3] );
++
++						csum16 = _compute_icsum32( csum16, 0, htonl(plen) );
++						csum16 = _compute_icsum32( csum16, 0, htonl(IPPROTO_ICMPV6) );
++
++						typecode4 = (u16 *)&(icmph->type);
++						typecode6 = (u16 *)&(icmp6h->icmp6_type);
++						csum16 = _compute_icsum16( csum16, typecode4[0], typecode6[0] );
++						icmp6h->icmp6_cksum = _apply_icsum( icmph->checksum, (__force u32) csum16 );
++					}
++
+ 				} else {
+ 					//printk(KERN_ERR "ivi_v4v6_xmit: unsupported ICMP type in xlate. Drop packet.\n");
+ 					kfree_skb(newskb);
+@@ -529,12 +998,37 @@
+ 				kfree_skb(newskb);
+ 				return 0;
+ 		}
++		}
++		else
++			skb_copy_bits(skb, ip4h->ihl * 4, payload, plen);
++
++		if ((frag_mode == 1 || frag_mode == 3) && fh)
++		{
++			fh->nexthdr = ip6h->nexthdr;
++			ip6h->nexthdr = NEXTHDR_FRAGMENT;
++			newskb->map_forward = MAP_FORWARD_MODE1;
++		}
++		else if (frag_mode == 2)
++		{
++			newskb->map_forward = MAP_FORWARD_MODE2;
++
++			if (ip4h->frag_off) {
++				newskb->map_offset = ((ntohs(ip4h->frag_off) & IP_OFFSET) << 3) & IP6_OFFSET;
++				newskb->map_id = htonl(newp);
++			}
++			if (ip4h->frag_off & htons(IP_MF))
++				newskb->map_mf = 1;
++		}
+ 	}
+ 
+ 	// Prepare to re-enter the protocol stack
+ 	newskb->protocol = eth_type_trans(newskb, skb->dev);
+ 	newskb->ip_summed = CHECKSUM_NONE;
+ 
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++		blog_xfer(newskb, skb);
++#endif
++
+ 	netif_rx(newskb);
+ 	return 0;
+ }
+@@ -556,7 +1050,6 @@
+ 
+ int ivi_v6v4_xmit(struct sk_buff *skb) {
+ 	struct sk_buff *newskb;
+-	struct ethhdr *eth6, *eth4;
+ 	struct iphdr *ip4h, *icmp_ip4h;
+ 	struct ipv6hdr *ip6h, *icmp_ip6h;
+ 	struct tcphdr *tcph, *icmp_tcph;
+@@ -566,32 +1059,33 @@
+ 	__u8 *payload;
+ 	int hlen, plen;
+ 	__u8 poffset;
+-	__u8 flag4;
++	__u8 flag4=0;
+ 	__u16 off4;
+ 	__be32 oldaddr;
+ 	__be16 oldp;
+ 	u16 s_ratio, s_adj, s_offset, d_ratio, d_adj, d_offset;
+ 	u8 next_hdr, *ext_hdr;
+ 	u32 tempaddr;
++	__u8 frag_icmpv6 = 0;
++	__u16 frag_icmp_ipid = 0;
+ 	
+ 	fragh = NULL;
+ 		
+-	eth6 = eth_hdr(skb);
+ 	ip6h = ipv6_hdr(skb);
+ 	hlen = sizeof(struct iphdr);
+ 	plen = ntohs(ip6h->payload_len);
+ 	poffset = sizeof(struct ipv6hdr);  // Payload Offset
+ 	
+-	// This should not happen since we are hooked on PF_INET6.
+-	if (unlikely(eth6->h_proto != __constant_ntohs(ETH_P_IPV6))) {
+-		return -EINVAL;  // Just accept.
+-	}
+-	
+ 	// By pass ipv6 multicast packet (for ND)
+ 	if (mc_v6_addr(&(ip6h->daddr))) {
+ 		return -EINVAL;
+ 	}
+ 
++	// By pass ipv6 link local address
++	if (link_local_addr(&(ip6h->saddr)) || link_local_addr(&(ip6h->daddr))) {
++		return -EINVAL;
++	}
++
+ 	// leave the generation of ICMP packet to the protocol stack
+ 	if (ip6h->hop_limit <= 1) {
+ 		return -EINVAL;
+@@ -606,8 +1100,10 @@
+ 	       next_hdr != IPPROTO_ICMPV6) {
+ 	       
+ 		if (next_hdr == IPPROTO_FRAGMENT) {
++#if 0
+ 			printk(KERN_INFO "FRAGMENT header: frag_off is %x, identification is %x\n", \
+ 			                  ntohs(*((u16 *)ext_hdr + 1)), ntohl(*((u32 *)ext_hdr + 1)));
++#endif
+ 			fragh = (struct frag_hdr *)ext_hdr;
+ 			plen -= sizeof(struct frag_hdr);
+ 			poffset += sizeof(struct frag_hdr);
+@@ -629,16 +1125,71 @@
+ 			ext_hdr += (*(ext_hdr + 1) << 3) + 8;
+ 		}
+ 	}
++
++	// Do not translate native ipv6 address.
++	if (next_hdr != IPPROTO_IPIP && native_v6_daddr(&(ip6h->daddr))) {
++		return -EINVAL;
++	}
+ 	
++	if (next_hdr == IPPROTO_ICMPV6 || next_hdr == IPPROTO_IPIP) {
++		if (fragh && (fragh->frag_off & htons(0xFFF9))) {
++			struct sk_buff *skb_assembled;
++
++			skb_assembled = nf_ct_frag6_gather(skb, 1);
++			if (skb_assembled == NULL) return NF_STOLEN;
++			if (skb_assembled == skb) {
++				printk("error or not fragmented\n");
++				return 0;
++			}
++			else {
++				frag_icmpv6 = 1;
++				if (next_hdr == IPPROTO_ICMPV6) {
++					frag_icmp_ipid = htons(ntohl(fragh->identification) & 0xffff);
++				}
++				nf_ct_frag6_consume_orig(skb_assembled);
++				skb = skb_assembled;
++				ip6h = ipv6_hdr(skb);
++				hlen = sizeof(struct iphdr);
++				plen = ntohs(ip6h->payload_len);
++				poffset = sizeof(struct ipv6hdr);  // Payload Offset
++				fragh = NULL;
++			}
++		}
++		else if (next_hdr == IPPROTO_IPIP) {
++			ip4h = (struct iphdr *)ext_hdr;
++
++			if ((ip4h->frag_off & htons(IP_MF)) || (ip4h->frag_off & htons(IP_OFFSET))) {
++				int err;
++
++				skb_pull(skb, poffset);
++				skb_reset_network_header(skb);
++
++				/*
++			 	 * receive pre-fragmented IP datagram:
++			 	 * Need to reassemble it before processing.
++			 	 */
++				local_bh_disable();
++				err = ip_defrag(skb, IP_DEFRAG_MAP);
++				local_bh_enable();
++
++				if (!err) {
++					ip_send_check(ip_hdr(skb));
++					skb->ignore_df = 1;
++					ip4h = ip_hdr(skb);
++					hlen = sizeof(struct iphdr);
++					plen = ntohs(ip4h->tot_len);
++					poffset = 0;
++				}
++				else
++					return NF_STOLEN;
++			}
++		}
++	}
++
+ 	if (!(newskb = dev_alloc_skb(2 + ETH_HLEN + max(hlen + plen, 184) + 20))) {
+ 		printk(KERN_ERR "ivi_v6v4_xmit: failed to allocate new socket buffer.\n");
+ 		return 0;  // Drop packet on low memory
+ 	}
+-	skb_reserve(newskb, 2);  // Align IP header on 16 byte boundary (ETH_LEN + 2)
+-
+-	eth4 = (struct ethhdr *)skb_put(newskb, ETH_HLEN);
+-	memcpy(eth4, eth6, 12); // Keep mac unchanged
+-	eth4->h_proto  = __constant_ntohs(ETH_P_IP);
+ 	
+ 	if (next_hdr == IPPROTO_IPIP) { // Decapsulation
+ 		payload = (__u8 *)skb_put(newskb, plen);
+@@ -662,8 +1213,13 @@
+ 					oldp = ntohs(tcph->dest);
+ 				}
+ 				
++#if 0
+ 				else if (get_inflow_tcp_map_port(ntohs(tcph->dest), ntohl(ip4h->saddr), ntohs(tcph->source), \
+-				                            tcph, plen, &oldaddr, &oldp) == -1) {
++				                            tcph, plen, &oldaddr, &oldp, skb) == -1) {
++#else
++				else if (get_inflow_map_port(&tcp_list,  ntohs(tcph->dest), ntohl(ip4h->saddr), \
++				                        &oldaddr, &oldp, skb) == -1) {
++#endif
+ 					//printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (TCP).\n",
+ 					//	               ntohs(tcph->dest));
+ 					kfree_skb(newskb);
+@@ -705,7 +1261,7 @@
+ 				}
+ 				
+ 				else if (get_inflow_map_port(&udp_list,  ntohs(udph->dest), ntohl(ip4h->saddr), \
+-				                        &oldaddr, &oldp) == -1) {
++				                        &oldaddr, &oldp, skb) == -1) {
+ 					//printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (UDP).\n",
+ 					//                 ntohs(udph->dest));	
+ 					kfree_skb(newskb);
+@@ -728,7 +1284,7 @@
+ 				icmph = (struct icmphdr *)payload;
+ 				if (icmph->type == ICMP_ECHOREPLY) {
+ 					if (get_inflow_map_port(&icmp_list, ntohs(icmph->un.echo.id), ntohl(ip4h->saddr), \
+-					                        &oldaddr, &oldp) == -1) {
++					                        &oldaddr, &oldp, skb) == -1) {
+ 					    tempaddr = ntohl(ip4h->saddr);
+ 						printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for ( " NIP4_FMT \
+ 						                ", %d) (ICMP).\n", NIP4(tempaddr), ntohs(icmph->un.echo.id));
+@@ -750,25 +1306,67 @@
+ 						return 0; // silently drop
+ 					}
+ 				} 
+-				else if (icmph->type == ICMP_TIME_EXCEEDED) {
++				else if (icmph->type == ICMP_TIME_EXCEEDED || icmph->type == ICMP_DEST_UNREACH) {
++					icmph->checksum = 0;
+ 					icmp_ip4h = (struct iphdr *)((__u8 *)icmph + 8);
+-					if (icmp_ip4h->protocol == IPPROTO_ICMP) {
+-						icmp_icmp4h = (struct icmphdr *)((__u8 *)icmp_ip4h + (icmp_ip4h->ihl << 2));
+-						if (icmp_icmp4h->type == ICMP_ECHO) {
+-							if (get_inflow_map_port(&icmp_list, ntohs(icmp_icmp4h->un.echo.id), \
+-							                   ntohl(icmp_ip4h->daddr), &oldaddr, &oldp) == -1) {
+-								printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (ICMP) "\
+-								                "in IP packet.\n", ntohs(icmph->un.echo.id));
++					switch (icmp_ip4h->protocol) {
++						case IPPROTO_TCP:
++							icmp_tcph = (struct tcphdr *)((__u8 *)icmp_ip4h + (icmp_ip4h->ihl << 2));
++							oldaddr = oldp = 0;
++							get_inflow_map_port(&tcp_list, ntohs(icmp_tcph->source), \
++							               ntohl(icmp_ip4h->daddr), &oldaddr, &oldp, skb);
++							if (oldaddr == 0 && oldp == 0) // Many ICMP packets have an uncomplete inside TCP structure:
++							                               // return value is -1 alone cannot imply a fail lookup.
++								printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (TCP) "\
++								                "in IP packet.\n", ntohs(icmp_tcph->source));
++							else {
++								csum_replace4(&icmp_tcph->check, icmp_ip4h->saddr, htonl(oldaddr));
++								csum_replace4(&icmp_ip4h->check, icmp_ip4h->saddr, htonl(oldaddr));
++								csum_replace4(&ip4h->check, ip4h->daddr, htonl(oldaddr));
++								icmp_ip4h->saddr = ip4h->daddr = htonl(oldaddr);
++								csum_replace2(&icmp_tcph->check, icmp_tcph->source, htons(oldp));
++								icmp_tcph->source = htons(oldp);								
++							}
++							break;
++						case IPPROTO_UDP:
++							icmp_udph = (struct udphdr *)((__u8 *)icmp_ip4h + (icmp_ip4h->ihl << 2));
++							if (get_inflow_map_port(&udp_list, ntohs(icmp_udph->source), \
++							                   ntohl(icmp_ip4h->daddr), &oldaddr, &oldp, skb) == -1) {
++								printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (UDP) "\
++								                "in IP packet.\n", ntohs(icmp_udph->source));
+ 								kfree_skb(newskb);
+ 								return 0;
+ 							} else {
++								csum_replace4(&icmp_udph->check, icmp_ip4h->saddr, htonl(oldaddr));
+ 								csum_replace4(&icmp_ip4h->check, icmp_ip4h->saddr, htonl(oldaddr));
+-								icmp_ip4h->saddr = htonl(oldaddr);					
+-								csum_replace2(&icmp_icmp4h->checksum, icmp_icmp4h->un.echo.id, htons(oldp));
+-								icmp_icmp4h->un.echo.id = htons(oldp);
++								csum_replace4(&ip4h->check, ip4h->daddr, htonl(oldaddr));
++								icmp_ip4h->saddr = ip4h->daddr = htonl(oldaddr);
++								csum_replace2(&icmp_udph->check, icmp_udph->source, htons(oldp));
++								icmp_udph->source = htons(oldp);
+ 							}
+-						}
++							break;
++						case IPPROTO_ICMP:
++							icmp_icmp4h = (struct icmphdr *)((__u8 *)icmp_ip4h + (icmp_ip4h->ihl << 2));
++							if (icmp_icmp4h->type == ICMP_ECHO) {
++								if (get_inflow_map_port(&icmp_list, ntohs(icmp_icmp4h->un.echo.id), \
++								                   ntohl(icmp_ip4h->daddr), &oldaddr, &oldp, skb) == -1) {
++									printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (ICMP) "\
++									                "in IP packet.\n", ntohs(icmp_icmp4h->un.echo.id));
++									kfree_skb(newskb);
++									return 0;
++								} else {
++									csum_replace4(&icmp_ip4h->check, icmp_ip4h->saddr, htonl(oldaddr));
++									csum_replace4(&ip4h->check, ip4h->daddr, htonl(oldaddr));
++									icmp_ip4h->saddr = ip4h->daddr = htonl(oldaddr);					
++									csum_replace2(&icmp_icmp4h->checksum, icmp_icmp4h->un.echo.id, htons(oldp));
++									icmp_icmp4h->un.echo.id = htons(oldp);
++								}
++							}
++							break;
++						default:
++							break;
+ 					}
++					icmph->checksum = ip_compute_csum(icmph, plen - (ip4h->ihl * 4));
+ 				}
+ 				break;
+ 
+@@ -801,13 +1399,31 @@
+ 			ip4h->protocol = next_hdr; // ICMPv6 is translated below
+ 		} 
+ 		else {
+-			ip4h->id = 0;
+-			ip4h->frag_off = htons(0x4000); // DF=1
++			if (!frag_icmpv6) {				
++				ip4h->id = 0;
++				ip4h->frag_off = htons(0x4000); // DF=1
++			}
++			else {
++				ip4h->id = frag_icmp_ipid;
++				ip4h->frag_off = 0;
++			}
+ 			ip4h->ttl = ip6h->hop_limit;
+ 			ip4h->protocol = next_hdr; // ICMPv6 is translated below
+ 		}
+ 		
++		/* 
++		 * Handle fragmented IPv6 packets:
++		 * offset==0 and MF==true: 1st fragment with next header info
++		 *    update mapfrag table <srcIPv6Addr, ipid, associate LAN address>
++		 * offset!=0 and MF==true: 2+ fragment without next header info
++		 *    lookup mapfrag table to get LAN address info
++		 * offset!=0 and MF==false: last fragment without next header info
++		 *    lookup mapfrag table to get LAN address then delete the entry
++		 */
+ 		payload = (__u8 *)skb_put(newskb, plen);
++
++		if (!fragh || (fragh && !off4))
++		{
+ 		switch (next_hdr) {
+ 			case IPPROTO_TCP:
+ 				skb_copy_bits(skb, poffset, payload, plen);
+@@ -825,14 +1441,21 @@
+ 					oldp = ntohs(tcph->dest);
+ 				}
+ 				
++#if 0
+ 				else if (get_inflow_tcp_map_port(ntohs(tcph->dest), ntohl(ip4h->saddr), ntohs(tcph->source), \
+-				                            tcph, plen, &oldaddr, &oldp) == -1) {
++				                            tcph, plen, &oldaddr, &oldp, skb) == -1) {
++#else
++				else if (get_inflow_map_port(&tcp_list, ntohs(tcph->dest), ntohl(ip4h->saddr), \
++				                        &oldaddr, &oldp, skb) == -1) {
++#endif
+ 					//printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (TCP).\n", 
+ 					//                 ntohs(tcph->dest));                 
+ 					kfree_skb(newskb);
+ 					return 0;
+ 				} 
+ 					
++				if (!fragh)
++				{
+ 				ip4h->daddr = htonl(oldaddr);
+ 				tcph->dest = htons(oldp);
+ 
+@@ -848,6 +1471,41 @@
+ 				tcph->check = 0;
+ 				tcph->check = csum_tcpudp_magic(ip4h->saddr, ip4h->daddr, plen, IPPROTO_TCP, \
+ 				                                csum_partial(payload, plen, 0));
++				}
++				else
++				{
++					u16 csum16;
++					u32 *addr;
++
++					addr = (u32 *)&(ip6h->saddr);
++					csum16 = _compute_icsum32( 0, addr[0], 0 );
++					csum16 = _compute_icsum32( csum16, addr[1], 0 );
++					csum16 = _compute_icsum32( csum16, addr[2], 0 );
++					csum16 = _compute_icsum32( csum16, addr[3], ip4h->saddr );
++
++					addr = (u32 *)&(ip6h->daddr);
++					csum16 = _compute_icsum32( csum16, addr[0], 0 );
++					csum16 = _compute_icsum32( csum16, addr[1], 0 );
++					csum16 = _compute_icsum32( csum16, addr[2], 0 );
++					csum16 = _compute_icsum32( csum16, addr[3], htonl(oldaddr) );
++
++					csum16 = _compute_icsum16( csum16, tcph->dest, htons(oldp) );
++
++					if (tcph->syn && (tcph->doff > 5)) {
++						__u16 *option = (__u16*)tcph;
++						if (option[10] == htons(0x0204)) {
++							if (ntohs(option[11]) > mss_limit) {
++								csum16 = _compute_icsum16( csum16, option[11], htons(mss_limit) );
++								option[11] = htons(mss_limit);
++							}
++						}
++					}
++
++					tcph->check = _apply_icsum( tcph->check, (__force u32) csum16 );
++
++					ip4h->daddr = htonl(oldaddr);
++					tcph->dest = htons(oldp);
++				}
+ 				break;
+ 
+ 			case IPPROTO_UDP:
+@@ -867,18 +1525,45 @@
+ 				}
+ 					
+ 				else if (get_inflow_map_port(&udp_list, ntohs(udph->dest), ntohl(ip4h->saddr), \
+-				                        &oldaddr, &oldp) == -1) {
++				                        &oldaddr, &oldp, skb) == -1) {
+ 					//printk(KERN_ERR "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (UDP).\n", ntohs(udph->dest));
+ 					kfree_skb(newskb);
+ 					return 0;
+ 				}
+ 
+-				ip4h->daddr = htonl(oldaddr);
+-				udph->dest = htons(oldp);
++				if (!fragh)
++				{
++					ip4h->daddr = htonl(oldaddr);
++					udph->dest = htons(oldp);
++
++					udph->check = 0;
++					udph->check = csum_tcpudp_magic(ip4h->saddr, ip4h->daddr, plen, IPPROTO_UDP, \
++			                                csum_partial(payload, plen, 0));
++				}
++				else
++				{
++					u16 csum16;
++					u32 *addr;
++
++					addr = (u32 *)&(ip6h->saddr);
++					csum16 = _compute_icsum32( 0, addr[0], 0 );
++					csum16 = _compute_icsum32( csum16, addr[1], 0 );
++					csum16 = _compute_icsum32( csum16, addr[2], 0 );
++					csum16 = _compute_icsum32( csum16, addr[3], ip4h->saddr );
++
++					addr = (u32 *)&(ip6h->daddr);
++					csum16 = _compute_icsum32( csum16, addr[0], 0 );
++					csum16 = _compute_icsum32( csum16, addr[1], 0 );
++					csum16 = _compute_icsum32( csum16, addr[2], 0 );
++					csum16 = _compute_icsum32( csum16, addr[3], htonl(oldaddr) );
+ 
+-				udph->check = 0;
+-				udph->check = csum_tcpudp_magic(ip4h->saddr, ip4h->daddr, plen, IPPROTO_UDP, \
+-				                                csum_partial(payload, plen, 0));
++					csum16 = _compute_icsum16( csum16, udph->dest, htons(oldp) );
++
++					udph->check = _apply_icsum( udph->check, (__force u32) csum16 );
++
++					ip4h->daddr = htonl(oldaddr);
++					udph->dest = htons(oldp);
++				}
+ 				break;
+ 
+ 			case IPPROTO_ICMPV6:  // indicating ICMPv4 packet			
+@@ -892,7 +1577,7 @@
+ 
+ 					if (icmph->type == ICMP_ECHOREPLY) {
+ 						if (get_inflow_map_port(&icmp_list, ntohs(icmph->un.echo.id), ntohl(ip4h->saddr),\
+-						                        &oldaddr, &oldp) == -1) {
++						                        &oldaddr, &oldp, skb) == -1) {
+ 							//printk(KERN_INFO "ivi_v6v4_xmit: fail to perform nat44 mapping for %d (ICMP).\n", 
+ 							//                ntohs(icmph->un.echo.id));
+ 						} else {
+@@ -946,8 +1631,13 @@
+ 						case IPPROTO_TCP:
+ 							icmp_tcph = (struct tcphdr *)((__u8 *)icmp_ip4h + 20);
+ 							oldaddr = oldp = 0;
++#if 0
+ 							get_inflow_tcp_map_port(ntohs(icmp_tcph->source), ntohl(icmp_ip4h->daddr), 
+-							    ntohs(icmp_tcph->dest), icmp_tcph, ntohs(icmp_ip4h->tot_len) - 20,&oldaddr, &oldp);
++							    ntohs(icmp_tcph->dest), icmp_tcph, ntohs(icmp_ip4h->tot_len) - 20,&oldaddr, &oldp, skb);
++#else
++							get_inflow_map_port(&tcp_list, ntohs(icmp_tcph->source), ntohl(icmp_ip4h->daddr), \
++							                        &oldaddr, &oldp, skb);
++#endif
+ 							    
+ 							if (oldaddr == 0 && oldp == 0) // Many ICMP packets have an uncomplete inside TCP structure:
+ 							                               // return value is -1 alone cannot imply a fail lookup. 
+@@ -965,7 +1655,7 @@
+ 						case IPPROTO_UDP:
+ 							icmp_udph = (struct udphdr *)((__u8 *)icmp_ip4h + 20);
+ 							if (get_inflow_map_port(&udp_list, ntohs(icmp_udph->source), ntohl(icmp_ip4h->daddr), \
+-							                        &oldaddr, &oldp) == -1) {
++							                        &oldaddr, &oldp, skb) == -1) {
+ 								printk(KERN_ERR "ivi_v6v4_xmit: udp-in-icmp reverse lookup failure.\n");
+ 								
+ 							} else {
+@@ -982,9 +1672,9 @@
+ 							icmp_ip4h->protocol = IPPROTO_ICMP;
+ 							icmp_icmp4h = (struct icmphdr *)((__u8 *)icmp_ip4h + 20);
+ 							if (icmp_icmp4h->type == ICMPV6_ECHO_REQUEST || icmp_icmp4h->type == ICMPV6_ECHO_REPLY) {
+-								icmp_icmp4h->type=(icmp_icmp4h->type==ICMPV6_ECHO_REQUEST)?ICMP_ECHO:ICMPV6_ECHO_REPLY;
++								icmp_icmp4h->type=(icmp_icmp4h->type==ICMPV6_ECHO_REQUEST)?ICMP_ECHO:ICMP_ECHOREPLY;
+ 								if (get_inflow_map_port(&icmp_list, ntohs(icmp_icmp4h->un.echo.id), \
+-								                        ntohl(icmp_ip4h->daddr), &oldaddr, &oldp) == -1)
++								                        ntohl(icmp_ip4h->daddr), &oldaddr, &oldp, skb) == -1)
+ 									printk(KERN_ERR "ivi_v6v4_xmit: echo-in-icmp reverse lookup failure.\n");
+ 								else {
+ 									icmp_ip4h->saddr = ip4h->daddr = htonl(oldaddr);
+@@ -1007,14 +1697,66 @@
+ 				kfree_skb(newskb);
+ 				return 0;
+ 		}
++
++		if (fragh && !off4 && flag4)
++		{
++			u32 idx, ipid;
++
++			ipid = ntohl(fragh->identification);
++			if ((idx = mapfrag_lookup(&(ip6h->saddr), ipid)) != MAPFRAG_IX_INVALID)
++			{
++				mapfrag_set(idx, 0, htonl(oldaddr));
++			}
++		}
++
++		}
++		else if (fragh && off4)
++		{
++			u32 idx, ipid, isdefrag4;
++			__be32 v4addr;
++			struct timeval timer;
++
++			ipid = ntohl(fragh->identification);
++			if ((idx = mapfrag_lookup(&(ip6h->saddr), ipid)) != MAPFRAG_IX_INVALID)
++			{
++				mapfrag_get(idx, &isdefrag4, &v4addr, &timer);
++				if (v4addr == 0)
++				{
++					/* never receive/forward first fragment, drop it */
++					mapfrag_delete(idx);
++					kfree_skb(newskb);
++					return 0;
++				}
++			}
++
++			skb_copy_bits(skb, poffset, payload, plen);
++			ip4h->daddr = v4addr;
++
++			if (!flag4)
++				mapfrag_delete(idx);
++		}
++
+ 		ip4h->check = 0;
+ 		ip4h->check = ip_fast_csum((__u8 *)ip4h, ip4h->ihl);
+ 	}
+ 
+ 	// Prepare to re-enter the protocol stack
+-	newskb->protocol = eth_type_trans(newskb, skb->dev);
++	newskb->dev  = skb->dev;
++	skb_reset_mac_header(newskb);
++	newskb->protocol  = __constant_ntohs(ETH_P_IP);
++	newskb->pkt_type = 0;    
+ 	newskb->ip_summed = CHECKSUM_NONE;
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
++		blog_xfer(newskb, skb);
++#endif
+  
+ 	netif_rx(newskb);
+-	return 0;
++
++	if (!frag_icmpv6)
++		return 0;
++	else {
++		kfree_skb(skb);
++		return NF_STOLEN;
++	}
+ }
+Index: ivi-1.0/ivi_xmit.h
+===================================================================
+--- ivi-1.0.orig/ivi_xmit.h	2019-12-30 08:35:19.162691742 +0000
++++ ivi-1.0/ivi_xmit.h	2019-12-30 08:36:33.426691034 +0000
+@@ -47,7 +47,7 @@
+ #include <linux/etherdevice.h>
+ #include <linux/if_ether.h>
+ #include <linux/in.h>
+-#include <asm/checksum.h>
++#include <net/ip6_checksum.h>
+ #include <net/arp.h>
+ #include <net/ip.h>
+ #include <net/ipv6.h>
+@@ -60,7 +60,9 @@
+ #include "ivi_rule.h"
+ #include "ivi_rule6.h"
+ #include "ivi_map.h"
++#if 0
+ #include "ivi_map_tcp.h"
++#endif
+ #include "ivi_nf.h"
+ 
+ extern __be32 v4address;
+@@ -77,7 +79,7 @@
+ 
+ extern u16 mss_limit;
+ 
+-extern int ivi_v4v6_xmit(struct sk_buff *skb);
++extern int ivi_v4v6_xmit(struct sk_buff *skb, unsigned int mtu);
+ extern int ivi_v6v4_xmit(struct sk_buff *skb);
+ extern int ivi_v4_dev(struct net_device *dev);
+ extern int ivi_v6_dev(struct net_device *dev);
+Index: ivi-1.0/Makefile
+===================================================================
+--- ivi-1.0.orig/Makefile	2019-12-30 08:35:19.218691742 +0000
++++ ivi-1.0/Makefile	2019-02-09 03:04:27.000000000 +0000
+@@ -1,10 +1,12 @@
+-obj-m		+=	ivi.o
+-ivi-objs	:=	ivi_rule.o ivi_rule6.o ivi_map.o ivi_map_tcp.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o
+-#KERNELDIR	:=	/lib/modules/$(shell uname -r)/build
+-PWD		:=	$(shell pwd)
++#ivi-objs    :=  ivi_rule.o ivi_rule6.o ivi_map.o ivi_map_tcp.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o ivi_portmap.o
++ivi-objs    :=  ivi_rule.o ivi_rule6.o ivi_map.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o ivi_portmap.o
+ 
+-all:
+-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
++obj-$(CONFIG_BCM_MAP) += ivi.o
++
++EXTRA_CFLAGS += -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD)
++EXTRA_CFLAGS += -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD)
++EXTRA_CFLAGS += -Werror -Wall
+ 
+ clean:
+-	rm -rf *.ko *.o *.mod.c core Module.symvers Module.markers modules.order .*.cmd .tmp_versions
++	rm -f core *.o *.a *.s .*.cmd *.ko
++
+Index: ivi-1.0/ivi_nf.c
+===================================================================
+--- ivi-1.0.orig/ivi_nf.c	2019-12-30 08:35:19.206691742 +0000
++++ ivi-1.0/ivi_nf.c	2019-02-09 03:04:27.000000000 +0000
+@@ -39,16 +39,16 @@
+ 
+ static int running;
+ 
+-static unsigned int nf_hook4(const struct nf_hook_ops *ops, struct sk_buff *skb,
+-		const struct net_device *in, const struct net_device *out,
+-		int (*okfn)(struct sk_buff *)) {
++static unsigned int nf_hook4(const struct nf_hook_ops *ops,
++                            struct sk_buff *skb,
++    		                const struct nf_hook_state *state) {
+ 	unsigned int ret;
+ 
+-	if ((!running) || (in != v4_dev)) {
++	if ((!running) || (state->in != v4_dev)) {
+ 		return NF_ACCEPT;
+ 	}
+ 
+-	ret = ivi_v4v6_xmit(skb);
++	ret = ivi_v4v6_xmit(skb, v6_dev->mtu);
+ 
+ 	if (ret == 0)
+ 		return NF_DROP;
+@@ -58,12 +58,12 @@
+ 		return NF_ACCEPT;
+ }
+ 
+-static unsigned int nf_hook6(const struct nf_hook_ops *ops, struct sk_buff *skb,
+-		const struct net_device *in, const struct net_device *out,
+-		int (*okfn)(struct sk_buff *)) {
++static unsigned int nf_hook6(const struct nf_hook_ops *ops,
++                            struct sk_buff *skb,
++    		                const struct nf_hook_state *state) {
+ 	unsigned int ret;
+-	
+-	if ((!running) || (in != v6_dev)) {
++
++	if ((!running) || (state->in != v6_dev)) {
+ 		return NF_ACCEPT;
+ 	}
+ 

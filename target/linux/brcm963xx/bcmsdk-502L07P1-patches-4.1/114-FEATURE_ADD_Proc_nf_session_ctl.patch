@@ -1,0 +1,405 @@
+Index: linux-4.1.52/Kconfig.zyxel
+===================================================================
+--- linux-4.1.52.orig/Kconfig.zyxel	2018-01-23 16:34:55.129182581 +0800
++++ linux-4.1.52/Kconfig.zyxel	2018-01-24 11:30:20.685102625 +0800
+@@ -1,3 +1,6 @@
+ #
+ # For ZYXEL Kernel Compile Flags.
+ #
++
++config ZYXEL_NF_SESSION_CTL
++        bool "ZyXEL feature - netfilter session control"
+Index: linux-4.1.52/include/linux/kernel.h
+===================================================================
+--- linux-4.1.52.orig/include/linux/kernel.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/linux/kernel.h	2018-01-24 10:33:48.645234814 +0800
+@@ -720,6 +720,18 @@
+ static inline void ftrace_dump(enum ftrace_dump_mode oops_dump_mode) { }
+ #endif /* CONFIG_TRACING */
+ 
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++/*
++ *      Display an IP address in readable format.
++ */
++
++#define NIPQUAD(addr) \
++	((unsigned char *)&addr)[0], \
++	((unsigned char *)&addr)[1], \
++	((unsigned char *)&addr)[2], \
++	((unsigned char *)&addr)[3]
++#define NIPQUAD_FMT "%u.%u.%u.%u"
++#endif
+ /*
+  * min()/max()/clamp() macros that also do
+  * strict type-checking.. See the
+Index: linux-4.1.52/include/net/netfilter/nf_conntrack.h
+===================================================================
+--- linux-4.1.52.orig/include/net/netfilter/nf_conntrack.h	2018-01-22 14:21:12.465630783 +0800
++++ linux-4.1.52/include/net/netfilter/nf_conntrack.h	2018-01-24 10:37:04.381227186 +0800
+@@ -379,6 +379,9 @@
+ int nf_conntrack_set_hashsize(const char *val, struct kernel_param *kp);
+ extern unsigned int nf_conntrack_htable_size;
+ extern unsigned int nf_conntrack_max;
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++extern unsigned int nf_session_ctl_max;
++#endif
+ extern unsigned int nf_conntrack_hash_rnd;
+ void init_nf_conntrack_hash_rnd(void);
+ 
+Index: linux-4.1.52/include/net/netfilter/nf_conntrack_tuple.h
+===================================================================
+--- linux-4.1.52.orig/include/net/netfilter/nf_conntrack_tuple.h	2018-01-22 14:21:12.469630783 +0800
++++ linux-4.1.52/include/net/netfilter/nf_conntrack_tuple.h	2018-01-24 10:39:11.977222214 +0800
+@@ -125,7 +125,16 @@
+ 	struct hlist_nulls_node hnnode;
+ 	struct nf_conntrack_tuple tuple;
+ };
+-
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++/* Hash table for sess_ref_count. Store ilp and it count.
++   and ilp is comes from " ct.[original].src " */
++struct nf_sess_ref_count
++{
++	struct hlist_nulls_node hnnode;
++	union nf_inet_addr u3;
++	u_int32_t sess_Cnt;
++};
++#endif
+ static inline bool __nf_ct_tuple_src_equal(const struct nf_conntrack_tuple *t1,
+ 					   const struct nf_conntrack_tuple *t2)
+ { 
+Index: linux-4.1.52/include/net/netns/conntrack.h
+===================================================================
+--- linux-4.1.52.orig/include/net/netns/conntrack.h	2017-10-17 06:54:53.000000000 +0800
++++ linux-4.1.52/include/net/netns/conntrack.h	2018-01-24 10:47:12.645203482 +0800
+@@ -74,6 +74,9 @@
+ struct netns_ct {
+ 	atomic_t		count;
+ 	unsigned int		expect_count;
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++	struct hlist_nulls_head	*session_control_table;
++#endif
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	struct delayed_work ecache_dwork;
+ 	bool ecache_dwork_pending;
+Index: linux-4.1.52/net/netfilter/nf_conntrack_core.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nf_conntrack_core.c	2018-01-22 14:21:12.741630790 +0800
++++ linux-4.1.52/net/netfilter/nf_conntrack_core.c	2018-01-24 11:21:59.397122161 +0800
+@@ -141,6 +141,74 @@
+ 
+ unsigned int nf_conntrack_hash_rnd __read_mostly;
+ EXPORT_SYMBOL_GPL(nf_conntrack_hash_rnd);
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++//unsigned  int nf_session_ctl_max = 2048  __read_mostly;;	/*setup with /proc/sys/net/netfilter/ */
++unsigned  int nf_session_ctl_max __read_mostly;
++EXPORT_SYMBOL_GPL(nf_session_ctl_max);
++
++/*computes the hash_index for "session_control_table[hash_index] by ila"
++    Only for session contral used. */
++static inline u_int32_t hash_sesscnt(const union nf_inet_addr *u3)
++{
++	return ( (u3->ip) & (nf_conntrack_htable_size-1));
++}
++
++static void
++clean_session_ctl_lists(struct nf_conn *ct)
++{
++	/*=================================*/
++	/* === Clean the Session_Control_Table by ila. === */
++	/*=================================*/
++
++	 struct net *net = nf_ct_net(ct);
++	int do_session_clean=1;
++
++	/*clean for lan2wan */
++
++	struct nf_sess_ref_count *hc_ip;
++	unsigned int hashc_ip = hash_sesscnt(&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3);
++	struct hlist_nulls_node *n;
++
++	pr_debug("clean_session_ctl_lists(%p)\n", ct);
++	rcu_read_lock_bh();
++
++	hlist_nulls_for_each_entry_rcu(hc_ip, n, &net->ct.session_control_table[hashc_ip], hnnode)
++    {
++		if(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip == hc_ip->u3.ip){
++			hc_ip->sess_Cnt--;
++			do_session_clean=0;
++			if(hc_ip->sess_Cnt <= 0){
++				hlist_nulls_del_rcu(&hc_ip->hnnode);
++				kfree(&hc_ip->hnnode);
++			}
++			break;
++		}
++	}
++	rcu_read_unlock_bh();
++
++	/*Clean for wan2lan, this kind will happen in Restricted cone NAT which entry created by us.*/
++
++	if (do_session_clean == 1){
++		struct nf_sess_ref_count *hc_ip_wan;
++		unsigned int hash_ip_wan = hash_sesscnt(&ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3);
++
++		rcu_read_lock_bh();
++
++        hlist_nulls_for_each_entry_rcu(hc_ip_wan, n, &net->ct.session_control_table[hash_ip_wan], hnnode) {
++			if(ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip == hc_ip_wan->u3.ip){
++				hc_ip_wan->sess_Cnt--;
++				do_session_clean=0;
++				if(hc_ip_wan->sess_Cnt <= 0){
++ 					hlist_nulls_del_rcu(&hc_ip_wan->hnnode);
++					kfree(&hc_ip_wan->hnnode);
++				}
++				break;
++			}
++		}
++        rcu_read_unlock_bh();
++    }
++}
++#endif
+ 
+ #if defined(CONFIG_BCM_KF_NETFILTER)
+ #define NF_CT_SAFE_LISTS_MAX 6
+@@ -291,6 +359,9 @@
+ clean_from_lists(struct nf_conn *ct)
+ {
+ 	pr_debug("clean_from_lists(%p)\n", ct);
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++	clean_session_ctl_lists(ct);
++#endif
+ 	hlist_nulls_del_rcu(&ct->tuplehash[IP_CT_DIR_ORIGINAL].hnnode);
+ 	hlist_nulls_del_rcu(&ct->tuplehash[IP_CT_DIR_REPLY].hnnode);
+ 
+@@ -881,6 +952,29 @@
+ 	nf_conntrack_double_unlock(hash, reply_hash);
+ 	NF_CT_STAT_INC(net, insert);
+ 	local_bh_enable();
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++    {
++		struct nf_sess_ref_count *h_ip, *ila;
++		/* look for the match "ip address" in session_control_table which store ila */
++		unsigned int hash_ip = hash_sesscnt(&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3);
++		hlist_nulls_for_each_entry_rcu(h_ip, n, &net->ct.session_control_table[hash_ip], hnnode) {
++			if(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip == h_ip->u3.ip){
++				h_ip->sess_Cnt++;
++				goto xxx;
++			}
++		}
++
++		ila = kzalloc(sizeof(struct nf_sess_ref_count),GFP_KERNEL);
++		if(!ila){
++			printk(KERN_ERR "Unable to create nf_sess_ref_count \n");
++			return -ENOMEM;
++		}
++		memcpy(&ila->u3, &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3,sizeof(ila->u3));
++		ila->sess_Cnt = 1;
++		hlist_nulls_add_head_rcu(&ila->hnnode, &net->ct.session_control_table[hash_ip]);
++    }
++	xxx:
++#endif
+ 
+ 	help = nfct_help(ct);
+ 	if (help && help->helper)
+@@ -2273,6 +2367,9 @@
+ {
+ 	int max_factor = 8;
+ 	int i, ret, cpu;
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++	nf_session_ctl_max =2048;
++#endif
+ 
+ 	for (i = 0; i < CONNTRACK_LOCKS; i++)
+ 		spin_lock_init(&nf_conntrack_locks[i]);
+@@ -2463,7 +2560,9 @@
+ #if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BCM_KF_NETFILTER) && defined(CONFIG_BLOG)
+ 	blog_cttime_update_fn = (blog_cttime_upd_t)__nf_ct_time_update;
+ #endif		
+-
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++	 net->ct.session_control_table = nf_ct_alloc_hashtable(&nf_conntrack_htable_size, 1);
++#endif
+ 	return 0;
+ 
+ err_proto:
+@@ -2480,6 +2579,9 @@
+ 	nf_ct_free_hashtable(net->ct.hash, net->ct.htable_size);
+ err_hash:
+ 	kmem_cache_destroy(net->ct.nf_conntrack_cachep);
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++	nf_ct_free_hashtable(net->ct.session_control_table, nf_conntrack_htable_size);
++#endif
+ err_cache:
+ 	kfree(net->ct.slabname);
+ err_slabname:
+Index: linux-4.1.52/net/netfilter/nf_conntrack_standalone.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nf_conntrack_standalone.c	2018-01-22 14:21:12.749630790 +0800
++++ linux-4.1.52/net/netfilter/nf_conntrack_standalone.c	2018-01-24 13:01:25.608889656 +0800
+@@ -437,6 +437,114 @@
+ };
+ #endif /* defined(CONFIG_BCM_KF_DPI) && defined(CONFIG_BCM_DPI_MODULE) */
+ 
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++static struct hlist_nulls_node *sess_ctl_get_first(struct seq_file *seq)
++{
++	struct net *net = seq_file_net(seq);
++	struct ct_iter_state *st = seq->private;
++	struct hlist_nulls_node *n;
++
++	for (st->bucket = 0;
++	     st->bucket < nf_conntrack_htable_size;
++	     st->bucket++) {
++		n = rcu_dereference(net->ct.session_control_table[st->bucket].first);
++		if (!is_a_nulls(n))
++			return n;
++	}
++	return NULL;
++}
++
++static struct hlist_nulls_node *sess_ctl_get_next(struct seq_file *seq, struct hlist_nulls_node *head)
++{
++	struct net *net = seq_file_net(seq);
++	struct ct_iter_state *st = seq->private;
++
++	head = rcu_dereference(head->next);
++	while (is_a_nulls(head)) {
++		if (likely(get_nulls_value(head) == st->bucket)) {
++			if (++st->bucket >= nf_conntrack_htable_size)
++				return NULL;
++		}
++		head = rcu_dereference(net->ct.session_control_table[st->bucket].first);
++	}
++	return head;
++}
++
++static struct hlist_nulls_node *sess_ctl_get_idx(struct seq_file *seq, loff_t pos)
++{
++	struct hlist_nulls_node *head = sess_ctl_get_first(seq);
++
++	if (head)
++		while (pos && (head = sess_ctl_get_next(seq, head)))
++			pos--;
++	return pos ? NULL : head;
++}
++
++static void *sess_ctl_seq_start(struct seq_file *seq, loff_t *pos)
++{
++    rcu_read_lock();
++	return sess_ctl_get_idx(seq, *pos);
++}
++
++static void *sess_ctl_seq_next(struct seq_file *s, void *v, loff_t *pos)
++{
++	(*pos)++;
++	return sess_ctl_get_next(s, v);
++}
++
++static void sess_ctl_seq_stop(struct seq_file *s, void *v)
++{
++    rcu_read_unlock();
++}
++
++/* return 0 on success, 1 in case of error */
++static int sess_ctl_seq_show(struct seq_file *s, void *v)
++{
++	const struct nf_sess_ref_count *hash = v;
++
++	if (seq_printf(s," IP:%u.%u.%u.%u  Session num = %5d  Max=[%d]\n",
++		       NIPQUAD(hash->u3.ip), hash->sess_Cnt, nf_session_ctl_max))
++		return -ENOSPC;
++	return 0;
++}
++
++static const struct seq_operations sess_ctl_seq_ops = {
++	.start = sess_ctl_seq_start,
++	.next  = sess_ctl_seq_next,
++	.stop  = sess_ctl_seq_stop,
++	.show  = sess_ctl_seq_show
++};
++
++static int sess_ctl_open(struct inode *inode, struct file *file)
++{
++	struct seq_file *seq;
++	struct ct_iter_state *st;
++	int ret;
++
++	st = kmalloc(sizeof(struct ct_iter_state), GFP_KERNEL);
++	if (st == NULL)
++		return -ENOMEM;
++	ret = seq_open(file, &sess_ctl_seq_ops);
++	if (ret)
++		goto out_free;
++	seq 		 = file->private_data;
++	seq->private = st;
++	memset(st, 0, sizeof(struct ct_iter_state));
++	return ret;
++out_free:
++	kfree(st);
++	return ret;
++}
++
++static const struct file_operations sess_ctl_file_ops = {
++	.owner   = THIS_MODULE,
++	.open    = sess_ctl_open,
++	.read    = seq_read,
++	.llseek  = seq_lseek,
++	.release = seq_release_private,
++};
++#endif
++
+ static void *ct_cpu_seq_start(struct seq_file *seq, loff_t *pos)
+ {
+ 	struct net *net = seq_file_net(seq);
+@@ -627,6 +735,15 @@
+ 		.extra1		= &log_invalid_proto_min,
+ 		.extra2		= &log_invalid_proto_max,
+ 	},
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__, Chi-Hsiang /proc/net/nf_session_ctl
++	{
++		.procname	= "nf_session_ctl_max",
++		.data		= &nf_session_ctl_max,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec,
++	},
++#endif
+ 	{
+ 		.procname	= "nf_conntrack_expect_max",
+ 		.data		= &nf_ct_expect_max,
+@@ -672,11 +789,24 @@
+ 	if (!net->ct.sysctl_header)
+ 		goto out_unregister_netfilter;
+ 
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__,Chi-Hsiang add /proc/net/nf_session_ctl
++	{
++        if (!proc_create("nf_session_ctl", 0440, net->proc_net, &sess_ctl_file_ops))
++            goto out_unregister_netfilter;
++
++        if (!proc_create("nf_session_ctl", S_IRUGO, net->proc_net_stat, &ct_cpu_seq_fops))
++            goto err_3;
++	}
++#endif
+ 	return 0;
+ 
+ out_unregister_netfilter:
+ 	kfree(table);
+ out_kmemdup:
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__,Chi-Hsiang add /proc/net/nf_session_ctl
++err_3:
++    remove_proc_entry("nf_session_ctl", net->proc_net);
++#endif
+ 	return -ENOMEM;
+ }
+ 
+@@ -686,6 +816,10 @@
+ 
+ 	table = net->ct.sysctl_header->ctl_table_arg;
+ 	unregister_net_sysctl_table(net->ct.sysctl_header);
++#ifdef CONFIG_ZYXEL_NF_SESSION_CTL//__ZYXEL__,Chi-Hsiang add /proc/net/nf_session_ctl
++	remove_proc_entry("nf_session_ctl", net->proc_net_stat);
++    remove_proc_entry("nf_session_ctl", net->proc_net);
++#endif
+ 	kfree(table);
+ }
+ #else

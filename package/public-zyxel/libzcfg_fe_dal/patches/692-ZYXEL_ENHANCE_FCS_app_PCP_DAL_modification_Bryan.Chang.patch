@@ -1,0 +1,828 @@
+Index: libzcfg_fe_dal-1.0/security/contentFilter/zcfg_fe_dal_contentFilter.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/contentFilter/zcfg_fe_dal_contentFilter.c	2019-07-26 17:51:59.306551389 +0800
++++ libzcfg_fe_dal-1.0/security/contentFilter/zcfg_fe_dal_contentFilter.c	2019-07-26 17:55:37.144980101 +0800
+@@ -246,10 +246,12 @@
+ 		json_object_object_add(ContentFilterJobj, "Description", JSON_OBJ_COPY(pramJobjcopy));
+ 		//if(pramJobjcopy) json_object_put(pramJobjcopy);
+ 	}
+-	
+-	ContentFilterEnable = json_object_get_boolean(json_object_object_get(Jobj,"ContentFilterEnable"));
+-	json_object_object_add(ContentFilterJobj, "Enable",json_object_new_boolean(ContentFilterEnable));
+ 
++	if((pramJobjcopy = json_object_object_get(Jobj, "ContentFilterEnable")) != NULL){	
++		ContentFilterEnable = json_object_get_boolean(json_object_object_get(Jobj,"ContentFilterEnable"));
++		json_object_object_add(ContentFilterJobj, "Enable",json_object_new_boolean(ContentFilterEnable));
++	}
++	
+ 	adultContentEnable = json_object_get_boolean(json_object_object_get(Jobj,"adultContent"));
+ 	json_object_object_add(ContentFilterJobj, "AdultContent",json_object_new_boolean(adultContentEnable));
+ 
+@@ -368,9 +370,14 @@
+ 			json_object_object_add(ContentFilterJobj, "Description", json_object_new_string(path));	
+ 			//if(pramJobjcopy) json_object_put(pramJobjcopy);
+ 		}
+-		
+-		json_object_object_add(ContentFilterJobj, "AdultContent",json_object_new_boolean(json_object_get_boolean(json_object_object_get(Jobj, "adultContent"))));				
+ 
++		if((pramJobjcopy = json_object_object_get(Jobj, "ContentFilterEnable")) != NULL){
++			ContentFilterEnable = json_object_get_boolean(json_object_object_get(Jobj,"ContentFilterEnable"));
++			json_object_object_add(ContentFilterJobj, "Enable",json_object_new_boolean(ContentFilterEnable));
++		}else
++			json_object_object_add(ContentFilterJobj, "Enable",json_object_new_boolean(false));
++			
++		
+ 		adultContentEnable = json_object_get_boolean(json_object_object_get(Jobj,"adultContent"));
+ 		json_object_object_add(ContentFilterJobj, "AdultContent",json_object_new_boolean(adultContentEnable));
+ 
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-07-26 17:51:59.730551382 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-07-26 17:59:19.301438225 +0800
+@@ -15,6 +15,15 @@
+ 
+ //#define JSON_OBJ_COPY(json_object) json_tokener_parse(json_object_to_json_string(json_object))
+ 
++//#define PARENT_DEBUG
++
++#ifdef PARENT_DEBUG
++#define PARENT_PRINT(format, ...) printf(format, ##__VA_ARGS__)
++#else
++#define PARENT_PRINT(format, ...)
++#endif
++
++
+ dal_param_t PAREN_CTL_param[]={
+ 	//Parental Ctl
+ 	{"PrentalCtlEnable",	dalType_boolean,	0,	0,	NULL, NULL, dal_Add_ignore},
+@@ -28,12 +37,20 @@
+ 	{"UrlPolicy",			dalType_string,	0,	0,	NULL, "Block|Allow"},
+ 	{"MACAddressList",		dalType_MacAddrList,	1,	5,	NULL, "All", dal_Add},
+ 	{"ScheduleRuleList",	dalType_string,	0,	64,	NULL, NULL, dalcmd_Forbid},
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	{"Days",				dalType_string,	0,	0,	NULL, NULL, dal_Add},
++	{"TimeRangeList",		dalType_TimeRangeList,	1,	8,	NULL, NULL, dal_Add},
++#else
+ 	{"Days",				dalType_DayofWeek,	1,	3,	NULL, NULL, dal_Add},
+ 	{"TimeRangeList",		dalType_TimeRangeList,	1,	3,	NULL, NULL, dal_Add},
++#endif	
+ 	{"URLFilter",			dalType_URLFilterList,	0,	580,	NULL, "Empty"},
+ 	{"NetworkServiceList",	dalType_ParenCtlServiceList,	1,	12,	NULL, "Empty"},
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
++	{"TimeType",	dalType_string,	0,	0,	NULL, NULL},
++	{"TimeEnable",	dalType_string,	0,	0,	NULL, NULL},	
+ 	{"ContentFilterList",	dalType_string,	0,	0,	NULL, NULL},
++	{"Id",	dalType_string,	0,	0,	NULL, NULL},
+ #endif		
+ 	//Schedule
+ #if 0
+@@ -69,6 +86,10 @@
+ const char* NetworkServiceList;
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ const char* ContentFilterList;
++const char* Id;
++const char* TimeEnable; /*Use the schedule Enable, for TimeEnable*/
++const char* TimeType;  /*Add the TimeType*/
++
+ #endif
+ //Parental Ctl
+ bool PrentalCtlEnable;
+@@ -83,7 +104,7 @@
+ int TimeStopHour;
+ int TimeStopMin;
+ 
+-char curScheduleRuleList[64] = {0};
++char curScheduleRuleList[129] = {0};
+ time_t t1, t2;
+ 
+ zcfgRet_t freeAllPcpObjects(){
+@@ -109,6 +130,9 @@
+ 	NetworkServiceList = json_object_get_string(json_object_object_get(Jobj, "NetworkServiceList"));
+ #ifdef ZYXEL_HOME_CYBER_SECURITY	
+ 	ContentFilterList = json_object_get_string(json_object_object_get(Jobj, "ContentFilterList"));
++	Id = json_object_get_string(json_object_object_get(Jobj, "Id"));
++	TimeType = json_object_get_string(json_object_object_get(Jobj, "TimeType"));
++	TimeEnable = json_object_get_string(json_object_object_get(Jobj, "TimeEnable"));	
+ #endif	
+ 	//Parental Ctl
+ 	PrentalCtlEnable = json_object_get_boolean(json_object_object_get(Jobj, "PrentalCtlEnable"));
+@@ -146,7 +170,28 @@
+ zcfgRet_t parsePcpObject(struct json_object *pramJobj, struct json_object *tr181Jobj){
+ 	const char *ServicePolicy;
+ 	int Type;
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++	char buf[256] = {0};
++	char buf2[128] = {0};
++	char buf3[128] = {0};
++	char buf4[128] = {0};
++	
++	char timeEnableList[256] = {0};
++	char timeDaysList[256] = {0};	
++	char timeTypeList[256] = {0};
++
++	char timeEnable[64] = {0};
++	boolean timEnableVal = 0;
++	char timeType[64] = {0};	
++	char timeDays[64] = {0};
++
++	char *TimeType = NULL;
++	char *TimeEnable = NULL;
++	
++	char *ptr2, *tmp2,*ptr3, *tmp3,*ptr4, *tmp4;				
++#else
+ 	char buf[128] = {0};
++#endif
+ 	char timeRange[16] = {0};
+ 	char timeRangeList[64] = {0};
+ 	char *Days = NULL;
+@@ -182,6 +227,8 @@
+ 	replaceParam(pramJobj, "NetworkServiceList", tr181Jobj, "NetworkServiceList");
+ #ifdef ZYXEL_HOME_CYBER_SECURITY	
+ 	replaceParam(pramJobj, "ContentFilterList", tr181Jobj, "ContentFilterList");
++	replaceParam(pramJobj, "Id", tr181Jobj, "Id");
++
+ #endif	
+ 
+ 	schJarray = json_object_new_array();
+@@ -203,10 +250,10 @@
+ 		}
+ 		if(!schFound)
+ 			continue;
+-		
++#ifndef ZYXEL_HOME_CYBER_SECURITY		
+ 		if(Days == NULL)
+ 			Days = Jgets(schPramJobj, "Days");
+-		
++#endif		
+ 		startHour = json_object_get_int(json_object_object_get(schPramJobj, "TimeStartHour"));
+ 		startMin = json_object_get_int(json_object_object_get(schPramJobj, "TimeStartMin"));
+ 		stopHour = json_object_get_int(json_object_object_get(schPramJobj, "TimeStopHour"));
+@@ -215,15 +262,51 @@
+ 		strcat(timeRangeList, timeRange);
+ 		strcat(timeRangeList, ",");
+ 		ptr = strtok_r(NULL, ",", &tmp);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++
++		timEnableVal = json_object_get_boolean(json_object_object_get(schPramJobj, "Enable"));
++		sprintf(timeEnable,"%d",timEnableVal);	
++		strcat(timeEnableList, timeEnable);
++		strcat(timeEnableList, ",");
++		//ptr2 = strtok_r(NULL, ",", &tmp2);
++
++		if(Jgets(schPramJobj, "Type") != NULL){
++			strcpy(timeType, Jgets(schPramJobj, "Type"));	
++			strcat(timeTypeList, timeType);
++			strcat(timeTypeList, ",");
++			//ptr3 = strtok_r(NULL, ",", &tmp3);
++		}
++
++		if(Jgets(schPramJobj, "Days") != NULL){
++			strcpy(timeDays, Jgets(schPramJobj, "Days"));
++			strcat(timeDaysList, timeDays);
++			strcat(timeDaysList, ": ");
++			//ptr4 = strtok_r(NULL, ":", &tmp4);	
++		}
++#endif
+ 	}
+-	
++#ifndef ZYXEL_HOME_CYBER_SECURITY	
+ 	if(Days == NULL)
+ 		Days == "";
++#endif		
+ 	if(strlen(timeRangeList)>0)
+ 		timeRangeList[strlen(timeRangeList)-1]= '\0';
+ 	
+ 	json_object_object_add(pramJobj, "TimeRangeList", json_object_new_string(timeRangeList));
++#ifndef ZYXEL_HOME_CYBER_SECURITY	
+ 	json_object_object_add(pramJobj, "Days", json_object_new_string(Days));
++#endif
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	if(strlen(timeEnableList)>0)
++		timeEnableList[strlen(timeEnableList)-1]= '\0';	
++	json_object_object_add(pramJobj, "TimeEnable", json_object_new_string(timeEnableList));
++	if(strlen(timeTypeList)>0)
++		timeTypeList[strlen(timeTypeList)-1]= '\0';	
++	json_object_object_add(pramJobj, "TimeType", json_object_new_string(timeTypeList));
++	if(strlen(timeDaysList)>0)
++		timeDaysList[strlen(timeDaysList)-1]= '\0';	
++	json_object_object_add(pramJobj, "Days", json_object_new_string(timeDaysList));
++#endif
+ 	json_object_put(schJarray);
+ 	return ZCFG_SUCCESS;
+ }
+@@ -255,6 +338,13 @@
+ 	//struct json_object *reqSchRuleObj= NULL;
+ 	uint8_t iidIdx =0;
+ 	char buf[128] = {0};
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++	char buf2[64] = {0};
++	char buf3[64] = {0};
++	char buf4[64] = {0};
++
++	char *ptr2,*ptr3,*tmp2,*tmp3,*ptr4,*tmp4;		
++#endif
+ 	char path[32] = {0};
+ 	char *ptr, *tmp;
+ 	int count, startHour, startMin, stopHour, stopMin;
+@@ -270,24 +360,46 @@
+ 			Enable = json_object_get_boolean(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Enable"));
+ 			Name = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Name"));
+ 			Description = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Description"));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++//Days = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Days"));
++			Days = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Days"));
++#else
+ 			Days = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Days"));
++#endif
+ 			TimeStartHour = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStartHour"));
+ 			TimeStartMin = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStartMin"));
+ 			TimeStopHour = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStopHour"));
+ 			TimeStopMin = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStopMin"));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			TimeType = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeType"));			
++			TimeEnable = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeEnable"));			
++#endif
+ 			IID_INIT(schTimeObjIid);
+ 			zcfgFeObjJsonAdd(RDM_OID_SCHEDULE, &schTimeObjIid, NULL);
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_SCHEDULE, &schTimeObjIid, &schTimeObj)) != ZCFG_SUCCESS) {
+ 				return ret;
+ 			}	
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			//json_object_object_add(schTimeObj, "Enable", json_object_new_boolean(TimeEnable));
++			json_object_object_add(schTimeObj, "Enable", json_object_new_boolean(true));
++#else			
+ 			json_object_object_add(schTimeObj, "Enable", json_object_new_boolean(Enable));
++#endif
+ 			json_object_object_add(schTimeObj, "Name", json_object_new_string(Name));
+ 			json_object_object_add(schTimeObj, "Description", json_object_new_string(Description));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			//json_object_object_add(schTimeObj, "Days", json_object_new_int(Days));
++			json_object_object_add(schTimeObj, "Days", json_object_new_string(Days));
++#else
+ 			json_object_object_add(schTimeObj, "Days", json_object_new_int(Days));
++#endif			
+ 			json_object_object_add(schTimeObj, "TimeStartHour", json_object_new_int(TimeStartHour));
+ 			json_object_object_add(schTimeObj, "TimeStartMin", json_object_new_int(TimeStartMin));		
+ 			json_object_object_add(schTimeObj, "TimeStopHour", json_object_new_int(TimeStopHour));
+ 			json_object_object_add(schTimeObj, "TimeStopMin", json_object_new_int(TimeStopMin));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			json_object_object_add(schTimeObj, "Type", json_object_new_string(TimeType));
++#endif			
+ 				
+ 			if((ret = zcfgFeObjJsonSet(RDM_OID_SCHEDULE, &schTimeObjIid, schTimeObj, NULL)) != ZCFG_SUCCESS)
+ 			{
+@@ -307,24 +419,66 @@
+ 		
+ 		}
+ 	}
+-	else{//CLI
++	else{//CLI, not only for CLI, also for the WebGUI
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++		if(Jgets(Jobj, "Days") != NULL){  
++			strcpy(buf4, Jgets(Jobj, "Days"));			 			
++			ptr4 = strtok_r(buf4, ":", &tmp4);
++		}
++		if(Jgets(Jobj, "TimeType") != NULL){
++			strcpy(buf2, Jgets(Jobj, "TimeType"));			
++			ptr2 = strtok_r(buf2, ",", &tmp2);			
++		}
++		
++		if(Jgets(Jobj, "TimeEnable") != NULL){  
++			strcpy(buf3, Jgets(Jobj, "TimeEnable"));				
++			ptr3 = strtok_r(buf3, ",", &tmp3);
++        }
++		
++
++#endif
++
+ 		strcpy(buf, Jgets(Jobj, "TimeRangeList"));
+ 		count = 0;
+ 		ptr = strtok_r(buf, ",", &tmp);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		while((ptr != NULL)&&(ptr2 != NULL)&&(ptr3 != NULL)&&(ptr4 != NULL)){
++#else		
+ 		while(ptr != NULL){
++#endif		
+ 			parseTimeRange(ptr, &startHour, &startMin, &stopHour, &stopMin);
+ 			count++;
+ 			schRuleJobj = json_object_new_object();
+ 			schRuleRetJarray = json_object_new_array();
+ 			
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++			if((ptr3 == NULL)||(!strcmp(ptr3,"false"))||(ptr3 == false)){
++				Jaddb(schRuleJobj, "Enable", false);				
++			}else if ((!strcmp(ptr3,"true"))||(ptr3 == true)){
++				Jaddb(schRuleJobj, "Enable", true);				
++			}else{
++				Jaddb(schRuleJobj, "Enable", true);					
++			}
++#else
+ 			Jaddb(schRuleJobj, "Enable", true);
++#endif
+ 			sprintf(schRuleName, "%s_%d", Jgets(Jobj, "pcpName"), count);
+ 			Jadds(schRuleJobj, "Name", schRuleName);
+ 			Jadds(schRuleJobj, "Description", "ParentalControl");
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			//replaceParam(schRuleJobj, "Days", Jobj, "Days");
++			Jadds(schRuleJobj, "Days", ptr4);		
++#else			
+ 			replaceParam(schRuleJobj, "Days", Jobj, "Days");
++#endif
+ 			Jaddi(schRuleJobj, "TimeStartHour", startHour);
+ 			Jaddi(schRuleJobj, "TimeStartMin", startMin);
+-
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			if(ptr2 == NULL)
++				Jadds(schRuleJobj, "Type", "NULL");
++			else
++				Jadds(schRuleJobj, "Type", ptr2);   		
++#endif
+ 			if (stopHour >= 24) {
+ 				stopHour = 23;
+ 				stopMin = 59;
+@@ -342,6 +496,11 @@
+ 			strcat(ScheduleRuleList, schRulePath);
+ 			strcat(ScheduleRuleList, ",");
+ 			ptr = strtok_r(NULL, ",", &tmp);
++#ifdef ZYXEL_HOME_CYBER_SECURITY			
++			ptr2 = strtok_r(NULL, ",", &tmp2);
++			ptr3 = strtok_r(NULL, ",", &tmp3);			
++			ptr4 = strtok_r(NULL, ":", &tmp4);						
++#endif			
+ 			json_object_put(schRuleJobj);
+ 			json_object_put(schRuleRetJarray);
+ 		}
+@@ -352,11 +511,16 @@
+ 
+ 	IID_INIT(pcpObjIid);
+ 	zcfgFeObjJsonAdd(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, NULL);
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++	PARENT_PRINT("%s: iid=[%d,%d,%d]\n",__FUNCTION__,pcpObjIid.idx[0],pcpObjIid.idx[1],pcpObjIid.idx[2]);
++#endif	
+ 	if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, &pcpObj)) != ZCFG_SUCCESS) {
+ 		json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Parental_Control.error.get_pcp_err"));
+ 		return ret;
+ 	}
+-
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++	PARENT_PRINT("%s: id=%s\n",__FUNCTION__,json_object_get_string(json_object_object_get(pcpObj,"Id")))	;
++#endif
+ 	//add default value for optional parameter
+ 	if(!ISSET("ServicePolicy"))
+ 		Jadds(Jobj, "ServicePolicy", "Block");
+@@ -399,14 +563,23 @@
+ 		Jadds(pcpObj, "ContentFilterList", path);
+ 	}else
+ 		replaceParam(pcpObj, "ContentFilterList", Jobj, "ContentFilterList");
++#ifdef ZYXEL_HOME_CYBER_SECURITY		
++	if((Id = Jgets(Jobj, "Id")) == NULL){
++		Jadds(pcpObj, "Id", "");
++	}else
++		replaceParam(pcpObj, "Id", Jobj, "Id");	
++#endif		
+ #endif
+ 	
+ 	if(ScheduleRuleList != NULL)
+ 		json_object_object_add(pcpObj, "ScheduleRuleList", json_object_new_string(ScheduleRuleList));
+ 	else 
+ 		return ZCFG_INVALID_FORMAT;
+-	
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, pcpObj, NULL)) != ZCFG_SUCCESS){
++#else	
+ 	if((ret = zcfgFeObjJsonSet(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, pcpObj, NULL)) != ZCFG_SUCCESS){
++#endif	
+ 		json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Parental_Control.error.set_pcp_err"));
+ 		return ret;
+ 	}
+@@ -424,8 +597,11 @@
+ 	else 
+ 		return ret = ZCFG_INVALID_FORMAT;
+ 	json_object_object_add(pcpObj, "NetworkServiceList", json_object_new_string(NetworkServiceList));
+-
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, pcpObj, NULL)) != ZCFG_SUCCESS){
++#else
+ 	if((ret = zcfgFeObjJsonSet(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, pcpObj, NULL)) != ZCFG_SUCCESS){
++#endif	
+ 			return ret;
+ 	}
+ #endif
+@@ -468,6 +644,12 @@
+ 	char test[60] = {0};
+ 	uint8_t iidIdx =0;
+ 	char buf[128] = {0};
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	char buf2[64] = {0};
++	char buf3[64] = {0};
++	char buf4[64] = {0};	
++	char *ptr2,*ptr3,*tmp2,*tmp3,*ptr4,*tmp4;
++#endif
+ 	char *ptr, *tmp;
+ 	int count, startHour, startMin, stopHour, stopMin;
+ 	char schRuleName[64] = {0};
+@@ -510,7 +692,9 @@
+ 		json_object_put(inputJobj);
+ 		curJobj = json_object_array_get_idx(curJarray, 0);
+ 	}
+-	
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	PARENT_PRINT("%s: inputobj = %s\n",__FUNCTION__, (char *)json_object_get_string(Jobj));
++#endif	
+ 	if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, &pcpObj)) != ZCFG_SUCCESS) {
+ 		json_object_put(curJarray);
+ 		if(replyMsg)
+@@ -523,7 +707,11 @@
+ 	reqSchRuleIidArray = json_object_object_get(Jobj, "reqSchRuleIid");
+ 	if(reqSchRuleObjArray != NULL){//request form GUI
+ 		for(iidIdx = 0; iidIdx < json_object_array_length(reqSchRuleIidArray); iidIdx++){
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			TimeEnable = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeEnable"));
++#else		
+ 			Enable = json_object_get_boolean(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Enable"));
++#endif			
+ 			Name = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Name"));
+ 			Description = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Description"));
+ 			Days = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "Days"));
+@@ -531,6 +719,9 @@
+ 			TimeStartMin = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStartMin"));
+ 			TimeStopHour = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStopHour"));
+ 			TimeStopMin = json_object_get_int(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeStopMin"));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			TimeType = json_object_get_string(json_object_object_get(json_object_array_get_idx(reqSchRuleObjArray, iidIdx), "TimeType"));
++#endif
+ 			
+ 			schTimeObjIid.idx[0] = json_object_get_int( json_object_array_get_idx(reqSchRuleIidArray, iidIdx));
+ 			schTimeObjIid.level = 1;
+@@ -543,8 +734,12 @@
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_SCHEDULE, &schTimeObjIid, &schTimeObj)) != ZCFG_SUCCESS) {
+ 				return ret;
+ 			}
+-				
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			json_object_object_add(schTimeObj, "Enable", json_object_new_boolean(TimeEnable));			
++			//json_object_object_add(schTimeObj, "Enable", json_object_new_boolean(true));
++#else				
+ 			json_object_object_add(schTimeObj, "Enable", json_object_new_boolean(Enable));
++#endif
+ 			json_object_object_add(schTimeObj, "Name", json_object_new_string(Name));
+ 			json_object_object_add(schTimeObj, "Description", json_object_new_string(Description));
+ 			json_object_object_add(schTimeObj, "Days", json_object_new_int(Days));
+@@ -552,6 +747,9 @@
+ 			json_object_object_add(schTimeObj, "TimeStartMin", json_object_new_int(TimeStartMin));		
+ 			json_object_object_add(schTimeObj, "TimeStopHour", json_object_new_int(TimeStopHour));
+ 			json_object_object_add(schTimeObj, "TimeStopMin", json_object_new_int(TimeStopMin));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			json_object_object_add(schTimeObj, "Type", json_object_new_string(TimeType));
++#endif
+ 				
+ 			if((ret = zcfgFeObjJsonSet(RDM_OID_SCHEDULE, &schTimeObjIid, schTimeObj, NULL)) != ZCFG_SUCCESS)
+ 			{
+@@ -570,8 +768,11 @@
+ 				
+ 		}
+ 	}
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	else if(ISSET("TimeRangeList") || ISSET("Days") || ISSET("TimeType")|| ISSET("TimeEnable")){//request form CLI
++#else	
+ 	else if(ISSET("TimeRangeList") || ISSET("Days")){//request form CLI
+-
++#endif
+ 		memset(ScheduleRuleList, 0,sizeof(ScheduleRuleList));
+ 		if(ISSET("TimeRangeList"))
+ 			strcpy(buf, Jgets(Jobj, "TimeRangeList"));
+@@ -581,13 +782,41 @@
+ 
+ 		count = 0;
+ 		ptr = strtok_r(buf, ",", &tmp);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		if(Jgets(Jobj, "Days") != NULL){  
++			strcpy(buf4, Jgets(Jobj, "Days"));						
++			ptr4 = strtok_r(buf4, ":", &tmp4);
++		}
++		if(Jgets(Jobj, "TimeType") != NULL){
++			strcpy(buf2, Jgets(Jobj, "TimeType"));			
++			ptr2 = strtok_r(buf2, ",", &tmp2);			
++		}
++		if(Jgets(Jobj, "TimeEnable") != NULL){	
++			strcpy(buf3, Jgets(Jobj, "TimeEnable"));				
++			ptr3 = strtok_r(buf3, ",", &tmp3);
++		}
++#endif
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		while((ptr != NULL)&&(ptr2 != NULL)&&(ptr3 != NULL)&&(ptr4 != NULL)){
++#else
+ 		while(ptr != NULL){
++#endif
+ 			parseTimeRange(ptr, &startHour, &startMin, &stopHour, &stopMin);
+ 			count++;
+ 			schRuleJobj = json_object_new_object();
+ 			schRuleRetJarray = json_object_new_array();
+-			
+-			Jaddb(schRuleJobj, "Enable", true);
++#ifdef ZYXEL_HOME_CYBER_SECURITY		
++			if(ISSET("TimeEnable")){
++				if((ptr3 == NULL)||(!strcmp(ptr3,"false"))||(ptr3 == false)){
++					Jaddb(schRuleJobj, "Enable", false);				
++				}else if ((!strcmp(ptr3,"true"))||(ptr3 == true)){
++					Jaddb(schRuleJobj, "Enable", true); 			
++				}else{
++					Jaddb(schRuleJobj, "Enable", true); 				
++				}
++			}
++#endif			
++			//Jaddb(schRuleJobj, "Enable", true);
+ 			if(ISSET("pcpName"))
+ 				sprintf(schRuleName, "%s_%d", Jgets(Jobj, "pcpName"), count);
+ 			else
+@@ -595,21 +824,45 @@
+ 
+ 			Jadds(schRuleJobj, "Name", schRuleName);
+ 			Jadds(schRuleJobj, "Description", "ParentalControl");
++#ifdef ZYXEL_HOME_CYBER_SECURITY
+ 			if(ISSET("Days"))
+ 				replaceParam(schRuleJobj, "Days", Jobj, "Days");
+ 			else
+ 				replaceParam(schRuleJobj, "Days", curJobj, "Days");
++#else			
++			if(ISSET("Days"))
++				replaceParam(schRuleJobj, "Days", Jobj, "Days");
++			else
++				replaceParam(schRuleJobj, "Days", curJobj, "Days");
++#endif
+ 			Jaddi(schRuleJobj, "TimeStartHour", startHour);
+ 			Jaddi(schRuleJobj, "TimeStartMin", startMin);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
+ 
++           if(ISSET("Days")){
++			Jadds(schRuleJobj, "Days", ptr4);		
++           }
++#endif	
+ 			if (stopHour >= 24) {
+ 				stopHour = 23;
+ 				stopMin = 59;
+ 			}
+-	
++
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			if(ISSET("TimeType")){
++				if(ptr2 == NULL)
++					Jadds(schRuleJobj, "Type", "NULL");
++				else
++					Jadds(schRuleJobj, "Type", ptr2);			
++			}
++#endif
++		
+ 			Jaddi(schRuleJobj, "TimeStopHour", stopHour);
+ 			Jaddi(schRuleJobj, "TimeStopMin", stopMin);
+ 			Jaddb(schRuleJobj, "DontCheckDupName", true);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			PARENT_PRINT("%s: scherule=%s\n",__FUNCTION__,(char *)json_object_get_string(schRuleJobj));
++#endif			
+ 			if((ret = zcfgFeDalScheduleAdd(schRuleJobj, schRuleRetJarray, NULL)) != ZCFG_SUCCESS){
+ 				json_object_put(schRuleJobj);
+ 				json_object_put(schRuleRetJarray);
+@@ -620,6 +873,11 @@
+ 			strcat(ScheduleRuleList, schRulePath);
+ 			strcat(ScheduleRuleList, ",");
+ 			ptr = strtok_r(NULL, ",", &tmp);
++#ifdef ZYXEL_HOME_CYBER_SECURITY		
++			ptr2 = strtok_r(NULL, ",", &tmp2);
++			ptr3 = strtok_r(NULL, ",", &tmp3);			
++			ptr4 = strtok_r(NULL, ":", &tmp4);						
++#endif
+ 			json_object_put(schRuleJobj);
+ 			json_object_put(schRuleRetJarray);
+ 		}
+@@ -669,6 +927,13 @@
+ 		Jadds(pcpObj, "ContentFilterList", "");
+ 	else
+ 		replaceParam(pcpObj, "ContentFilterList", Jobj, "ContentFilterList");	
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	Id = Jgets(Jobj,"Id");
++	if(Id && !strcmp(Id, "Empty"))
++		Jadds(pcpObj, "Id", "");
++	else
++		replaceParam(pcpObj, "Id", Jobj, "Id");	
++#endif
+ #endif		
+ 	
+ 	if(strlen(ScheduleRuleList)>0)
+@@ -701,7 +966,11 @@
+ 	if(reqSchRuleObjArray != NULL){//request form GUI
+ 		curPcpSchRuleDel();
+ 	}
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	else if(ISSET("TimeRangeList") || ISSET("Days")|| ISSET("TimeType")|| ISSET("TimeEnable")){//request form CLI
++#else	
+ 	else if(ISSET("TimeRangeList") || ISSET("Days")){//request form CLI
++#endif	
+ 		curPcpSchRuleDel();
+ 	}
+ 
+@@ -783,6 +1052,14 @@
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ 		printf("\n");
+ 		printf("%-35s %s\n", "ContentFilterList", Jgets(Jobj, "ContentFilterList"));
++		printf("\n");
++		printf("%-35s %s\n", "Id", Jgets(Jobj, "Id"));		
++		
++		printf("\n");
++		printf("%-35s %s\n", "TimeType", Jgets(Jobj, "TimeType"));
++		printf("\n");
++		printf("%-35s %s\n", "TimeEnable", Jgets(Jobj, "TimeEnable"));			
++	
+ #endif		
+ #if 1
+ 		strcpy(buf, Jgets(Jobj, "NetworkServiceList"));
+Index: libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-07-26 17:51:59.730551382 +0800
++++ libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-07-26 18:00:39.318854199 +0800
+@@ -14,7 +14,11 @@
+ {
+ 	//Schedule
+ 	{"Index",			dalType_int,		0,	0,	NULL,	NULL,	dal_Edit|dal_Delete},
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	{"Enable",			dalType_boolean,	0,	0,	NULL,	NULL,	0},
++#else	
+ 	//{"Enable",			dalType_boolean,	0,	0,	NULL,	NULL,	0},
++#endif	
+ 	{"Name",			dalType_string,		0,	0,	NULL,	NULL,	dal_Add},	
+ 	{"Description",		dalType_string,		0,	0,	NULL,	NULL,	0},
+ 	{"Days",			dalType_string,		0,	0,	NULL,	NULL,	0},
+@@ -22,6 +26,9 @@
+ 	{"TimeStartMin",	dalType_int,		0,	59,	NULL,	NULL,	0},
+ 	{"TimeStopHour",	dalType_int,		0,	23,	NULL,	NULL,	0},
+ 	{"TimeStopMin",		dalType_int,		0,	59,	NULL,	NULL,	0},
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	{"Type",		dalType_string,		0,	0,	NULL,	NULL,	0},	
++#endif	
+ 	{NULL,				0,					0,	0,	NULL,	NULL,	0}
+ };
+ 
+@@ -70,12 +77,16 @@
+ }
+ 
+ bool isValidTimePeriod(int startHour, int startMin, int stopHour, int stopMin){
++#ifndef ZYXEL_HOME_CYBER_SECURITY
+ 	if((startHour*60+startMin)>=(stopHour*60+stopMin)){
+ 		printf("Time error (start time >= end time)\n");
+ 		return false;
+ 	}
+ 	else
+ 		return true;
++#else
++		return true;
++#endif
+ }
+ 
+ void zcfgFeDalShowSchedule(struct json_object *Jarray){
+@@ -83,17 +94,24 @@
+ 	int i, len = 0;
+ 	char *dayString = NULL;
+ 	int index = 0, startHour = 0, startMin = 0, stopHour = 0, stopMin = 0;
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	char timeStr[15] = {0},timetypeStr[33] = {0},timeEnableStr[15] = {0};
++#else	
+ 	char timeStr [15] = {0};
++#endif	
+ 	struct json_object *obj;
+ 
+ 	if(json_object_get_type(Jarray) != json_type_array){
+ 		printf("wrong Jobj format!\n");
+ 		return;
+ 	}
+-
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	printf("%-6s %-15s %-30s %-15s %-15s %-15s %-30s\n", "Index", "Rule Name", "Days", "Time", "TimeType", "TimeEnable", "Description");
++	printf("-----------------------------------------------------------------------------------------------------------------------\n");
++#else
+ 	printf("%-6s %-15s %-30s %-15s %-30s\n", "Index", "Rule Name", "Days", "Time", "Description");
+ 	printf("--------------------------------------------------------------------------------\n");
+-
++#endif
+ 	len = json_object_array_length(Jarray);
+ 	for(i=0;i<len;i++){
+ 
+@@ -106,6 +124,17 @@
+ 			stopHour = json_object_get_int(json_object_object_get(obj, "TimeStopHour"));
+ 			stopMin = json_object_get_int(json_object_object_get(obj, "TimeStopMin"));
+ 
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			if (json_object_get_boolean(json_object_object_get(obj, "Enable")))
++				sprintf(timeEnableStr,"Enable");
++			else
++				sprintf(timeEnableStr,"Disable");
++
++			if (json_object_get_string(json_object_object_get(obj, "Type"))!=NULL)
++				strcpy(timetypeStr,json_object_get_string(json_object_object_get(obj, "Type")));
++			else 
++				sprintf(timetypeStr,"NULL");
++#endif
+ 			memset(timeStr, '\0', sizeof(timeStr));
+ 			sprintf(timeStr, "%02d:%02d~%02d:%02d",startHour,startMin,stopHour,stopMin);
+ 
+@@ -113,6 +142,10 @@
+ 			printf("%-15s ",json_object_get_string(json_object_object_get(obj, "Name")));
+ 			printf("%-30s ",dayString);
+ 			printf("%-15s ",timeStr);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++			printf("%-15s ",timetypeStr);
++			printf("%-15s ",timeEnableStr);	
++#endif			
+ 			printf("%-30s ",json_object_get_string(json_object_object_get(obj, "Description")));
+ 			printf("\n");
+ 
+@@ -134,7 +167,12 @@
+ 	struct json_object *pramJobj = NULL;
+ 
+ 	int index = 0;
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	struct json_object *enable = NULL;
++	struct json_object *type = NULL;	
++#else
+ 	//struct json_object *enable = NULL;
++#endif	
+ 	struct json_object *name = NULL;
+ 	struct json_object *description = NULL;
+ 	uint32_t days;
+@@ -170,7 +208,11 @@
+ 
+ 		obj_MaxLength = zcfgFeObjMaxLenGet(RDM_OID_SCHEDULE);
+ 		sprintf(TR181Path, "X_ZYXEL_Schedule.%u", objIid.idx[0]);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		enable = json_object_object_get(ScheduleJobj, "Enable");
++#else		
+ 		//enable = json_object_object_get(ScheduleJobj, "Enable");
++#endif		
+ 		name = json_object_object_get(ScheduleJobj, "Name");
+ 		description = json_object_object_get(ScheduleJobj, "Description");
+ 
+@@ -196,7 +238,11 @@
+ 		json_object_object_add(pramJobj, "isPcpRule", json_object_new_boolean(isPcpRule));
+ 		json_object_object_add(pramJobj, "Index", json_object_new_int(index));
+ 		json_object_object_add(pramJobj, "TR181Path", json_object_new_string(TR181Path));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		json_object_object_add(pramJobj, "Enable", JSON_OBJ_COPY(enable));
++#else		
+ 		//json_object_object_add(pramJobj, "Enable", JSON_OBJ_COPY(enable));
++#endif
+ 		json_object_object_add(pramJobj, "Name", JSON_OBJ_COPY(name));
+ 		json_object_object_add(pramJobj, "Description", JSON_OBJ_COPY(description));
+ 		json_object_object_add(pramJobj, "Days", json_object_new_string(dayString));
+@@ -204,6 +250,9 @@
+ 		json_object_object_add(pramJobj, "TimeStartMin", JSON_OBJ_COPY(timeStartMin));
+ 		json_object_object_add(pramJobj, "TimeStopHour", JSON_OBJ_COPY(timeStopHour));
+ 		json_object_object_add(pramJobj, "TimeStopMin", JSON_OBJ_COPY(timeStopMin));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		json_object_object_add(pramJobj, "Type", JSON_OBJ_COPY(type));
++#endif		
+ 		json_object_object_add(pramJobj, "obj_MaxLength", json_object_new_int(obj_MaxLength));
+ 		if(json_object_object_get(Jobj, "Index")) {
+ 			if(index == json_object_get_int(json_object_object_get(Jobj, "Index"))) {
+@@ -274,7 +323,17 @@
+ 		return ret;
+ 	}	
+ 
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	//json_object_object_add(ScheduleJobj, "Enable", json_object_new_boolean(true));
++	if(Jgetb(Jobj, "Enable")){
++		json_object_object_add(ScheduleJobj, "Enable", json_object_new_boolean(true));		
++		}
++	else{
++		json_object_object_add(ScheduleJobj, "Enable", json_object_new_boolean(false));		
++		}
++#else
+ 	json_object_object_add(ScheduleJobj, "Enable", json_object_new_boolean(true));
++#endif
+ 
+ 	pramJobj = json_object_object_get(Jobj, "Name");
+ 	json_object_object_add(ScheduleJobj, "Name", JSON_OBJ_COPY(pramJobj));
+@@ -293,6 +352,10 @@
+ 	json_object_object_add(ScheduleJobj, "TimeStopHour", JSON_OBJ_COPY(pramJobj));
+ 	pramJobj = json_object_object_get(Jobj, "TimeStopMin");
+ 	json_object_object_add(ScheduleJobj, "TimeStopMin", JSON_OBJ_COPY(pramJobj));
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	if((pramJobj = json_object_object_get(Jobj, "Type")) != NULL)
++		json_object_object_add(ScheduleJobj, "Type", JSON_OBJ_COPY(pramJobj));
++#endif
+ 
+ 	// Time validation
+ 	if(!isValidTimePeriod(
+@@ -355,10 +418,15 @@
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_SCHEDULE, &objIid, &ScheduleJobj)) != ZCFG_SUCCESS) {
+ 		return ret;
+ 	}
++#ifdef ZYXEL_HOME_CYBER_SECURITY	
++	if((pramJobj = json_object_object_get(Jobj, "Enable")) != NULL)
++		json_object_object_add(ScheduleJobj, "Enable", JSON_OBJ_COPY(pramJobj));
++#else	
+ 	/*	
+ 	if((pramJobj = json_object_object_get(Jobj, "Enable")) != NULL)
+ 		json_object_object_add(ScheduleJobj, "Enable", JSON_OBJ_COPY(pramJobj));
+ 	*/
++#endif	
+ 	if((pramJobj = json_object_object_get(Jobj, "Name")) != NULL){
+ 		newName = json_object_get_string(pramJobj);
+ 		oldName = json_object_get_string(json_object_object_get(ScheduleJobj, "Name"));

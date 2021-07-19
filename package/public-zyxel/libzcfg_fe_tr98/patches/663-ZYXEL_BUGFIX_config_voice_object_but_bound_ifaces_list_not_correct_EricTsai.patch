@@ -1,0 +1,23 @@
+Index: libzcfg_fe_tr98-1.0/voice.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/voice.c	2020-03-11 14:45:07.605477247 +0800
++++ libzcfg_fe_tr98-1.0/voice.c	2020-03-11 14:32:23.763890600 +0800
+@@ -621,15 +621,16 @@
+ 					}
+ 					json_object_object_add(profObj, paramList->name, json_object_new_string(new_string));
+ 				}else if(!strcmp(paramList->name, "X_ZYXEL_BoundIfList")){
++					char paramValue[512+1] = {0};
++					strncpy(paramValue, value, sizeof(paramValue)-1);
+ 					/*Brady 20161017, the format of BoundList followed TR-181 path for SET(IP.Interface.{i}). */
+-					intf = strtok_r(value, ", ", &tmp_ptr);
++					intf = strtok_r(paramValue, ", ", &tmp_ptr);
+ 					while(intf != NULL){
+ 						if(*intf != '\0' ){
+ 							memset(tr181Name, 0, sizeof(tr181Name));
+ 							memset(tr181ObjPath, 0, sizeof(tr181ObjPath));
+ 							snprintf(tr98ObjPath, sizeof(tr98ObjPath), "InternetGatewayDevice.%s",intf);
+ 							zcfgFe98To181MappingNameGet(tr98ObjPath, tr181ObjPath);
+-
+ 							if(strstr(tr181ObjPath, "PPP.Interface") != NULL){
+ 								zcfgFeTr181FindingIpIfaceByLowerLayer(tr181ObjPath, tr181Name);
+ 							}else if(strstr(tr181ObjPath, "IP.Interface") != NULL){

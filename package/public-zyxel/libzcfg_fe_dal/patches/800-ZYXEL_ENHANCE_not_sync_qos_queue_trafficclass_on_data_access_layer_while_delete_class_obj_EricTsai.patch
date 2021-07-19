@@ -1,0 +1,24 @@
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosClass.c	2020-07-30 14:30:14.690051236 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosClass.c	2020-07-30 14:18:12.027058300 +0800
+@@ -1504,16 +1504,15 @@
+ 
+ 	memset(&QosClassDel_Info, 0, sizeof(QosClassDel_Info));
+ 	getQosClassDelKey(Jobj, &QosClassDel_Info);
+-
+ 	IID_INIT(classIid);
+ 	classIid.level = 1;
+ 	classIid.idx[0] = QosClassDel_Info.Index;
+ 
+-	// update RDM_OID_QOS_QUE - TrafficClasses
+-	update_traffic_class_in_qos_queue(QosClassDel_Info.Index, -1, false, classIid, action);
+-	
+ 	if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_QOS_CLS, &classIid, &classObj) == ZCFG_SUCCESS) {			
+ 		zcfgFeObjJsonDel(RDM_OID_QOS_CLS, &classIid, NULL);
++		// update RDM_OID_QOS_QUE - TrafficClasses
++		//update_traffic_class_in_qos_queue(QosClassDel_Info.Index, -1, false, classIid, action);
++
+ 		zcfgFeJsonObjFree(classObj);
+ 		return ret;	
+ 	}

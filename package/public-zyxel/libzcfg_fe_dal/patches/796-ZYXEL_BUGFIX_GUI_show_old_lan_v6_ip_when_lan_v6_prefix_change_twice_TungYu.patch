@@ -1,0 +1,32 @@
+Index: libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-07-20 03:33:29.890860093 +0000
++++ libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-07-20 03:33:30.354860089 +0000
+@@ -1319,7 +1319,6 @@
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *v6prefixObj = NULL;
+ 	objIndex_t v6prefixIid = {0};
+-	const char *ip6Prefix = NULL, *ipfacev6Prefix = NULL;
+ 	const char * v6PrefixAddress = NULL;
+ 	bool found = false;
+ 	const char *ip6LanAdrAssign = NULL;
+@@ -1327,15 +1326,11 @@
+ 	IID_INIT(v6prefixIid);
+ 	while(zcfgFeSubInObjJsonGetNext(RDM_OID_IP_IFACE_V6_PREFIX, &curIpIfaceIid, &v6prefixIid, &v6prefixObj)== ZCFG_SUCCESS)
+ 	{
+-		ip6Prefix = json_object_get_string(json_object_object_get(v6prefixObj, "Prefix"));
+-		ipfacev6Prefix = json_object_get_string(json_object_object_get(curIpIfaceObj, "X_ZYXEL_IPv6Prefix"));
+ 		ipv6Origin = json_object_get_string(json_object_object_get(v6prefixObj, "Origin"));
+-		if(ip6Prefix && ipfacev6Prefix && !strcmp(ip6Prefix, ipfacev6Prefix)){
+-			if(ipv6Origin && !strcmp(ipv6Origin, "Static")){
+-				found = true;
+-				break;
+-			}
+-		}
++		if (ipv6Origin && !strcmp(ipv6Origin, "Static")) {
++			found = true;
++			break;
++		}
+ 		zcfgFeJsonObjFree(v6prefixObj);
+ 	}
+ 

@@ -1,0 +1,99 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-05-25 11:40:30.867370158 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-05-25 11:49:41.445278958 +0800
+@@ -143,6 +143,7 @@
+ 
+ bool isAdd = false;
+ bool isDelete = false;
++bool isPppQuick = false;
+ 
+ const char *Name, *Type, *Mode, *Encapsulation, *ipMode, *v6RD_Type, *deleteipIfacePath;
+ #ifdef ZYXEL_WAN_MAC
+@@ -3013,13 +3014,15 @@
+ 	}
+ 
+    	dbg_printf("line=%d\n", __LINE__);
+-
+-	editNatSetting(Jobj);
+-	editDnsSetting(Jobj);
+-	editStaticAddrSetting(Jobj);
+-	editDhcpSetting(Jobj);
+-	editIgmpMldSetting(Jobj);
+-	editDefaultGwSetting(Jobj);
++	if(0==isPppQuick){
++		editNatSetting(Jobj);
++		editDnsSetting(Jobj);
++		editStaticAddrSetting(Jobj);
++		editDhcpSetting(Jobj);
++		editIgmpMldSetting(Jobj);
++		editDefaultGwSetting(Jobj);
++	}
++	isPppQuick = false; //runtime isPppQuick should be reset to inital value
+ #ifdef ZYXEL_IPV6_MAP
+ 	editMAPSetting(Jobj);
+ #endif
+@@ -3176,6 +3179,9 @@
+ 	WanMacAddr = json_object_get_string(json_object_object_get(Jobj, "WanMacAddr"));
+ 	WanMacIP = json_object_get_string(json_object_object_get(Jobj, "WanMacIP"));
+ #endif
++	if(json_object_object_get(Jobj, "isPppQuick")){
++		isPppQuick = json_object_get_boolean(json_object_object_get(Jobj, "isPppQuick"));
++	}
+ 
+ 	if(isDelete)
+ 	{	deleteipIfacePath = json_object_get_string(json_object_object_get(Jobj, "Del_ipIfacePath"));	}
+@@ -4128,31 +4134,33 @@
+ 	}
+ 	else
+ 	*/
++	if(0==isPppQuick)
++	{
+ 		ret = zcfgFeCheckIPDNS(Jobj, replyMsg);
+ 
+ 	
+-	getWanLanList(&wanLanList);
+-	if(checkWanInterfaceLimit(Jobj, wanLanList, 0) == false){
+-		json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Broadband.Broadband.warning.exceed_wan_limit"));
+-		if(replyMsg)
+-			strcpy(replyMsg,"The number of WAN interfaces exceeds the limit.");
+-		json_object_put(wanLanList);
+-		ret = ZCFG_REQUEST_REJECT;
+-		goto dalwan_edit_fail;
+-	}
+-	if(isVlanRepeat(type, Jobj, wanLanList, 0)){
+-		if(!strcmp(type, "ATM"))
+-			json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Broadband.Broadband.warning.vlan_pvc_repeat"));
+-		else
+-			json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Broadband.Broadband.warning.vlan_repeat"));
+-		if(replyMsg)
+-			strcpy(replyMsg,"The Vlan is repeat.");
++		getWanLanList(&wanLanList);
++		if(checkWanInterfaceLimit(Jobj, wanLanList, 0) == false){
++			json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Broadband.Broadband.warning.exceed_wan_limit"));
++			if(replyMsg)
++				strcpy(replyMsg,"The number of WAN interfaces exceeds the limit.");
++			json_object_put(wanLanList);
++			ret = ZCFG_REQUEST_REJECT;
++			goto dalwan_edit_fail;
++		}
++		if(isVlanRepeat(type, Jobj, wanLanList, 0)){
++			if(!strcmp(type, "ATM"))
++				json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Broadband.Broadband.warning.vlan_pvc_repeat"));
++			else
++				json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Broadband.Broadband.warning.vlan_repeat"));
++			if(replyMsg)
++				strcpy(replyMsg,"The Vlan is repeat.");
++			json_object_put(wanLanList);
++			ret = ZCFG_REQUEST_REJECT;
++			goto dalwan_edit_fail;
++		}
+ 		json_object_put(wanLanList);
+-		ret = ZCFG_REQUEST_REJECT;
+-		goto dalwan_edit_fail;
+ 	}
+-	json_object_put(wanLanList);
+-
+ 	if ((ret = getCurrentConfig(Jobj)) != ZCFG_SUCCESS)
+ 		goto dalwan_edit_fail;
+ 	//disable ipIface pppIface first

@@ -1,0 +1,6 @@
+
+BEGIN
+  eid         = EID_SPEEDSVC
+  name        = ss
+  flags       = EIF_MESSAGING_CAPABLE|EIF_MULTIPLE_INSTANCES
+END

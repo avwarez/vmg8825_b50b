@@ -1,0 +1,72 @@
+Index: linux-4.1.52/Kconfig.bcm
+===================================================================
+--- linux-4.1.52.orig/Kconfig.bcm	2018-10-01 20:05:02.179645506 -0700
++++ linux-4.1.52/Kconfig.bcm	2018-10-01 20:10:48.331632518 -0700
+@@ -888,6 +888,10 @@
+ config BCM_PROCFS
+ 	tristate "Support for PROCFS"
+ 
++config BCM_P8021AG
++	tristate "Support for IEEE P8021.ag"
++#	depends on MIPS
++
+ config BCM_TRNG
+ 	tristate "BCM HW Random Number Generator support"
+ #	---help---
+@@ -1109,6 +1113,10 @@
+ 	int "Implementation index for PWRMNGT"
+ 	depends on BCM_PWRMNGT
+ 
++config BCM_P8021AG_IMPL
++	int "Implementation index for IEEE P8021AG"
++	depends on BCM_P8021AG
++
+ config BCM_ARL_IMPL
+ 	int "Implementation index for ARL"
+ 	depends on BCM_ARL
+Index: linux-4.1.52/net/core/dev.c
+===================================================================
+--- linux-4.1.52.orig/net/core/dev.c	2018-10-01 20:05:02.203645506 -0700
++++ linux-4.1.52/net/core/dev.c	2018-10-01 20:05:03.4.1.52460 -0700
+@@ -190,6 +190,10 @@
+  */
+ DEFINE_RWLOCK(dev_base_lock);
+ EXPORT_SYMBOL(dev_base_lock);
++#if defined(CONFIG_BCM_KF_P8021AG) && (defined(CONFIG_BCM_P8021AG) || defined(CONFIG_BCM_P8021AG_MODULE))
++int (*p8021ag_hook)(struct sk_buff *skb);
++EXPORT_SYMBOL(p8021ag_hook);
++#endif
+ 
+ /* protects napi_hash addition/deletion and napi_gen_id */
+ static DEFINE_SPINLOCK(napi_hash_lock);
+@@ -4170,6 +4174,15 @@
+ 			goto out;
+ 	}
+ 
++#if defined(CONFIG_BCM_KF_P8021AG) && (defined(CONFIG_BCM_P8021AG) || defined(CONFIG_BCM_P8021AG_MODULE))
++//#if !defined(CONFIG_BCM_TMS_MODULE)
++
++	if (((skb->protocol == __constant_htons(ETH_P_8021AG)) ||
++		 (skb->protocol == __constant_htons(ETH_P_8021Q) && *(unsigned short *) &skb->data[2] == ETH_P_8021AG))
++		 && p8021ag_hook && !p8021ag_hook(skb) )
++        goto out;
++//#endif
++#endif
+ #ifdef CONFIG_NET_CLS_ACT
+ 	if (skb->tc_verd & TC_NCLS) {
+ 		skb->tc_verd = CLR_TC_NCLS(skb->tc_verd);
+Index: linux-4.1.52/Kconfig.bcm_kf
+===================================================================
+--- linux-4.1.52.orig/Kconfig.bcm_kf	2018-10-01 20:05:03.387645461 -0700
++++ linux-4.1.52/Kconfig.bcm_kf	2018-10-01 20:12:51.226901205 -0700
+@@ -215,6 +215,10 @@
+ 	bool
+ 	default y
+ 
++config BCM_KF_P8021AG:
++	bool
++	default y
++
+ config BCM_KF_MISC_IOCTLS
+ 	bool
+ 	default y

@@ -1,0 +1,52 @@
+Index: linux-4.1.52/drivers/net/ppp/ppp_generic.c
+===================================================================
+--- linux-4.1.52.orig/drivers/net/ppp/ppp_generic.c	2020-09-15 16:52:21.959010821 +0800
++++ linux-4.1.52/drivers/net/ppp/ppp_generic.c	2020-09-15 18:00:55.947309663 +0800
+@@ -1351,9 +1351,18 @@
+ 	unsigned char *data;
+ 	int timestamp = 1;
+ 
+-	if ( proto == PPP_IP) {
+-		data = skb->data;
+-		timestamp = brcm_on_demand_filter(data);
++	if ( proto == PPP_IP || proto == PPP_IPV6) {
++        /* Only record timestamp when tx packet is sent from LAN -> WAN
++         * Packet from LAN: skb->dev->name=ppp{i}, skb->original_dev->name=br{i}
++         * Packet from CPE: skb->dev->name=ppp{i}, skb->original_dev->name=NULL
++         */
++        if (skb->original_dev->name == NULL) {
++            timestamp = 0;
++        }
++        else {
++		    data = skb->data;
++		    timestamp = brcm_on_demand_filter(data);
++        }
+ 	}
+ #endif	
+ 
+Index: linux-4.1.52/include/linux/skbuff.h
+===================================================================
+--- linux-4.1.52.orig/include/linux/skbuff.h	2020-09-15 16:52:21.991010822 +0800
++++ linux-4.1.52/include/linux/skbuff.h	2020-09-15 18:05:52.112816630 +0800
+@@ -995,7 +995,9 @@
+ 	/* private: */
+ 	__u32			headers_end[0];
+ 	/* public: */
++	struct net_device   *original_dev;
+ #if defined(CONFIG_BCM_KF_NBUFF)
++
+ 	unsigned char		*clone_wr_head; /* indicates drivers(ex:enet)about writable headroom in aggregated skb*/
+ 	unsigned char		*clone_fc_head; /* indicates fcache about writable headroom in aggregated skb */
+ 
+Index: linux-4.1.52/net/core/dev.c
+===================================================================
+--- linux-4.1.52.orig/net/core/dev.c	2020-09-15 16:52:21.711010817 +0800
++++ linux-4.1.52/net/core/dev.c	2020-09-15 18:03:24.225385831 +0800
+@@ -4147,6 +4147,7 @@
+ #endif
+ 
+ 	orig_dev = skb->dev;
++	skb->original_dev = skb->dev;
+ 
+ 	skb_reset_network_header(skb);
+ 	if (!skb_transport_header_was_set(skb))

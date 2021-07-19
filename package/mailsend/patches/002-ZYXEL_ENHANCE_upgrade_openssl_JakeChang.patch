@@ -1,0 +1,37 @@
+Index: mailsend-1.17b15/utils.c
+===================================================================
+--- mailsend-1.17b15.orig/utils.c	2014-05-26 02:24:43.000000000 +0800
++++ mailsend-1.17b15/utils.c	2020-02-07 12:01:36.906823900 +0800
+@@ -791,8 +791,13 @@
+     unsigned char
+         hmac_md5[16];
+ 
++#if OPENSSL_VERSION_NUMBER < 0x10100000L
+     HMAC_CTX
+         ctx;
++#else
++    HMAC_CTX
++        *ctx;
++#endif
+ 
+     const EVP_MD
+         *md5=NULL;
+@@ -831,11 +836,18 @@
+     showVerbose("Challenge After decoding: %s\n",data);
+ 
+     /* take HMAC-MD5 of the challenge*/
++#if OPENSSL_VERSION_NUMBER < 0x10100000L
+     md5=EVP_get_digestbyname("md5");
+     HMAC_CTX_init(&ctx);
+     HMAC_Init(&ctx,secret,strlen(secret),md5);
+     HMAC_Update(&ctx,data,data_len);
+     HMAC_Final(&ctx,hmac_md5,&hmac_len);
++#else
++    ctx = HMAC_CTX_new();
++    HMAC_Init_ex(ctx,secret,strlen(secret),EVP_md5(),NULL);
++    HMAC_Update(ctx,data,data_len);
++    HMAC_Final(ctx,hmac_md5,&hmac_len);
++#endif
+ 
+     /* convert the digest to hex */
+     memset(hex,0,sizeof(hex));

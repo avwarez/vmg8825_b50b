@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2020-03-30 14:05:45.938335438 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2020-03-30 14:06:59.596097511 +0800
+@@ -1053,7 +1053,7 @@
+ 			maxBitRate = json_object_get_int (json_object_object_get(ethIfaceObj, "MaxBitRate"));
+ 			duplexMode = json_object_get_string (json_object_object_get(ethIfaceObj, "DuplexMode"));
+ 			if (maxBitRate > 0) {
+-				sprintf (ethConnectionStatus, "%d/%s", maxBitRate, duplexMode);
++				sprintf (ethConnectionStatus, "%dM/%s", maxBitRate, duplexMode);
+ 			}
+ 			else {
+ 				strcat (ethConnectionStatus, "Connection down");

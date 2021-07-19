@@ -1,0 +1,41 @@
+Index: libzcfg_fe_tr98-1.0/Makefile
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/Makefile	2020-06-01 17:19:47.768479023 +0800
++++ libzcfg_fe_tr98-1.0/Makefile	2020-06-01 17:23:16.599203984 +0800
+@@ -76,6 +76,11 @@
+ CFLAGS += -DZYXEL_AP_STEERING
+ endif
+ 
++#WIND Greece
++ifeq ($(CONFIG_WIND_Greece_DHCPv6_Client_NTP_Option),y)
++CFLAGS += -DWIND_Greece_DHCPv6_Client_NTP_Option
++endif
++
+ #Proximity Sensor
+ ifeq ($(CONFIG_PROXIMITY_SENSOR_SUPPORT),y)
+ CFLAGS += -DPROXIMITY_SENSOR_SUPPORT
+Index: libzcfg_fe_tr98-1.0/wanDev_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/wanDev_parameter.h	2020-06-01 17:19:47.600479019 +0800
++++ libzcfg_fe_tr98-1.0/wanDev_parameter.h	2020-06-01 17:27:05.118117525 +0800
+@@ -655,6 +655,9 @@
+ 	{ "RequestAddresses", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "RequestPrefixes", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "RapidCommit", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++#ifdef WIND_Greece_DHCPv6_Client_NTP_Option
++	{ "SNTPEnable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++#endif
+ 	{ NULL, 0, 0, 0}
+ };
+ 
+@@ -922,6 +925,10 @@
+ 	{ "RequestAddresses", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "RequestPrefixes", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "RapidCommit", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++#ifdef WIND_Greece_DHCPv6_Client_NTP_Option
++	{ "SNTPEnable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
++#endif
++
+ 	{ NULL, 0, 0, 0}
+ };
+ 

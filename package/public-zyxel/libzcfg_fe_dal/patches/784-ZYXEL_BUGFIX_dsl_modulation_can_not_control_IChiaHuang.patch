@@ -1,0 +1,26 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_advance.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_advance.c	2020-05-29 01:15:32.528639938 +0000
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_advance.c	2020-05-29 01:21:53.472636305 +0000
+@@ -336,7 +336,8 @@
+ 			}
+ 			xDSLcfgFromGui = json_object_get_string(json_object_object_get(Jobj, "X_ZYXEL_AdslModulationCfg"));
+ 
+-			if(xDSLcfgFromGui != NULL){
++			if(xDSLcfgFromGui != NULL)
++			{
+ 				if(!strcmp(xDSLcfgFromGui,"ADSL_Modulation_All,") || !strcmp(xDSLcfgFromGui,"ADSL_Modulation_All")){
+ 					/*This is by default value. if all of Modulations were active.*/
+ 					json_object_object_add(advDSLLineObj, "X_ZYXEL_AdslModulationCfg", json_object_new_string("ADSL_Modulation_All"));
+@@ -344,6 +345,11 @@
+ 					json_object_object_add(advDSLLineObj, "X_ZYXEL_AdslModulationCfg", json_object_new_string(adslModulationCfg));
+ 				}
+ 			}
++			else //20200529 IChiaHuang Bug #129025: [GUI] Go Network setting > broadband > Advanced, DSL Modulation is not disable.
++			{
++				json_object_object_add(advDSLLineObj, "X_ZYXEL_AdslModulationCfg", json_object_new_string(adslModulationCfg));
++			}
++
+ 			if(json_object_get_boolean(json_object_object_get(Jobj, "AnnexB")))
+             {
+                 json_object_object_add(advDSLLineObj, "X_ZYXEL_ADSL2_AnnexA_B", json_object_new_string("AnnexB"));

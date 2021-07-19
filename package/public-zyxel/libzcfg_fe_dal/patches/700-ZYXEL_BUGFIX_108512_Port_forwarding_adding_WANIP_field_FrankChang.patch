@@ -1,0 +1,29 @@
+diff -ruN a/network/nat/zcfg_fe_dal_nat_port_mapping.c b/network/nat/zcfg_fe_dal_nat_port_mapping.c
+--- a/network/nat/zcfg_fe_dal_nat_port_mapping.c	2019-08-29 09:42:11.000000000 +0800
++++ b/network/nat/zcfg_fe_dal_nat_port_mapping.c	2019-08-30 16:32:05.810110471 +0800
+@@ -160,6 +160,12 @@
+ #endif
+ #ifdef ELISA_NAT_PORTFORWARD_CUSTOMIZATIONN
+ 		wanip = json_object_get_string(json_object_object_get(Jobj, "WANIP"));
++		if(!strcmp(wanip, "")){
++			autoDetectWanStatus = true;
++			strcpy(interface,"");
++		}
++		else
++			autoDetectWanStatus = false;
+ #endif
+ 
+ 		//check port range
+@@ -316,6 +322,12 @@
+ 		description = json_object_get_string(json_object_object_get(Jobj, "Description"));
+ #ifdef ELISA_NAT_PORTFORWARD_CUSTOMIZATIONN
+ 		wanip = json_object_get_string(json_object_object_get(Jobj, "WANIP"));
++		if(!strcmp(wanip, "")){
++			autoDetectWanStatus = true;
++			strcpy(interface,"");
++		}
++		else
++			autoDetectWanStatus = false;
+ #endif
+ 		if(json_object_object_get(Jobj, "Enable") != NULL)
+ 			json_object_object_add(NatPortMappingJobj, "Enable", json_object_new_boolean(enable));

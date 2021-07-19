@@ -1,0 +1,23 @@
+Index: libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c	2020-02-20 18:38:08.688653053 +0800
++++ libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c	2020-02-20 18:38:08.000000000 +0800
+@@ -108,6 +108,7 @@
+ 		curAlias = json_object_get_boolean(json_object_object_get(ipv4AddrObj, "X_ZYXEL_Alias"));
+ 		X_ZYXEL_Dhcp4Subnet_Ref = json_object_get_string(json_object_object_get(ipv4AddrObj, "X_ZYXEL_Dhcp4Subnet_Ref"));
+ 		if((ipv4AddrIid.idx[0] != ipIntfIid->idx[0]) || (curAlias == false) || (strstr(X_ZYXEL_Dhcp4Subnet_Ref, "DHCPv4.Server.X_ZYXEL_Subnet"))){
++			//should prevent double free
+ 			zcfgFeJsonObjFree(ipv4AddrObj);
+ 			continue;
+ 		}
+@@ -231,7 +232,10 @@
+ 	}
+ 	}
+ #endif	
++#if 0
++//should prevent double free
+ 	zcfgFeJsonObjFree(ipv4AddrObj);
++#endif
+ 	return ret;
+ }
+ 

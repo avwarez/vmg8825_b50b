@@ -1,0 +1,17 @@
+diff -ruN a/kernel/printk/printk.c b/kernel/printk/printk.c
+--- a/kernel/printk/printk.c	2020-02-07 00:10:59.000000000 +0800
++++ b/kernel/printk/printk.c	2020-02-12 13:02:13.683306640 +0800
+@@ -2276,8 +2276,12 @@
+ 	if (unlikely(exclusive_console))
+ 		exclusive_console = NULL;
+ 
++#if defined(CONFIG_BCM_KF_PRINTK_INT_ENABLED) && defined(CONFIG_BCM_PRINTK_INT_ENABLED)
++	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
++#else
+ 	raw_spin_unlock(&logbuf_lock);
+-	local_irq_restore(flags); //IChiaHuang 20191105
++	local_irq_restore(flags); //IChiaHuang 20191105		
++#endif
+ 	
+ 	up_console_sem();
+ 

@@ -1,0 +1,23 @@
+Index: linux-4.1.52/drivers/net/ppp/ppp_generic.c
+===================================================================
+--- linux-4.1.52.orig/drivers/net/ppp/ppp_generic.c	2019-04-30 15:49:27.861180726 +0800
++++ linux-4.1.52/drivers/net/ppp/ppp_generic.c	2019-04-30 18:46:10.578019850 +0800
+@@ -2605,8 +2605,6 @@
+ 	spin_lock_bh(&pn->all_channels_lock);
+ 	list_del(&pch->list);
+ 	spin_unlock_bh(&pn->all_channels_lock);
+-	put_net(pch->chan_net);
+-	pch->chan_net = NULL;
+ 
+ 	pch->file.dead = 1;
+ 	wake_up_interruptible(&pch->file.rwait);
+@@ -3314,6 +3312,9 @@
+  */
+ static void ppp_destroy_channel(struct channel *pch)
+ {
++	put_net(pch->chan_net);
++	pch->chan_net = NULL;
++
+ 	atomic_dec(&channel_count);
+ 
+ 	if (!pch->file.dead) {

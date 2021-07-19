@@ -1,0 +1,94 @@
+Index: libzcfg_fe_dal-1.0/security/URLBlackList/zcfg_fe_dal_URLBlackList.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/URLBlackList/zcfg_fe_dal_URLBlackList.c	2019-12-19 14:28:54.801838435 +0800
++++ libzcfg_fe_dal-1.0/security/URLBlackList/zcfg_fe_dal_URLBlackList.c	2019-12-19 14:28:56.129838423 +0800
+@@ -13,6 +13,14 @@
+ 
+ #define URL_NAME_UD "UserDefined"
+ 
++//#define URL_DEBUG
++
++#ifdef URL_DEBUG
++#define URL_PRINT(format, ...) printf(format, ##__VA_ARGS__)
++#else
++#define URL_PRINT(format, ...)
++#endif
++
+ dal_param_t URLBlack_FILTER_param[]={
+ 	{"Index",				dalType_int,	0,	0,	NULL, NULL, dal_Add|dal_Delete},
+ 	{"Name",			dalType_string,		0,	0,	NULL,	NULL,	dal_Add},
+@@ -158,9 +166,11 @@
+ 	IID_INIT(indexIid);
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_U_R_L_FILTER, &indexIid, &URLFilterObj) == ZCFG_SUCCESS) {
+ 		name = json_object_get_string(json_object_object_get(URLFilterObj, "Name"));
++		URL_PRINT("%s: name=%s\n",__FUNCTION__,name);
+ 		if(!strcmp(name, URL_NAME_UD)){
+ 			filter = json_object_get_string(json_object_object_get(URLFilterObj, "FilterIndex"));
+ 			URLFilterIid->level = 1;
++			URL_PRINT("%s: filter=%s\n",__FUNCTION__,filter);
+ 			if(sscanf(filter, "X_ZYXEL_URLFilter.%hhu", &(URLFilterIid->idx[0])) == 1){
+ 				zcfgFeJsonObjFree(URLFilterObj);
+ 				return true;
+@@ -199,6 +209,7 @@
+ #endif
+ 		IID_INIT(objIid);
+ 		pramJobj = json_object_new_object();	
++		URL_PRINT("%s: Jobj=%s\n",__FUNCTION__,json_object_get_string(Jobj));
+ 		if(((json_object_object_get(Jobj, "BlackList")) == NULL)||!(json_object_get_boolean(json_object_object_get(Jobj, "BlackList")))){
+ 			ret = ZCFG_INTERNAL_ERROR;
+ 			if(pramJobj) json_object_put(pramJobj); 	
+@@ -206,6 +217,7 @@
+ 		}		
+ 		if(getURLFilterIid_black(&FilterIid)){
+ 			objIid.idx[1] = json_object_get_int(json_object_object_get(Jobj, "Index"));
++			URL_PRINT("%s: idx=%d,%d\n",__FUNCTION__,objIid.idx[1],FilterIid.idx[1]);
+ 			ret = zcfgFeObjJsonBlockedAdd(RDM_OID_BLACK_U_R_L_FILTER, &FilterIid, NULL);
+ 			if(ret == ZCFG_SUCCESS){
+ 				memcpy(&objIid, &FilterIid, sizeof(objIndex_t));
+Index: libzcfg_fe_dal-1.0/security/URLFilter/zcfg_fe_dal_URLFilter.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/URLFilter/zcfg_fe_dal_URLFilter.c	2019-12-19 14:28:55.901838425 +0800
++++ libzcfg_fe_dal-1.0/security/URLFilter/zcfg_fe_dal_URLFilter.c	2019-12-19 14:35:02.816098177 +0800
+@@ -11,6 +11,14 @@
+ #include "zcfg_msg.h"
+ #include "zcfg_fe_dal_common.h"
+ 
++//#define URL_DEBUG
++
++#ifdef URL_DEBUG
++#define URL_PRINT(format, ...) printf(format, ##__VA_ARGS__)
++#else
++#define URL_PRINT(format, ...)
++#endif
++
+ dal_param_t URL_FILTER_param[]={
+ 	{"Index",				dalType_int,	0,	0,	NULL, NULL, dal_Add|dal_Delete},
+ 	{"Name",			dalType_string,		0,	0,	NULL,	NULL,	dal_Add},
+@@ -202,8 +210,10 @@
+ 			json_object_object_add(URLFilterJobj, "Description", JSON_OBJ_COPY(pramJobjcopy));
+ 			//if(pramJobjcopy) json_object_put(pramJobjcopy);			
+ 		}
++		URL_PRINT("%s: %s\n",__FUNCTION__,json_object_get_string(Jobj));
+ 		objIid.idx[0] = json_object_get_int(json_object_object_get(Jobj, "Index"));
+-		sprintf(path, "X_ZYXEL_URLFilter.%d",json_object_get_int(json_object_object_get(Jobj, "Index")));	
++		sprintf(path, "X_ZYXEL_URLFilter.%lld",json_object_get_int(json_object_object_get(Jobj, "Index")));	
++		URL_PRINT("%s: path=%s, %d\n",__FUNCTION__,path,objIid.idx[0]);
+ 		json_object_object_add(URLFilterJobj, "FilterIndex", json_object_new_string(path));
+ 
+ 		if((ret = zcfgFeObjJsonSet(RDM_OID_U_R_L_FILTER, &objIid, URLFilterJobj, NULL)) != ZCFG_SUCCESS){
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-12-19 14:28:55.793838426 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-12-19 14:28:56.145838423 +0800
+@@ -103,7 +103,11 @@
+ bool Enable;
+ const char* Name;
+ const char* Description;
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++char *Days;
++#else
+ int Days;
++#endif
+ int TimeStartHour;
+ int TimeStartMin;
+ int TimeStopHour;

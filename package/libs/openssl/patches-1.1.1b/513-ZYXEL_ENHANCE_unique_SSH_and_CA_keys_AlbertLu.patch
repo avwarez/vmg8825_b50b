@@ -1,0 +1,17 @@
+Index: openssl-1.1.1b/apps/req.c
+===================================================================
+--- openssl-1.1.1b.orig/apps/req.c	2019-02-26 22:15:30.000000000 +0800
++++ openssl-1.1.1b/apps/req.c	2019-12-03 17:50:27.378430464 +0800
+@@ -738,7 +738,12 @@
+                 /* set default days if it's not specified */
+                 days = 30;
+             }
++/* __ZyXEL__, Albert, 20151118, Auto generate unique SSH & CA keys  */
++#if 1 //ZYXEL_HTTPD_SSL_GENKEY
++            if (!set_cert_times(x509ss, "150101120000Z", "250101120000Z", days))
++#else
+             if (!set_cert_times(x509ss, NULL, NULL, days))
++#endif
+                 goto end;
+             if (!X509_set_subject_name
+                 (x509ss, X509_REQ_get_subject_name(req)))

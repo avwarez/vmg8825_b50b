@@ -1,0 +1,99 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2019-10-03 10:52:59.610802388 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2019-10-03 12:37:37.400128388 +0800
+@@ -1904,6 +1904,8 @@
+ 	bool autoGenMoreSecurePasswd;
+ 	bool wpsEnabled = false;
+ 	bool isMainSSID;
++	int preset_backhaul_count = 0;
++	int TOTAL_INTERFACE_5G_ssid;
+ 
+ 	ssidIndex = json_object_get_int(json_object_object_get(Jobj,"Index"));
+ 	IID_INIT(ssidIid);
+@@ -1977,6 +1979,19 @@
+ 			return ZCFG_SUCCESS;
+ 	}
+ 
++	// get ssid obj
++	IID_INIT(ssidIid);
++	ssidIid.level = 1;
++	for(ssidIid.idx[0] = 1; ssidIid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G); ssidIid.idx[0]++){
++		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &ssidIid, &ssidObj) == ZCFG_SUCCESS) {
++			if(json_object_get_int(json_object_object_get(ssidObj, "X_ZYXEL_Attribute"))) {
++				preset_backhaul_count += 1;
++			}
++		}
++		zcfgFeJsonObjFree(ssidObj);
++	}
++	TOTAL_INTERFACE_5G_ssid = TOTAL_INTERFACE_5G - preset_backhaul_count;
++
+ 	// get parameters
+ 	Index = json_object_get_int(json_object_object_get(Jobj, "Index"));
+ 	isMainSSID = json_object_get_boolean(json_object_object_get(wifiSsidObj, "X_ZYXEL_MainSSID"));
+@@ -1986,11 +2001,7 @@
+ #ifdef ZYXEL_SUPPORT_8021X
+ 	if(Index >= 1 && Index <= TOTAL_INTERFACE_24G)
+ 		wifiWPSIid.idx[0] = 1;
+-#if defined(BUILD_SONIQ) || defined(ZYXEL_EASYMESH)
+-	else if(Index >= (TOTAL_INTERFACE_24G + 1) && Index <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G - 2)) //-2 :exclude MultyPro & EasyMesh
+-#else
+-	else if(Index >= (TOTAL_INTERFACE_24G + 1) && Index <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G))
+-#endif
++	else if(Index >= (TOTAL_INTERFACE_24G + 1) && Index <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G_ssid))
+ 	{
+ 		wifiWPSIid.idx[0] = (TOTAL_INTERFACE_24G + 1);
+ 	}
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wmm.c	2019-10-03 10:52:59.538766387 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c	2019-10-03 12:37:25.538200387 +0800
+@@ -50,10 +50,13 @@
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *paramJobj = NULL;
+ 	struct json_object *obj = NULL;
+-	objIndex_t iid;
++	objIndex_t iid, ssidIid;
+ 	struct json_object *wirelessMode24G = NULL;
+ 	struct json_object *wirelessMode5G = NULL;
+ 	struct json_object *wifiRadioObj = NULL;
++	struct json_object *ssidObj = NULL;
++	int preset_backhaul_count = 0;
++	int TOTAL_INTERFACE_5G_ssid;
+ 
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_RADIO, &iid, &wifiRadioObj) == ZCFG_SUCCESS){
+@@ -65,6 +68,19 @@
+ 		zcfgFeJsonObjFree(wifiRadioObj);
+ 	}
+ 
++	// get ssid obj
++	IID_INIT(ssidIid);
++	ssidIid.level = 1;
++	for(ssidIid.idx[0] = 1; ssidIid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G); ssidIid.idx[0]++){
++		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &ssidIid, &ssidObj) == ZCFG_SUCCESS) {
++			if(json_object_get_int(json_object_object_get(ssidObj, "X_ZYXEL_Attribute"))) {
++				preset_backhaul_count += 1;
++			}
++		}
++		zcfgFeJsonObjFree(ssidObj);
++	}
++	TOTAL_INTERFACE_5G_ssid = TOTAL_INTERFACE_5G - preset_backhaul_count;
++
+ 	IID_INIT(iid);
+ 	int count = 1;
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &iid, &obj) == ZCFG_SUCCESS){
+@@ -75,12 +91,7 @@
+ 		if(iid.idx[0] <= TOTAL_INTERFACE_24G){
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", wirelessMode24G);
+ 		}
+-#if defined(BUILD_SONIQ) || defined(ZYXEL_EASYMESH)
+-		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G - 2)) //-2 :exclude MultyPro & EasyMesh
+-#else
+-		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G))
+-#endif
+-		{
++		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G_ssid)){
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", wirelessMode5G);
+ 		}else{
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", json_object_new_string(""));

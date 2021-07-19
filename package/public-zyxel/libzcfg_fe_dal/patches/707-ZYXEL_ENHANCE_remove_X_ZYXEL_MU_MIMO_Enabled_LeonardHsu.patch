@@ -1,0 +1,45 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_others.c	2019-09-24 09:31:49.795735844 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c	2019-09-24 09:35:40.876137845 +0800
+@@ -44,7 +44,6 @@
+ 	{"atf",							dalType_boolean, 	0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{"InActiveChan",				dalType_string, 	0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{"singleSKU", 					dalType_string, 	0,	0, 	NULL,	NULL,	dalcmd_Forbid},
+-	{"MUMIMO",						dalType_boolean,	0,	0,	NULL,	NULL,	dalcmd_Forbid},
+ 	{NULL,		0,	0,	0,	NULL,	NULL,	0},
+ };
+ 
+@@ -75,7 +74,6 @@
+ int wlDfsPreIsm;
+ int wlTpcDb;
+ int wlDfsPostIsm;
+-bool MUMIMO;
+ const char* OperatingChannelBandwidth;
+ //WiFi AP Sec
+ const char* wlPmf;
+@@ -196,7 +194,6 @@
+ 	json_object_object_add(pramJobj, "wlPreamble", JSON_OBJ_COPY(json_object_object_get(RadioObj, "X_ZYXEL_Preamble")));
+ 	json_object_object_add(pramJobj, "InActiveChan", JSON_OBJ_COPY(json_object_object_get(RadioObj, "X_ZYXEL_InActiveChannels")));
+ 	json_object_object_add(pramJobj, "atf", JSON_OBJ_COPY(json_object_object_get(RadioObj, "X_ZYXEL_AirtimeFairness")));
+-	json_object_object_add(pramJobj, "MUMIMO", JSON_OBJ_COPY(json_object_object_get(RadioObj, "X_ZYXEL_MU_MIMO_Enabled")));
+ 
+ 	enablePMF = json_object_get_boolean(json_object_object_get(APSecObj, "EnableManagementFrameProtection"));
+ 	pmfMethod = json_object_get_int(json_object_object_get(APSecObj, "X_ZYXEL_PmfMethod"));
+@@ -271,7 +268,6 @@
+ 	atf = json_object_get_boolean(json_object_object_get(Jobj, "atf"));
+ 	InActiveChan = json_object_get_string(json_object_object_get(Jobj, "InActiveChan"));
+ 	singleSKU = json_object_get_string(json_object_object_get(Jobj, "singleSKU"));
+-	MUMIMO = json_object_get_boolean(json_object_object_get(Jobj, "MUMIMO"));
+ 	
+ 	return;
+ }
+@@ -342,8 +338,6 @@
+ 	//	json_object_object_add(wifiRadioOthersObj, "X_ZYXEL_RIFS_Advertisement", json_object_new_boolean(true));
+ 	if(json_object_object_get(Jobj, "wlFrameburst"))
+ 		json_object_object_add(wifiRadioOthersObj, "X_ZYXEL_Frameburst", json_object_new_boolean(wlFrameburst));
+-	if(json_object_object_get(Jobj, "MUMIMO"))
+-		json_object_object_add(wifiRadioOthersObj, "X_ZYXEL_MU_MIMO_Enabled", json_object_new_boolean(MUMIMO));
+ 	//json_object_object_add(wifiRadioOthersObj, "X_ZYXEL_OBSS_coex", json_object_new_boolean(wlObssCox));
+ 	tmpOperatingFrequencyBand = json_object_object_get(wifiRadioOthersObj, "OperatingFrequencyBand");
+ 	if(!strcmp(tmpOperatingFrequencyBand,"5GHz"))

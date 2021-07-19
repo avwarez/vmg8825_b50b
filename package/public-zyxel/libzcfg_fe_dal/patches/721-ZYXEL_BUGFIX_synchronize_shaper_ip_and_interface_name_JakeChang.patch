@@ -1,0 +1,21 @@
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosShaper.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosShaper.c	2019-11-25 18:41:08.484343868 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosShaper.c	2019-11-25 19:07:40.202935100 +0800
+@@ -255,6 +255,7 @@
+     objIndex_t lanIid;
+     const char *Interface;
+     const char *newInt;
++    char ipIntfPath[32] = {0};
+     int count = 1;
+     int idx = -1;
+ 
+@@ -282,6 +283,8 @@
+                         {
+                             if (!strcmp(Interface, json_object_get_string(tmpObj)))
+                             {
++                                snprintf(ipIntfPath, sizeof(ipIntfPath), "IP.Interface.%d", wanIid.idx[0]);
++                                Interface = ipIntfPath;
+                                 break;
+                             }
+                         }

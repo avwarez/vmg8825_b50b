@@ -1,0 +1,88 @@
+Index: wide-dhcpv6-20080615/common.h
+===================================================================
+--- wide-dhcpv6-20080615.orig/common.h	2020-06-01 14:31:26.084200693 +0800
++++ wide-dhcpv6-20080615/common.h	2020-06-01 14:47:21.197911146 +0800
+@@ -153,6 +153,10 @@
+ 	int option_tag[16];
+ 	char option_value[16][257];
+ 	int option_idx;
++#ifdef WIND_Greece_DHCPv6_Client_NTP_Option
++	char ntpserver[128];
++	int eidtNtpServer;
++#endif
+ };
+ 
+ struct dhcp6s_Msg {
+Index: wide-dhcpv6-20080615/dhcp6c.c
+===================================================================
+--- wide-dhcpv6-20080615.orig/dhcp6c.c	2020-06-01 14:31:26.100200694 +0800
++++ wide-dhcpv6-20080615/dhcp6c.c	2020-06-01 14:51:05.375965122 +0800
+@@ -312,6 +312,10 @@
+ 		json_object_object_add(dhcp6cMsgBody, "nameserver", json_object_new_string(dhcp6cMsg.nameserver));
+ 	if(dhcp6cMsg.eidtDomain)
+ 		json_object_object_add(dhcp6cMsgBody, "domainName", json_object_new_string(dhcp6cMsg.domainName));
++#ifdef WIND_Greece_DHCPv6_Client_NTP_Option
++	if(dhcp6cMsg.eidtNtpServer)
++		json_object_object_add(dhcp6cMsgBody, "ntpserver", json_object_new_string(dhcp6cMsg.ntpserver));
++#endif
+ 	if(dhcp6cMsg.mapeAssigned)
+ 		json_object_object_add(dhcp6cMsgBody, "mapeAssigned", json_object_new_boolean(dhcp6cMsg.mapeAssigned));
+ 	if(dhcp6cMsg.maptAssigned)
+@@ -2611,6 +2615,9 @@
+ 			info_printf("NTP server[%d] %s",
+ 			    i, in6addr2str(&d->val_addr6, 0));
+ 		}
++#ifdef WIND_Greece_DHCPv6_Client_NTP_Option
++		dhcp6sConfNtpListUpdate(optinfo);
++#endif
+ 	}
+ 
+ 	if (!TAILQ_EMPTY(&optinfo->sip_list)) {
+@@ -3368,6 +3375,47 @@
+ 	return 0;
+ } /* addMapInfoToMsg */
+ 
++#ifdef WIND_Greece_DHCPv6_Client_NTP_Option
++int dhcp6sConfNtpListUpdate(struct dhcp6_optinfo *opt)
++{
++	struct dhcp6_listval *d;
++	char ntpserver[128] = {0};
++	int maxlen = sizeof(ntpserver);
++	int n;
++
++	dprintf(LOG_ERR, FNAME, "%s : Enter\n", __FUNCTION__);
++
++	d = TAILQ_FIRST(&opt->ntp_list);
++	if(d != NULL) {
++		snprintf(ntpserver, maxlen-1, "%s", in6addr2str(&d->val_addr6, 0));
++
++		d = TAILQ_NEXT(d, link);
++		if (d != NULL) {
++			n = maxlen - strlen(ntpserver) - 1;
++			strncat(ntpserver, ",", n);
++			
++			n = maxlen - strlen(ntpserver) - 1;
++			strncat(ntpserver, in6addr2str(&d->val_addr6, 0), n);
++		}
++	}
++	
++	addNtpInfoToMsg(ntpserver);
++
++	return 0;
++}
++
++void addNtpInfoToMsg(const char *ntpserver)
++{
++	if(ntpserver && ntpserver[0] != '\0') {
++		dhcp6cMsg.eidtNtpServer = true;
++		strcpy(dhcp6cMsg.ntpserver, ntpserver);
++		//json_object_object_add(dhcp6cMsg, "ntpserver", json_object_new_string(ntpserver));
++	}
++
++	return;
++}
++#endif
++
+ void dhcp6_lifetime_timeout()
+ {
+ 	struct json_object *dhcp6cJsonMsg = NULL;

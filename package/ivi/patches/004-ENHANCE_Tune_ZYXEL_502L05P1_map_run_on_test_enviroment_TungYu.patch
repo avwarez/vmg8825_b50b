@@ -1,0 +1,179 @@
+Index: ivi-1.0/ivi_xmit.c
+===================================================================
+--- ivi-1.0.orig/ivi_xmit.c	2019-12-27 02:46:30.265363260 +0000
++++ ivi-1.0/ivi_xmit.c	2019-12-27 02:59:04.217356069 +0000
+@@ -105,7 +105,8 @@
+ 			printk(KERN_DEBUG "ipaddr_4to6: failed to map v4 addr " NIP4_FMT "\n", NIP4(addr));
+ 			return -1;
+ 		}
+-		
++
++printk(KERN_ERR "lookupv6=" NIP6_FMT " prefixlen=%d \n", NIP6(*v6addr), prefixlen);//Tung
+ 		// when *transpt is set to MAP_E, an /128 IPv6 destination address is used in encapsulation header.
+ 		if (*transpt == MAP_E) 
+ 			return 0;
+@@ -174,6 +175,7 @@
+  				o -= 8;
+   			}
+ 
++#if 0 //Tung
+   			v6addr->s6_addr[8] = 0x00;
+   			v6addr->s6_addr[9] = 0x00;
+ 			v6addr->s6_addr[10] = (unsigned char)(addr >> 24);
+@@ -182,6 +184,15 @@
+ 			v6addr->s6_addr[13] = (unsigned char)(addr & 0xff);
+ 			v6addr->s6_addr[14] = (suffix >> 8) & 0xff;
+ 			v6addr->s6_addr[15] = suffix & 0xff;
++#else
++  			v6addr->s6_addr[8] = 0x00;
++			v6addr->s6_addr[9] = (unsigned char)(addr >> 24);
++			v6addr->s6_addr[10] = (unsigned char)((addr >> 16) & 0xff);
++			v6addr->s6_addr[11] = (unsigned char)((addr >> 8) & 0xff);
++			v6addr->s6_addr[12] = (unsigned char)(addr & 0xff);
++			v6addr->s6_addr[13] = (suffix >> 8) & 0xff;
++			v6addr->s6_addr[14] = suffix & 0xff;
++#endif
+ 		} else {
+ #ifdef IVI_DEBUG_RULE
+ 			printk(KERN_DEBUG "ipaddr_4to6: cannot map v4 addr " NIP4_FMT \
+@@ -267,11 +278,18 @@
+ 		return -1;
+ 	}
+ 	
+-	if (_dir == ADDR_DIR_DST) {		
++	if (_dir == ADDR_DIR_DST) {
++#if 0 //Tung
+ 		addr |= ((unsigned int)v6addr->s6_addr[10]) << 24;
+ 		addr |= ((unsigned int)v6addr->s6_addr[11]) << 16;
+ 		addr |= ((unsigned int)v6addr->s6_addr[12]) << 8;
+ 		addr |= ((unsigned int)v6addr->s6_addr[13]);
++#else
++		addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
++		addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
++		addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
++		addr |= ((unsigned int)v6addr->s6_addr[12]);
++#endif
+ 		*v4addr = htonl(addr);
+ 
+ 		// Do not translate native IPv6 address
+@@ -369,10 +387,17 @@
+ 	u32 addr = 0;
+ 
+ 	// Caller is responsible for providing IPv6 destination address
++#if 0 //Tung
+ 	addr |= ((unsigned int)v6addr->s6_addr[10]) << 24;
+ 	addr |= ((unsigned int)v6addr->s6_addr[11]) << 16;
+ 	addr |= ((unsigned int)v6addr->s6_addr[12]) << 8;
+ 	addr |= ((unsigned int)v6addr->s6_addr[13]);
++#else
++	addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
++	addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
++	addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
++	addr |= ((unsigned int)v6addr->s6_addr[12]);
++#endif
+ 
+ 	return (ivi_mode == IVI_MODE_HGW ? (addr & v4mask) != (v4address & v4mask) : (addr & v4publicmask) != (v4publicaddr & v4publicmask));
+ }
+@@ -617,7 +642,11 @@
+ 				}
+ 			}
+ 			
++#if 1 //Tung NAT44
+ 			if (ivi_mode == IVI_MODE_HGW && ntohs(tcph->source) < 1024) {
++#else
++			if (((ivi_mode == IVI_MODE_HGW) || (ivi_mode == IVI_MODE_HGW_NAT44)) && ntohs(tcph->dest) < 1024) {
++#endif
+ 				newp = ntohs(tcph->source);
+ 			}
+ 			
+@@ -653,7 +682,11 @@
+ 			if (udph->check == 0) 
+ 				flag_udp_nullcheck = 1;
+ 			
++#if 1 //Tung NAT44
+ 			if (ivi_mode == IVI_MODE_HGW && ntohs(udph->source) < 1024) {
++#else
++			if (((ivi_mode == IVI_MODE_HGW) || (ivi_mode == IVI_MODE_HGW_NAT44)) && ntohs(udph->dest) < 1024) {
++#endif
+ 				newp = ntohs(udph->source);
+ 			}
+ 			
+@@ -1028,6 +1061,10 @@
+ #if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
+ 		blog_xfer(newskb, skb);
+ #endif
++#if 1 //Tung
++printk(KERN_ERR "ivi_v4v6_xmit: v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
++			\n", NIP6(ip6h->saddr), NIP6(ip6h->daddr), NIP4(ip4h->saddr), NIP4(ip4h->daddr));
++#endif
+ 
+ 	netif_rx(newskb);
+ 	return 0;
+@@ -1208,7 +1245,11 @@
+ 					return 0;
+ 				}
+ 				
++#if 0 //Tung NAT44
+ 				if (ivi_mode == IVI_MODE_HGW && ntohs(tcph->dest) < 1024) {
++#else
++				if (((ivi_mode == IVI_MODE_HGW) || (ivi_mode == IVI_MODE_HGW_NAT44)) && ntohs(tcph->dest) < 1024) {
++#endif
+ 					oldaddr = ntohl(ip4h->daddr);
+ 					oldp = ntohs(tcph->dest);
+ 				}
+@@ -1255,7 +1296,11 @@
+ 					return 0;
+ 				}
+ 				
++#if 0 //Tung NAT44
+ 				if (ivi_mode == IVI_MODE_HGW && ntohs(udph->dest) < 1024) {
++#else
++				if (((ivi_mode == IVI_MODE_HGW) || (ivi_mode == IVI_MODE_HGW_NAT44)) && ntohs(udph->dest) < 1024) {
++#endif
+ 					oldaddr = ntohl(ip4h->daddr);
+ 					oldp = ntohs(udph->dest);
+ 				}
+@@ -1387,6 +1432,8 @@
+ 			return -EINVAL;  // Just accept.
+ 		}
+ 
++printk(KERN_ERR "after Tran v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
++			\n", NIP6(ip6h->saddr), NIP6(ip6h->daddr), NIP4(ip4h->saddr), NIP4(ip4h->daddr));
+ 		*(__u16 *)ip4h = __constant_htons(0x4500);
+ 		ip4h->tot_len = htons(hlen + plen);
+ 		
+@@ -1436,7 +1483,11 @@
+ 					return 0;
+ 				}
+ 				
++#if 0 //Tung NAT44
+ 				if (ivi_mode == IVI_MODE_HGW && ntohs(tcph->dest) < 1024) {
++#else
++				if (((ivi_mode == IVI_MODE_HGW) || (ivi_mode == IVI_MODE_HGW_NAT44)) && ntohs(tcph->dest) < 1024) {
++#endif
+ 					oldaddr = ntohl(ip4h->daddr);
+ 					oldp = ntohs(tcph->dest);
+ 				}
+@@ -1519,7 +1570,11 @@
+ 					return 0;
+ 				}
+ 					
++#if 0 //Tung NAT44
+ 				if (ivi_mode == IVI_MODE_HGW && ntohs(udph->dest) < 1024) {
++#else
++				if (((ivi_mode == IVI_MODE_HGW) || (ivi_mode == IVI_MODE_HGW_NAT44)) && ntohs(udph->dest) < 1024) {
++#endif
+ 					oldaddr = ntohl(ip4h->daddr);
+ 					oldp = ntohs(udph->dest);
+ 				}
+@@ -1751,6 +1806,10 @@
+ 		blog_xfer(newskb, skb);
+ #endif
+  
++#if 1 //Tung
++printk(KERN_ERR "ivi_v6v4_xmit: v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
++			\n", NIP6(ip6h->saddr), NIP6(ip6h->daddr), NIP4(ip4h->saddr), NIP4(ip4h->daddr));
++#endif
+ 	netif_rx(newskb);
+ 
+ 	if (!frag_icmpv6)

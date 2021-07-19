@@ -1,0 +1,36 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-06-11 09:44:55.067324666 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-06-11 19:23:16.718230367 +0800
+@@ -576,10 +576,14 @@
+ 
+ 	MaxAssociatedDevices_ori = json_object_get_int(json_object_object_get(APObj, "MaxAssociatedDevices"));
+ 	wlHide_ori = json_object_get_boolean(json_object_object_get(APObj, "SSIDAdvertisementEnabled"));
++	if(wlEnableGuest){
+ 		if(json_object_get_boolean(json_object_object_get(APObj, "IsolationEnable")))
+ 			wlGwMode_ori = "0";
+ 		else
+ 			wlGwMode_ori = "1";
++	}
++	else
++		wlGwMode_ori = "0";
+ 	wlEnableGuest_ori = json_object_get_boolean(json_object_object_get(APObj, "X_ZYXEL_BssIdIsolation"));
+ 	psk_value_ori = json_object_get_string(json_object_object_get(APSecObj, "KeyPassphrase"));
+ 	RekeyingInterval_ori = json_object_get_int(json_object_object_get(APSecObj, "RekeyingInterval"));
+@@ -626,6 +630,7 @@
+ 			(MaxAssociatedDevices_ori == MaxAssociatedDevices) && (wlHide != wlHide_ori)
+ 			&& !strcmp(psk_value,psk_value_ori) && (RekeyingInterval == RekeyingInterval_ori) &&
+ 			(secMode == Secmode_ori) && !strcmp(modeEn_ori, modeEn) && !strcmp(encryp_ori, encryp)
++			&& (X_ZYXEL_Multicast_Fwd_ori == X_ZYXEL_Multicast_Fwd)
+ #ifdef ZYXEL_ONESSID
+ 			&& (oneSsidEnable_ori == oneSsidEnable)
+ #endif
+@@ -638,7 +643,7 @@
+ 		if ( !strcmp(SSID_ori,SSID) && (upRate_ori == upRate) && (downRate == downRate_ori) &&
+ 			(wlEnable == wlEnable_ori) && (wlHide != wlHide_ori) && !strcmp(psk_value,psk_value_ori)
+ 			&& !strcmp(wlGwMode,wlGwMode_ori) && (wlEnableGuest == wlEnableGuest_ori) &&
+-			!strcmp(modeEn_ori, modeEn) && !strcmp(encryp_ori, encryp)) {
++			!strcmp(modeEn_ori, modeEn) && !strcmp(encryp_ori, encryp) && (RekeyingInterval == RekeyingInterval_ori)) {
+ 			*apply = false;
+ 			goto compare_done;
+ 		}

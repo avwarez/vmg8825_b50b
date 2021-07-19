@@ -1,0 +1,236 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-12-30 14:52:53.331637502 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-12-30 14:52:53.463569842 +0800
+@@ -125,6 +125,10 @@
+ CFLAGS += -DZyXEL_WEB_GUI_SINGLE_IGMP_MLD
+ endif
+ 
++ifeq ($(CONFIG_ZyXEL_WEB_GUI_SHOW_GPON_STATUS),y)
++CFLAGS += -DZyXEL_WEB_GUI_SHOW_GPON_STATUS
++endif
++
+ ifeq ($(CONFIG_ZYXEL_VDSL_Support_30A),y)
+ CFLAGS += -DZYXEL_VDSL_Support_30A
+ endif
+@@ -348,11 +352,43 @@
+ CFLAGS += -DZCFG_EMG6726_B10A_Generic
+ endif
+ 
++ifeq ($(CONFIG_PACKAGE_zywifid),y)
++CFLAGS += -DBUILD_PACKAGE_zywifid
++endif
++
++ifeq ($(CONFIG_PACKAGE_net-snmp),y)
++CFLAGS += -DBUILD_PACKAGE_net-snmp
++endif
++
+ # zupnp
+ ifeq ($(CONFIG_PACKAGE_zupnp),y)
+ CFLAGS += -DCONFIG_PACKAGE_zupnp
+ endif
+ 
++ifeq ($(CONFIG_PACKAGE_mailsend),y)
++CFLAGS += -DBUILD_PACKAGE_mailsend
++endif
++
++ifeq ($(CONFIG_PACKAGE_kmod-usb-core),y)
++CFLAGS += -DBUILD_PACKAGE_kmod-usb-core
++endif
++
++ifeq ($(CONFIG_PACKAGE_wwan),y)
++CFLAGS += -DBUILD_PACKAGE_wwan
++endif
++
++ifeq ($(CONFIG_ZYXEL_ONECONNECT),y)
++CFLAGS += -DZYXEL_ONECONNECT
++endif
++
++ifeq ($(CONFIG_ABQA_CUSTOMIZATION),y)
++CFLAGS += -DABQA_CUSTOMIZATION
++endif
++
++ifeq ($(ZYXEL_SUPPORT_ETHWAN_AS_LAN),y)
++CFLAGS += -DZYXEL_SUPPORT_ETHWAN_AS_LAN
++endif
++
+ # miniupnpd
+ ifeq ($(CONFIG_PACKAGE_miniupnpd),y)
+ CFLAGS += -DMINIUPNPD
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2019-12-30 14:52:53.439582144 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2019-12-30 14:53:38.043534075 +0800
+@@ -786,12 +786,13 @@
+     strcpy(WanRate_TX, "-1");
+ #endif
+ 	}
+-
++#ifdef ZyXEL_WEB_GUI_SHOW_WWAN
+ 	wwanBackupJarray = json_object_new_array();
+ 	IID_INIT(iid);
+ 	if(zcfgFeObjJsonGet(RDM_OID_ZY_W_W_A_N_BACKUP, &iid, &wwanBackupObj) == ZCFG_SUCCESS) {
+ 		json_object_array_add(wwanBackupJarray, wwanBackupObj);
+ 	}
++#endif
+ 
+ #ifdef ZYXEL_GUIVUE_USB_INFO_SHOW_SYSINFO
+ 	usbHostDevParJarray = json_object_new_array();
+@@ -803,19 +804,18 @@
+ 		json_object_array_add(usbHostDevParJarray, usbHostDevParObj);
+ 	}
+ #endif
+-
+ 	IID_INIT(iid);
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_GPON_INFO, &iid, &gponstatusObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalStatusGetFail;
+-
+ 	IID_INIT(iid);
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_ONU, &iid, &gponObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalStatusGetFail;
+-
++#ifdef ZyXEL_WEB_GUI_SHOW_WWAN
+ 	IID_INIT(iid);
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_ZY_W_W_A_N_STAT, &iid, &wwanObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalStatusGetFail;
+-
++#endif
++#if BUILD_PACKAGE_ZyIMS
+ 	voipProfJarray = json_object_new_array();
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_VOICE_PROF, &iid, &voipProfObj) == ZCFG_SUCCESS) {
+@@ -837,7 +837,7 @@
+ 		Jaddi(voipLineObj, "idx2", iid.idx[2]);
+ 		json_object_array_add(voipLineJarray, voipLineObj);
+ 	}
+-
++#endif
+     if (zyUtil_is_sfp_present() != 0)
+     {
+         json_object_object_add(gponstatusObj, "sfp_presence",json_object_new_boolean(true));
+@@ -854,8 +854,9 @@
+     {
+         json_object_object_add(gponstatusObj, "bosa_presence",json_object_new_boolean(false));
+     }
+-
++#ifdef BUILD_PACKAGE_zywifid
+ 	getWifiInfo(&ssidJarray);
++#endif
+ 	getWanLanList_ext(&wanLanJarray);
+ 	
+ 	statusJobj = json_object_new_object();
+@@ -864,20 +865,26 @@
+ 	json_object_object_add(statusJobj, "SystemInfo", sysInfoObj);
+ 	json_object_object_add(statusJobj, "FirewallInfo", firewallInfoObj);
+ 	json_object_object_add(statusJobj, "LanPortInfo", ethIfaceJarray);
++#ifdef BUILD_PACKAGE_zywifid
+ 	json_object_object_add(statusJobj, "WiFiInfo", ssidJarray);
++#endif
+ 	json_object_object_add(statusJobj, "WanLanInfo", wanLanJarray);
+ 	json_object_object_add(statusJobj, "DslChannelInfo", dslChannelJarray);
+ 	json_object_object_add(statusJobj, "OptIntfInfo", optIntfJarray);
++#ifdef ZyXEL_WEB_GUI_SHOW_WWAN
+ 	json_object_object_add(statusJobj, "WWANBackupInfo", wwanBackupJarray);
++	json_object_object_add(statusJobj, "WWANStatsInfo", wwanObj);
++#endif
+ #ifdef ZYXEL_GUIVUE_USB_INFO_SHOW_SYSINFO
+ 	json_object_object_add(statusJobj, "USBStatsInfo", usbHostDevParJarray);
+ #endif	
+ 	json_object_object_add(statusJobj, "GponStatsInfo", gponstatusObj);
+ 	json_object_object_add(statusJobj, "GponInfo", gponObj);
+-	json_object_object_add(statusJobj, "WWANStatsInfo", wwanObj);
++#if BUILD_PACKAGE_ZyIMS
+ 	json_object_object_add(statusJobj, "VoipProfInfo", voipProfJarray);
+ 	json_object_object_add(statusJobj, "VoipProfSIPInfo", voipProSIPfJarray);
+ 	json_object_object_add(statusJobj, "VoipLineInfo", voipLineJarray);
++#endif
+     Jadds (statusJobj, "WanType", WanType);
+     Jadds (statusJobj, "WanRate_RX", WanRate_RX);
+     Jadds (statusJobj, "WanRate_TX", WanRate_TX);
+@@ -939,22 +946,20 @@
+ 	iid.idx[0] = 1;
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_DHCPV4_SRV_POOL, &iid, &dhcpv4SerObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalCardPageStatusGetFail;
+-
++#ifdef ZyXEL_WEB_GUI_SHOW_WWAN
+ 	IID_INIT(iid);
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_ZY_W_W_A_N_BACKUP, &iid, &wwanBackupObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalCardPageStatusGetFail;
+-
+ 	IID_INIT(iid);
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_ZY_W_W_A_N_STAT, &iid, &wwanObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalCardPageStatusGetFail;
+-
++	Jadds(devInfoObj, "PackageVersion", json_object_get_string (json_object_object_get(wwanBackupObj, "PackageVersion")));
++    zcfgFeJsonObjFree(wwanBackupObj);
++#endif
+ 	IID_INIT(iid);
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_GPON_INFO, &iid, &gponstatusObj)) != ZCFG_SUCCESS)
+ 		goto zcfgFeDalCardPageStatusGetFail;
+ 
+-	Jadds(devInfoObj, "PackageVersion", json_object_get_string (json_object_object_get(wwanBackupObj, "PackageVersion")));
+-    zcfgFeJsonObjFree(wwanBackupObj);
+-
+ 	ethIfaceJarray = json_object_new_array();
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_ETH_IFACE, &iid, &ethwanIfaceObj) == ZCFG_SUCCESS) {
+@@ -1038,13 +1043,14 @@
+ 		Jaddb (ethnewObj, "ethPortExist", ethPortExist);
+ 		zcfgFeJsonObjFree (ethIfaceObj);
+ 	}
+-
++#ifndef ABQA_CUSTOMIZATION
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_PAREN_CTL_PROF, &iid, &partctlObj) == ZCFG_SUCCESS){
+ 		count++;
+ 		zcfgFeJsonObjFree(partctlObj);		
+ 	}
+-
++#endif
++#ifdef BUILD_PACKAGE_zywifid
+ 	getWifiInfo(&ssidJarray);
+ 	//Just GET Main SSID object to GUI
+ 	newssidJarray = json_object_new_array();
+@@ -1092,22 +1098,30 @@
+ 			GuestSSIDEnable = true;
+ 		}
+ 	}
+-
++#endif
+ 	getWanLanList_ext(&wanLanJarray);
+ 	statusJobj = json_object_new_object();
+ 	json_object_array_add(Jarray, statusJobj);
+ 	json_object_object_add(statusJobj, "WanLanInfo", wanLanJarray);
+ 	json_object_object_add(statusJobj, "DeviceInfo", devInfoObj);
+ 	json_object_object_add(statusJobj, "LanPortInfo", ethnewObj);
++#ifdef BUILD_PACKAGE_zywifid
+ 	json_object_object_add(statusJobj, "WiFiInfo", newssidJarray);
++#endif
+ 	json_object_object_add(statusJobj, "Dhcp4SerPoolInfo", dhcpv4SerObj);
++#ifdef ZyXEL_WEB_GUI_SHOW_WWAN
+ 	json_object_object_add(statusJobj, "WWANStatsInfo", wwanObj);
++#endif
+ 	json_object_object_add(statusJobj, "LanInfo", ethIfaceJarray);
+ 	json_object_object_add(statusJobj, "DslChannelInfo", dslChannelJarray);	
+     json_object_object_add(statusJobj, "OptIntfInfo", optIntfJarray);
+ 	json_object_object_add(statusJobj, "GponStatsInfo", gponstatusObj);
++#ifndef ABQA_CUSTOMIZATION
+ 	Jaddi(statusJobj,"partctlNum",count);
++#endif
++#ifdef BUILD_PACKAGE_zywifid
+ 	Jaddb(statusJobj,"GuestSSIDEnable",GuestSSIDEnable);
++#endif
+     Jadds (statusJobj, "WanType", WanType);
+     Jadds (statusJobj, "WanRate_RX", WanRate_RX);
+     Jadds (statusJobj, "WanRate_TX", WanRate_TX);
+@@ -1117,8 +1131,10 @@
+ zcfgFeDalCardPageStatusGetFail:	
+ 	json_object_put(devInfoObj);
+ 	json_object_put(dhcpv4SerObj);
++#ifdef ZyXEL_WEB_GUI_SHOW_WWAN
+ 	json_object_put(wwanBackupObj);	
+ 	json_object_put(wwanObj);
++#endif
+ 	json_object_put(gponstatusObj);
+ 	return ret;
+ }

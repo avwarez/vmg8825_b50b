@@ -1,0 +1,117 @@
+Index: ivi-1.0/ivi_xmit.c
+===================================================================
+--- ivi-1.0.orig/ivi_xmit.c	2020-01-17 07:45:36.414841091 +0000
++++ ivi-1.0/ivi_xmit.c	2020-01-17 07:50:00.954838568 +0000
+@@ -106,7 +106,6 @@
+ 			return -1;
+ 		}
+ 
+-printk(KERN_ERR "lookupv6=" NIP6_FMT " prefixlen=%d \n", NIP6(*v6addr), prefixlen);//Tung
+ 		// when *transpt is set to MAP_E, an /128 IPv6 destination address is used in encapsulation header.
+ 		if (*transpt == MAP_E) 
+ 			return 0;
+@@ -175,7 +174,6 @@
+  				o -= 8;
+   			}
+ 
+-#if 0 //Tung
+   			v6addr->s6_addr[8] = 0x00;
+   			v6addr->s6_addr[9] = 0x00;
+ 			v6addr->s6_addr[10] = (unsigned char)(addr >> 24);
+@@ -184,15 +182,6 @@
+ 			v6addr->s6_addr[13] = (unsigned char)(addr & 0xff);
+ 			v6addr->s6_addr[14] = (suffix >> 8) & 0xff;
+ 			v6addr->s6_addr[15] = suffix & 0xff;
+-#else
+-  			v6addr->s6_addr[8] = 0x00;
+-			v6addr->s6_addr[9] = (unsigned char)(addr >> 24);
+-			v6addr->s6_addr[10] = (unsigned char)((addr >> 16) & 0xff);
+-			v6addr->s6_addr[11] = (unsigned char)((addr >> 8) & 0xff);
+-			v6addr->s6_addr[12] = (unsigned char)(addr & 0xff);
+-			v6addr->s6_addr[13] = (suffix >> 8) & 0xff;
+-			v6addr->s6_addr[14] = suffix & 0xff;
+-#endif
+ 		} else {
+ #ifdef IVI_DEBUG_RULE
+ 			printk(KERN_DEBUG "ipaddr_4to6: cannot map v4 addr " NIP4_FMT \
+@@ -249,7 +238,9 @@
+ 			break;
+ 		}
+ 	}
+-
++#ifdef IVI_DEBUG //TungYu
++		printk(KERN_INFO"%s: fmt=%d " NIP6_FMT " prefixlen=%d " NIP4_FMT " \n", __FUNCTION__, fmt, NIP6(*v6addr), prefixlen, NIP4(addr));
++#endif
+ 	return 0;
+ }
+ 
+@@ -279,17 +270,10 @@
+ 	}
+ 	
+ 	if (_dir == ADDR_DIR_DST) {
+-#if 0 //Tung
+ 		addr |= ((unsigned int)v6addr->s6_addr[10]) << 24;
+ 		addr |= ((unsigned int)v6addr->s6_addr[11]) << 16;
+ 		addr |= ((unsigned int)v6addr->s6_addr[12]) << 8;
+ 		addr |= ((unsigned int)v6addr->s6_addr[13]);
+-#else
+-		addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
+-		addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
+-		addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
+-		addr |= ((unsigned int)v6addr->s6_addr[12]);
+-#endif
+ 		*v4addr = htonl(addr);
+ 
+ 		// Do not translate native IPv6 address
+@@ -387,17 +371,10 @@
+ 	u32 addr = 0;
+ 
+ 	// Caller is responsible for providing IPv6 destination address
+-#if 0 //Tung
+ 	addr |= ((unsigned int)v6addr->s6_addr[10]) << 24;
+ 	addr |= ((unsigned int)v6addr->s6_addr[11]) << 16;
+ 	addr |= ((unsigned int)v6addr->s6_addr[12]) << 8;
+ 	addr |= ((unsigned int)v6addr->s6_addr[13]);
+-#else
+-	addr |= ((unsigned int)v6addr->s6_addr[9]) << 24;
+-	addr |= ((unsigned int)v6addr->s6_addr[10]) << 16;
+-	addr |= ((unsigned int)v6addr->s6_addr[11]) << 8;
+-	addr |= ((unsigned int)v6addr->s6_addr[12]);
+-#endif
+ 
+ 	return (ivi_mode == IVI_MODE_HGW ? (addr & v4mask) != (v4address & v4mask) : (addr & v4publicmask) != (v4publicaddr & v4publicmask));
+ }
+@@ -1061,8 +1038,8 @@
+ #if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG)
+ 		blog_xfer(newskb, skb);
+ #endif
+-#if 1 //Tung
+-printk(KERN_ERR "ivi_v4v6_xmit: v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
++#ifdef IVI_DEBUG //TungYu
++		printk(KERN_INFO "ivi_v4v6_xmit: v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
+ 			\n", NIP6(ip6h->saddr), NIP6(ip6h->daddr), NIP4(ip4h->saddr), NIP4(ip4h->daddr));
+ #endif
+ 
+@@ -1432,8 +1409,10 @@
+ 			return -EINVAL;  // Just accept.
+ 		}
+ 
+-printk(KERN_ERR "after Tran v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
++#ifdef IVI_DEBUG //TungYu
++		printk(KERN_INFO "after Tran v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
+ 			\n", NIP6(ip6h->saddr), NIP6(ip6h->daddr), NIP4(ip4h->saddr), NIP4(ip4h->daddr));
++#endif
+ 		*(__u16 *)ip4h = __constant_htons(0x4500);
+ 		ip4h->tot_len = htons(hlen + plen);
+ 		
+@@ -1806,8 +1785,8 @@
+ 		blog_xfer(newskb, skb);
+ #endif
+  
+-#if 1 //Tung
+-printk(KERN_ERR "ivi_v6v4_xmit: v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
++#ifdef IVI_DEBUG //TungYu
++		printk(KERN_INFO "ivi_v6v4_xmit: v6_src " NIP6_FMT " !!! v6_dst " NIP6_FMT " ~~ v4_src " NIP4_FMT " !!! v4_dst " NIP4_FMT "\
+ 			\n", NIP6(ip6h->saddr), NIP6(ip6h->daddr), NIP4(ip4h->saddr), NIP4(ip4h->daddr));
+ #endif
+ 	netif_rx(newskb);

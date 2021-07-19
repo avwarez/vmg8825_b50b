@@ -1,0 +1,266 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-12-20 11:03:34.621686057 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-12-20 11:05:46.527357300 +0800
+@@ -389,6 +389,11 @@
+ CFLAGS += -DZYXEL_SUPPORT_ETHWAN_AS_LAN
+ endif
+ 
++#Ethernet UNI feature
++ifeq ($(CONFIG_ZYXEL_WEB_GUI_ETH_UNI),y)
++CFLAGS += -DZYXEL_WEB_GUI_ETH_UNI
++endif
++
+ # miniupnpd
+ ifeq ($(CONFIG_PACKAGE_miniupnpd),y)
+ CFLAGS += -DMINIUPNPD
+Index: libzcfg_fe_dal-1.0/maintenance/logsetting/zcfg_fe_dal_log_setting.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/logsetting/zcfg_fe_dal_log_setting.c	2019-12-20 11:03:30.749686169 +0800
++++ libzcfg_fe_dal-1.0/maintenance/logsetting/zcfg_fe_dal_log_setting.c	2019-12-20 11:05:59.252696300 +0800
+@@ -38,6 +38,9 @@
+ 	{"System",								dalType_boolean,0,	0,	NULL},
+ 	{"xDSL",								dalType_boolean,0,	0,	NULL},
+ 	{"ACL",									dalType_boolean,0,	0,	NULL},
++#ifdef ZYXEL_SHOW_ETH_UNI
++	{"UNI",									dalType_boolean,0,	0,	NULL},
++#endif
+ 	{"Wireless",							dalType_boolean,0,	0,	NULL},
+     {"OMCI",							    dalType_boolean,0,	0,	NULL},
+ 	{"Voice",								dalType_boolean,0,	0,	NULL},
+@@ -678,6 +681,19 @@
+ 			zcfgFeJsonObjFree(categoryObj);
+ 		}
+ 	}
++#ifdef ZYXEL_WEB_GUI_ETH_UNI
++	IID_INIT(categoryIid);
++	if(json_object_object_get(Jobj, "UNI")){
++		while(zcfgFeObjJsonGetNext(RDM_OID_LOG_CATEGORY, &categoryIid, &categoryObj) == ZCFG_SUCCESS){
++			if(!strcmp(json_object_get_string(json_object_object_get(categoryObj, "Describe")),"UNI")){
++				json_object_object_add(categoryObj, "Enable", JSON_OBJ_COPY(json_object_object_get(Jobj, "UNI")));
++				zcfgFeObjJsonSetWithoutApply(RDM_OID_LOG_CATEGORY, &categoryIid, categoryObj, NULL);
++				zcfgFeJsonObjFree(categoryObj);
++			}
++			zcfgFeJsonObjFree(categoryObj);
++		}
++	}
++#endif
+     IID_INIT(categoryIid);
+ 	if(json_object_object_get(Jobj, "OMCI")){
+ 		while(zcfgFeObjJsonGetNext(RDM_OID_LOG_CATEGORY, &categoryIid, &categoryObj) == ZCFG_SUCCESS){
+@@ -906,6 +922,9 @@
+ 	printf("%-4s %-12s %-10s\n", "", "System", json_object_get_string(json_object_object_get(obj, "System")));
+ 	printf("%-4s %-12s %-10s\n", "", "xDSL", json_object_get_string(json_object_object_get(obj, "xDSL")));
+ 	printf("%-4s %-12s %-10s\n", "", "ACL", json_object_get_string(json_object_object_get(obj, "ACL")));
++#ifdef ZYXEL_WEB_GUI_ETH_UNI
++	printf("%-4s %-12s %-10s\n", "", "UNI", json_object_get_string(json_object_object_get(obj, "UNI")));
++#endif
+ 	printf("%-4s %-12s %-10s\n", "", "Wireless", json_object_get_string(json_object_object_get(obj, "Wireless")));
+ 	printf("%-4s %-12s %-10s\n", "", "Voice", json_object_get_string(json_object_object_get(obj, "Voice")));
+ 	printf("%-4s %-12s %-10s\n", "", "IGMP", json_object_get_string(json_object_object_get(obj, "IGMP")));
+Index: libzcfg_fe_dal-1.0/network/ethctl/zcfg_fe_dal_ethctl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/ethctl/zcfg_fe_dal_ethctl.c	2019-12-20 11:03:27.721686256 +0800
++++ libzcfg_fe_dal-1.0/network/ethctl/zcfg_fe_dal_ethctl.c	2019-12-20 11:05:37.395070400 +0800
+@@ -17,46 +17,65 @@
+ 
+ dal_param_t ETH_CTL_param[] = 
+ {
+-	{"intf",		dalType_string,       0, 0, NULL,		"LAN1|LAN2|LAN3|LAN4",			dal_Edit},
++#ifdef ABQA_CUSTOMIZATION
++    {"intf",		dalType_string,       0, 0, NULL,		"LAN1",							dal_Edit},
++	{"media-type",	dalType_string,       0, 0, NULL,		"Auto|1000FD|1000HD|100FD|100HD|10FD|10HD", 	NULL},
++#else
++    {"intf",		dalType_string,       0, 0, NULL,		"LAN1|LAN2|LAN3|LAN4",			dal_Edit},
+ 	{"media-type",	dalType_string,       0, 0, NULL,		"Auto|100FD|100HD|10FD|10HD", 	NULL},
++#endif
+ 	{"enable",		dalType_boolean,   	  0, 0, NULL, 	     NULL,					        NULL},
+ 	{NULL,						  0,	  0, 0, NULL, 	     NULL,					        NULL}
+ };
+ 
+ 
+ void zcfgFeDalShowEthCtl(struct json_object *Jarray){
++	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	int i, len = 0;
+ 	struct json_object *obj;
+-	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *obj1 = NULL;
+ 	struct json_object *ethObj = NULL;
++	struct json_object *ethctlListObj = NULL;
+ 	struct json_object *paramJobj = NULL;
+ 	objIndex_t ethIid = {0};
+-	const char *name = NULL;
++
+ 	if(json_object_get_type(Jarray) != json_type_array){
+ 		printf("wrong Jobj format!\n");
+ 		return;
+ 	}
+ 	printf("setting for eth ports\n");
+ 	printf("%-15s %-15s %-15s %-15s \n","Interface","Duplex","Speed","Enable");
+-	len = json_object_array_length(Jarray);
++	obj = json_object_array_get_idx(Jarray, 0);
++	ethctlListObj = json_object_object_get(obj, "EthctlList");
++	len = json_object_array_length(ethctlListObj);
+ 	for(i=0;i<len;i++){
+-		obj = json_object_array_get_idx(Jarray, i);
+-		name = json_object_get_string(json_object_object_get(obj, "intf"));
+-		if(strcmp(name,"ETHWAN") != 0){
+-			printf("%-15s %-15s %-15s %-15d \n",
+-				json_object_get_string(json_object_object_get(obj, "intf")),
+-				json_object_get_string(json_object_object_get(obj, "duplexSetting")),
+-				json_object_get_string(json_object_object_get(obj, "speedSetting")),
+-				json_object_get_boolean(json_object_object_get(obj, "enable")));
+-		}
++		obj1 = json_object_array_get_idx(ethctlListObj, i);
++		printf("%-15s %-15s %-15s %-15d \n",
++			json_object_get_string(json_object_object_get(obj1, "intf")),
++			json_object_get_string(json_object_object_get(obj1, "duplexSetting")),
++			json_object_get_string(json_object_object_get(obj1, "speedSetting")),
++			json_object_get_boolean(json_object_object_get(obj1, "enable")));
+ 	}
+ 	printf("status for eth ports\n");
++#ifdef ZYXEL_WEB_GUI_ETH_UNI
++	printf("%-15s %-25s %-15s %-15s %-15s %-15s \n","Interface", "Administrative Status", "Link State", "Duplex","Speed","Enable");
++#else
+ 	printf("%-15s %-15s %-15s %-15s \n","Interface","Duplex","Speed","Enable");
+-	len = json_object_array_length(Jarray);
++#endif
++	obj = json_object_array_get_idx(Jarray, 0);
++	ethctlListObj = json_object_object_get(obj, "EthctlList");
++	len = json_object_array_length(ethctlListObj);
+ 	for(i=0;i<len;i++){
+-		obj = json_object_array_get_idx(Jarray, i);
+-		name = json_object_get_string(json_object_object_get(obj, "intf"));
+-		if(strcmp(name,"ETHWAN") != 0){
++		obj = json_object_array_get_idx(ethctlListObj, i);
++#ifdef ZYXEL_WEB_GUI_ETH_UNI
++			printf("%-15s %-25s %-15s %-15s %-15s %-15d \n",
++				json_object_get_string(json_object_object_get(obj1, "intf")),
++				json_object_get_string(json_object_object_get(obj1, "intfStatus")),
++				json_object_get_string(json_object_object_get(obj1, "linkStatus")),
++				json_object_get_string(json_object_object_get(obj1, "duplexStatus")),
++				json_object_get_string(json_object_object_get(obj1, "speedStatus")),
++				json_object_get_boolean(json_object_object_get(obj1, "enable")));
++#else
+ 			if (strcmp(json_object_get_string(json_object_object_get(obj, "duplexStatus")), "Down") == 0||json_object_get_boolean(json_object_object_get(obj, "enable"))==0)
+ 				printf("%-15s %-15s\n",
+ 					json_object_get_string(json_object_object_get(obj, "intf")),
+@@ -67,32 +86,42 @@
+ 					json_object_get_string(json_object_object_get(obj, "duplexStatus")),
+ 					json_object_get_string(json_object_object_get(obj, "speedStatus")),
+ 					json_object_get_boolean(json_object_object_get(obj, "enable")));
+-			}
+-		}
++#endif
+ 	}
+-
++}
+ zcfgRet_t zcfgFeDalEthCtlGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *ethObj = NULL;
+ 	struct json_object *paramJobj = NULL;
++	struct json_object *ethctlListObj = NULL, *tmpListObj = NULL;
++	const char *name = NULL;
+ 	objIndex_t ethIid = {0};
+-
++	ethctlListObj = json_object_new_object();
++	tmpListObj = json_object_new_array();
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_ETH_IFACE, &ethIid, &ethObj) == ZCFG_SUCCESS){
+ 		paramJobj = json_object_new_object();
+-		json_object_object_add(paramJobj, "intf", JSON_OBJ_COPY(json_object_object_get(ethObj, "X_ZYXEL_LanPort")));
+-		json_object_object_add(paramJobj, "duplexSetting", JSON_OBJ_COPY(json_object_object_get(ethObj, "X_ZYXEL_DuplexMode")));
+-		json_object_object_add(paramJobj, "speedSetting", JSON_OBJ_COPY(json_object_object_get(ethObj, "X_ZYXEL_MaxBitRate")));
+-		json_object_object_add(paramJobj, "duplexStatus", JSON_OBJ_COPY(json_object_object_get(ethObj, "DuplexMode")));
+-		json_object_object_add(paramJobj, "speedStatus", JSON_OBJ_COPY(json_object_object_get(ethObj, "MaxBitRate")));
+-		json_object_object_add(paramJobj, "enable", JSON_OBJ_COPY(json_object_object_get(ethObj, "IntfEnable")));
+-		json_object_array_add(Jarray, paramJobj);
++		name = json_object_get_string(json_object_object_get(ethObj, "X_ZYXEL_LanPort"));
++		if(strcmp(name,"ETHWAN") != 0){
++			json_object_object_add(paramJobj, "intf", JSON_OBJ_COPY(json_object_object_get(ethObj, "X_ZYXEL_LanPort")));
++			json_object_object_add(paramJobj, "duplexSetting", JSON_OBJ_COPY(json_object_object_get(ethObj, "X_ZYXEL_DuplexMode")));
++			json_object_object_add(paramJobj, "speedSetting", JSON_OBJ_COPY(json_object_object_get(ethObj, "X_ZYXEL_MaxBitRate")));
++			json_object_object_add(paramJobj, "duplexStatus", JSON_OBJ_COPY(json_object_object_get(ethObj, "DuplexMode")));
++			json_object_object_add(paramJobj, "speedStatus", JSON_OBJ_COPY(json_object_object_get(ethObj, "MaxBitRate")));
++			json_object_object_add(paramJobj, "enable", JSON_OBJ_COPY(json_object_object_get(ethObj, "IntfEnable")));
++#ifdef ZYXEL_WEB_GUI_ETH_UNI	
++			json_object_object_add(paramJobj, "linkStatus", JSON_OBJ_COPY(json_object_object_get(ethObj, "Status")));
++			json_object_object_add(paramJobj, "intfStatus", JSON_OBJ_COPY(json_object_object_get(ethObj, "IntfStatus")));
++#endif
++			json_object_array_add(tmpListObj, paramJobj);
++		}
+ 		zcfgFeJsonObjFree(ethObj);
+ 	}
++	json_object_object_add(ethctlListObj, "EthctlList", tmpListObj);
++	json_object_array_add(Jarray, ethctlListObj);
+ 	return ret;
+ }
+-
+-zcfgRet_t zcfgFeDalEthCtlEdit(struct json_object *Jobj, char *replyMsg){
+-	zcfgRet_t ret= ZCFG_SUCCESS;
++zcfgRet_t setEthctlIntf(struct json_object *Jobj, char *replyMsg){
++	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *ethObj = NULL;
+ 	objIndex_t ethIid = {0};
+ 	const char *targetName = NULL;
+@@ -121,7 +150,11 @@
+ 
+ 	if(found) {
+ 		if((json_object_object_get(Jobj, "media-type") == NULL) && (json_object_object_get(Jobj, "enable") == NULL) ){
++#ifdef ABQA_CUSTOMIZATION
++			strcpy(replyMsg, "Invalid parameters! Please enter --intf  <interface> --media-type <Auto|1000FD|1000HD|100FD|100HD|10FD|10HD>  or --enable <1|0>");
++#else
+ 			strcpy(replyMsg, "Invalid parameters! Please enter --intf  <interface> --media-type <Auto|100FD|100HD|10FD|10HD>  or --enable <1|0>");
++#endif
+ 			return ZCFG_REQUEST_REJECT;
+ 		}else{
+ 			//Enable/disable
+@@ -153,8 +186,23 @@
+ 				}else if(!strcmp(media_type,"10HD")){
+ 					json_object_object_add(ethObj, "X_ZYXEL_DuplexMode", json_object_new_string("Half"));
+ 					json_object_object_add(ethObj, "X_ZYXEL_MaxBitRate", json_object_new_int(10));
+-				}else{
++				}
++#ifdef ABQA_CUSTOMIZATION
++				else if(!strcmp(media_type,"1000HD")){
++					json_object_object_add(ethObj, "X_ZYXEL_DuplexMode", json_object_new_string("Half"));
++					json_object_object_add(ethObj, "X_ZYXEL_MaxBitRate", json_object_new_int(1000));
++				}
++				else if(!strcmp(media_type,"1000FD")){
++					json_object_object_add(ethObj, "X_ZYXEL_DuplexMode", json_object_new_string("Full"));
++					json_object_object_add(ethObj, "X_ZYXEL_MaxBitRate", json_object_new_int(1000));
++				}
++#endif
++				else{
++#ifdef ABQA_CUSTOMIZATION
++					strcpy(replyMsg, "Media type should be Auto,1000FD,1000HD,100FD,100HD,10FD or 10HD.");
++#else
+ 					strcpy(replyMsg, "Duplex should be Full, Half or Auto. Speed should be 10 or 100.");
++#endif				
+ 					return ZCFG_INVALID_PARAM_VALUE;
+ 				}
+ 			}
+@@ -169,6 +217,24 @@
+ 	zcfgFeJsonObjFree(ethObj);
+ 	return ret;
+ }
++zcfgRet_t zcfgFeDalEthCtlEdit(struct json_object *Jobj, char *replyMsg){
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *reqObject = NULL;
++	int reqObjIdx = 0;
++	if(json_object_get_type(Jobj) == json_type_object){// set by dalcmd
++		ret = setEthctlIntf(Jobj, replyMsg);
++	}
++	else{
++		while((reqObject = json_object_array_get_idx(Jobj, reqObjIdx)) !=NULL){
++			ret = setEthctlIntf(reqObject, replyMsg);
++			if(ret != ZCFG_SUCCESS){
++				return ret;
++			}
++			reqObjIdx++;
++		}
++	}
++	return ret;
++}
+ 
+ zcfgRet_t zcfgFeDalEthCtl(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg) {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;

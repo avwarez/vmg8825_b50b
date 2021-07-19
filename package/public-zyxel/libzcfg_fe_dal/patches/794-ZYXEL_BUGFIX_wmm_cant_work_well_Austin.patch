@@ -1,0 +1,84 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wmm.c	2020-07-08 20:13:19.712905868 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c	2020-07-08 20:48:04.388879454 +0800
+@@ -259,7 +259,7 @@
+ 	char* lowerLayer = NULL; // e.g. WiFi.Radio.2
+ 	char* wlMode = NULL; // e.g. 11anac
+ 	bool forceEnableWMM = false;
+-	bool printForceEnableMsg = false;
++	bool printForceEnableMsg = false, apply = false;
+ 	bool WMMEnable_ori = false, UAPSDEnable_ori = false, wmmEn = false, UAPSDEn = false;
+ 	wmmEnableArray = json_object_object_get(Jobj, "WMMEnable");
+ 	iidArray = json_object_object_get(Jobj, "startidxarray");
+@@ -308,6 +308,7 @@
+ 	if(printForceEnableMsg) 
+ 		printf("WMM is mandatory to be enabled if 802.11 mode includes 802.11n or 802.11ac\n");
+ 
++	IID_INIT(objIid);
+ 	// Edit Guest SSIDs
+ 	for(iidIdx = 1; iidIdx < len; iidIdx++){
+ 		WMMEnable = json_object_get_int( json_object_array_get_idx(wmmEnableArray, iidIdx));
+@@ -315,9 +316,8 @@
+ 		objIid.level = 1;
+ 		objIid.idx[0] = idx;
+ 		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &objIid, &WifiApWmmJobj) == ZCFG_SUCCESS){
+-			WMMEnable_ori = json_object_new_boolean(json_object_get_boolean(json_object_object_get(WifiApWmmJobj,"WMMEnable")));
++			WMMEnable_ori = json_object_get_boolean(json_object_object_get(WifiApWmmJobj,"WMMEnable"));
+ 			UAPSDEnable_ori = json_object_get_boolean(json_object_object_get(WifiApWmmJobj, "UAPSDEnable"));
+-			wmmEn = json_object_new_boolean(json_object_get_boolean(json_object_object_get(Jobj, "WMMEnable")));
+ 			UAPSDEn = json_object_get_boolean(json_object_object_get(Jobj, "UAPSDEnable"));
+ 			if((WMMEnable == 1) || forceEnableWMM)
+ 				json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(true));
+@@ -329,11 +329,15 @@
+ 			else
+ 				json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
+ 			if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
+-				if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
++				if(WMMEnable != WMMEnable_ori || UAPSDEn != UAPSDEnable_ori){
++					apply = true;
+ 					zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++				}
+ 			}
+-			else
++			else{
++				apply = true;
+ 				zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++			}
+ 			json_object_put(WifiApWmmJobj);
+ 		}
+ 	}
+@@ -341,11 +345,12 @@
+ 	// Edit Main SSID
+ 	IID_INIT(objIid);
+ 	objIid.level = 1;
+-	objIid.idx[0] = json_object_get_int( json_object_array_get_idx(iidArray, 0));
++	idx = json_object_get_int( json_object_array_get_idx(iidArray, 0));
++	objIid.idx[0] = idx;
+ 	if(zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT, &objIid, &WifiApWmmJobj) == ZCFG_SUCCESS){
+-		WMMEnable_ori = json_object_new_boolean(json_object_get_boolean(json_object_object_get(WifiApWmmJobj,"WMMEnable")));
++		WMMEnable_ori = json_object_get_boolean(json_object_object_get(WifiApWmmJobj,"WMMEnable"));
+ 		UAPSDEnable_ori = json_object_get_boolean(json_object_object_get(WifiApWmmJobj, "UAPSDEnable"));
+-		wmmEn = json_object_new_boolean(json_object_get_boolean(json_object_object_get(Jobj, "WMMEnable")));
++		wmmEn = json_object_get_int( json_object_array_get_idx(wmmEnableArray, 0));
+ 		UAPSDEn = json_object_get_boolean(json_object_object_get(Jobj, "UAPSDEnable"));
+ 		if((mainWmmEnable == 1) || forceEnableWMM)
+ 			json_object_object_add(WifiApWmmJobj, "WMMEnable", json_object_new_boolean(true));
+@@ -356,11 +361,15 @@
+ 		else
+ 			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
+ 	if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
+-		if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
+-			zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++		if(wmmEn != WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
++			apply = true;
+ 	}
+ 	else
++		apply = true;
++
++	if(apply){
+ 		zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++	}
+ 	json_object_put(WifiApWmmJobj);
+ 	}
+ 	return ret;

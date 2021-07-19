@@ -1,0 +1,53 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2019-09-10 14:57:49.292442442 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2019-09-10 15:04:26.376547500 +0800
+@@ -484,7 +484,47 @@
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 
+ #ifdef ZYXEL_ONESSID
+-	if(wifiOneSsidObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ONE_SSID, &wifiOneSsidIid, wifiOneSsidObj, NULL);
++	if(wifiOneSsidObj)
++	{
++#ifdef ZYXEL_WEB_WIRELESS_NEW_VERSION_ONE //sync Mastermain and masterGuest when index is 1 or 2
++		objIndex_t syncOneSsidIid = {0};
++		struct json_object *syncOneSsidObj = NULL;
++
++		IID_INIT(syncOneSsidIid);
++		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ONE_SSID, &syncOneSsidIid, &syncOneSsidObj) == ZCFG_SUCCESS){
++			int en_old = json_object_get_boolean(json_object_object_get(syncOneSsidObj, "Enable"));
++			int en_new = json_object_get_boolean(json_object_object_get(wifiOneSsidObj, "Enable"));
++			if(en_old == en_new)
++				goto onessid_done;
++		}
++
++		zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_ONE_SSID, &wifiOneSsidIid, wifiOneSsidObj, NULL);
++		objIndex_t syncSsidIid = {0};
++		struct json_object *syncSsidObj = NULL;
++
++		syncSsidIid.level = 1;
++		syncSsidIid.idx[0] = json_object_get_int(json_object_object_get(Jobj,"Index"));
++
++		// ssid/ap/sec
++		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &syncSsidIid, &syncSsidObj) != ZCFG_SUCCESS){
++			printf("%s : Get RDM_OID_WIFI_SSID object failed.\n",__FUNCTION__);
++		}
++
++		json_object_object_add(wifiSsidObj, "X_ZYXEL_MasterMain", JSON_OBJ_COPY(json_object_object_get(syncSsidObj, "X_ZYXEL_MasterMain")));
++		json_object_object_add(wifiSsidObj, "X_ZYXEL_MasterGuest", JSON_OBJ_COPY(json_object_object_get(syncSsidObj, "X_ZYXEL_MasterGuest")));
++		json_object_object_add(wifiSsidObj, "X_ZYXEL_MasterMainSSID", JSON_OBJ_COPY(json_object_object_get(syncSsidObj, "X_ZYXEL_MasterMainSSID")));
++		json_object_object_add(wifiSsidObj, "X_ZYXEL_MasterGuestSSID", JSON_OBJ_COPY(json_object_object_get(syncSsidObj, "X_ZYXEL_MasterGuestSSID")));
++		json_object_object_add(wifiSsidObj, "X_ZYXEL_MasterMainPassword", JSON_OBJ_COPY(json_object_object_get(syncSsidObj, "X_ZYXEL_MasterMainPassword")));
++		json_object_object_add(wifiSsidObj, "X_ZYXEL_MasterGuestPassword", JSON_OBJ_COPY(json_object_object_get(syncSsidObj, "X_ZYXEL_MasterGuestPassword")));
++		if(syncSsidObj) json_object_put(syncSsidObj);
++
++onessid_done:
++		if(syncOneSsidObj) json_object_put(syncOneSsidObj);
++
++#else
++	zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ONE_SSID, &wifiOneSsidIid, wifiOneSsidObj, NULL);
++#endif
++	}
+ #endif
+ 	if(wifiApObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &wifiApIid, wifiApObj, NULL);
+ 	if(wifiSecObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT_SEC, &wifiSecIid, wifiSecObj, NULL);

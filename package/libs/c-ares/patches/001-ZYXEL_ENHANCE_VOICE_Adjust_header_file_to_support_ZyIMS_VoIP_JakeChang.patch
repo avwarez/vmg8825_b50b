@@ -1,0 +1,36 @@
+Index: c-ares-1.14.0/ares_private.h
+===================================================================
+--- c-ares-1.14.0.orig/ares_private.h	2017-07-03 17:04:19.000000000 +0800
++++ c-ares-1.14.0/ares_private.h	2020-05-21 16:36:13.595577379 +0800
+@@ -91,9 +91,21 @@
+ 
+ #define ARES_ID_KEY_LEN 31
+ 
++#ifdef VOICEAPP_CORE_H_VOICEAPP_DNS_QUERY_H_
++#define INCLUDED_FROM_ZYIMS_VOIP_THEN_SHOULD_SKIP_THE_FOLLOWING_CONTENT 0
++#else
++#define INCLUDED_FROM_ZYIMS_VOIP_THEN_SHOULD_SKIP_THE_FOLLOWING_CONTENT 1
++#endif //VOICEAPP_CORE_H_VOICEAPP_DNS_QUERY_H_.
++
++#if INCLUDED_FROM_ZYIMS_VOIP_THEN_SHOULD_SKIP_THE_FOLLOWING_CONTENT
+ #include "ares_ipv6.h"
++#endif //INCLUDED_FROM_ZYIMS_VOIP_THEN_SHOULD_SKIP_THE_FOLLOWING_CONTENT.
++
+ #include "ares_llist.h"
+ 
++
++#if INCLUDED_FROM_ZYIMS_VOIP_THEN_SHOULD_SKIP_THE_FOLLOWING_CONTENT
++
+ #ifndef HAVE_GETENV
+ #  include "ares_getenv.h"
+ #  define getenv(ptr) ares_getenv(ptr)
+@@ -116,6 +128,9 @@
+ #  define writev(s,ptr,cnt) ares_writev(s,ptr,cnt)
+ #endif
+ 
++#endif //INCLUDED_FROM_ZYIMS_VOIP_THEN_SHOULD_SKIP_THE_FOLLOWING_CONTENT.
++
++
+ /********* EDNS defines section ******/
+ #define EDNSPACKETSZ   1280  /* Reasonable UDP payload size, as suggested
+                                 in RFC2671 */

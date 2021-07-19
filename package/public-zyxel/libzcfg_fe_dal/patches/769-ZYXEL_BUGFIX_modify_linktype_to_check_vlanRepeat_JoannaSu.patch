@@ -1,0 +1,58 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-04-24 15:09:27.724320121 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-04-24 15:17:15.396762617 +0800
+@@ -27,7 +27,7 @@
+ 	{"X_ZYXEL_IfName",		dalType_string,	0,	32,	NULL, NULL, dalcmd_Forbid}, //read only
+ 	{"Name",				dalType_string,	1,	32,	NULL, NULL, dal_Add|dal_Edit|dal_Delete},
+ 	{"Enable",				dalType_boolean,	0,	0,	NULL},
+-	{"Type",				dalType_string,	3,	4,	NULL, "ATM|PTM|ETH|GPON|SFP", dal_Add | dal_Edit_ignore},
++	{"Type",				dalType_string,	3,	4,	NULL, "ATM|PTM|ETH|PON|SFP", dal_Add | dal_Edit_ignore},
+ 	{"Mode",				dalType_string,	9,	10,	NULL, "IP_Routed|IP_Bridged", dal_Add},
+ 	{"Encapsulation",		dalType_string,	4,	5,	NULL, "IPoE|IPoA|PPPoE|PPPoA"},
+ #ifdef ABUE_CUSTOMIZATION
+@@ -636,7 +636,7 @@
+ 			strcmp(Type, "PTM") && 
+ 			strcmp(Type, "SFP") &&
+ 			strcmp(Type, "ETH") && 
+-			strcmp(Type, "GPON")){
++			strcmp(Type, "PON")){
+ 		return ZCFG_INVALID_PARAM_VALUE;
+ 	}
+ 
+@@ -1003,7 +1003,7 @@
+ 			currLowerLayers[0] = '\0';
+ 		printf("[%s][%d] currLowerLayers=[%s]\n",__FUNCTION__,__LINE__,currLowerLayers);
+ 	}
+-	else if(!strcmp(Type, "GPON")){
++	else if(!strcmp(Type, "PON")){
+ 		value = 1;
+ 		if(getSpecificObj(RDM_OID_OPT_INTF, "Upstream", json_type_boolean, &value, &iid, NULL))
+ 			sprintf(currLowerLayers, "Optical.Interface.%u", iid.idx[0]);
+@@ -2416,7 +2416,7 @@
+ 				optIid.level = 1;
+ 				sscanf(LowerLayer, "Optical.Interface.%hhu", &optIid.idx[0]);
+ 				zcfgFeObjJsonGetWithoutUpdate(RDM_OID_OPT_INTF, &optIid, &optObj);				
+-				strcpy(WanType, "GPON");
++				strcpy(WanType, "PON");
+ 				break;
+ 			}
+ 			else if(!strcmp("", LowerLayer)){
+@@ -3438,7 +3438,7 @@
+ 					printf("The LowerLayer Optical Interface is a LAN interface.\n");
+ 					return ZCFG_REQUEST_REJECT;
+ 				}
+-				strcpy(CurrType, "GPON");
++				strcpy(CurrType, "PON");
+ 				break;
+ 			}
+ 			else if(!strcmp("", LowerLayer)){
+@@ -4395,7 +4395,7 @@
+ 						printf("The LowerLayer Optical Interface is a LAN interface.\n");
+ 						return ZCFG_REQUEST_REJECT;
+ 					}
+-					strcpy(CurrType, "GPON");
++					strcpy(CurrType, "PON");
+ 					break;
+ 				}
+ 				else if(!strcmp("", LowerLayer)){

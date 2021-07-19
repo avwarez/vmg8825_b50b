@@ -1,0 +1,28 @@
+Index: linux-4.1.52/net/ipv6/ip6_output.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv6/ip6_output.c	2020-05-28 09:52:32.349168085 +0000
++++ linux-4.1.52/net/ipv6/ip6_output.c	2020-05-28 10:19:09.245152856 +0000
+@@ -596,6 +596,23 @@
+ #endif
+ 
+ #if defined(CONFIG_BCM_KF_MAP) && (defined(CONFIG_BCM_MAP) || defined(CONFIG_BCM_MAP_MODULE))
++	/* as per RFC 2473 section 3.1, the IPv4 original header TTL need to be
++	 * decremented by one on an IPv4 in IPv6 encapsulation
++	 */
++	if (skb->map_forward == MAP_FORWARD_MODE1 || skb->map_forward == MAP_FORWARD_MODE3)
++	{
++		unsigned int ip_offset = 0;
++		int protocol;
++
++		protocol = ipv6_find_hdr(skb, &ip_offset, IPPROTO_IPIP, NULL, NULL);
++		if (protocol == IPPROTO_IPIP) {
++			struct iphdr *iph;
++
++			iph = (struct iphdr *)(skb_network_header(skb) + ip_offset);
++			ip_decrease_ttl(iph);
++		}
++	}
++
+ 	if (needfrag)
+ 	{
+ 		skb->ignore_df = 1;

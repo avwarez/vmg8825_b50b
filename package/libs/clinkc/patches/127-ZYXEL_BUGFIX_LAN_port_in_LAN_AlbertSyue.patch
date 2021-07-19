@@ -1,0 +1,14 @@
+Index: clinkc/src/cybergarage/http/chttp_server_list.c
+===================================================================
+--- clinkc.orig/src/cybergarage/http/chttp_server_list.c	2020-01-21 11:26:10.407380299 +0800
++++ clinkc/src/cybergarage/http/chttp_server_list.c	2020-01-21 11:30:01.204165580 +0800
+@@ -103,6 +103,9 @@
+ 		bindAddr = cg_net_interface_getaddress(netIf);
+ 		if (cg_strlen(bindAddr) <= 0)
+ 			continue;
++		// ZUPNP in LAN
++		if(strncmp(cg_net_interface_getname(netIf), "br", 2))
++			continue;
+ 		httpServer = cg_http_server_new();
+ 
+ #ifdef ZYXEL_PATCH /*support ssl, ZyXEL 2013, charisse*/

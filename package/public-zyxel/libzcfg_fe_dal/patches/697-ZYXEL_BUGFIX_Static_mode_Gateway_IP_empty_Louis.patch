@@ -1,0 +1,22 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-08-22 16:38:10.528551318 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-08-22 16:41:29.358237843 +0800
+@@ -3257,7 +3257,7 @@
+ 			//Origin = json_object_get_string(json_object_object_get(v4FwdObj, "Origin"));
+ 			staticRoute =  json_object_get_boolean(json_object_object_get(v4FwdObj, "StaticRoute"));
+ 			//if(!strcmp(Interface, ipIfacePath) && !strcmp(Origin, "Static")){
+-			if(!strcmp(Interface, ipIfacePath) && staticRoute == true){
++			if(!strcmp(Interface, ipIfacePath)){
+ 				DestSubnetMask = json_object_get_string(json_object_object_get(v4FwdObj, "DestSubnetMask"));
+ 				DestIPAddress = json_object_get_string(json_object_object_get(v4FwdObj, "DestIPAddress"));
+ 				if(!strcmp(DestIPAddress, "") && !strcmp(DestSubnetMask, "")){
+@@ -4332,7 +4332,7 @@
+ 			Interface = json_object_get_string(json_object_object_get(v4FwdObj, "Interface"));
+ 			DestIPAddress = Jgets(v4FwdObj, "DestIPAddress");
+ 			staticRoute =  json_object_get_boolean(json_object_object_get(v4FwdObj, "StaticRoute"));
+-			if(!strcmp(Interface, ipIfacePath) && !strcmp(DestIPAddress, "") &&staticRoute == true){
++			if(!strcmp(Interface, ipIfacePath)){
+ 				GatewayIPAddress= json_object_get_string(json_object_object_get(v4FwdObj, "GatewayIPAddress"));
+ 				json_object_object_add(pramJobj, "GatewayIPAddress", json_object_new_string(GatewayIPAddress));
+ 				zcfgFeJsonObjFree(v4FwdObj);

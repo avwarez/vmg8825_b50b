@@ -1,0 +1,101 @@
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-05-15 14:20:29.943731649 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-05-15 14:25:27.732925349 +0800
+@@ -1466,6 +1466,7 @@
+ 	json_object_put(pppIfaceJarray);
+ 	json_object_put(vlanTermJarray);
+ 	json_object_put(ethLinkJarray);
++	json_object_put(ethIfaceJarray);
+ 	json_object_put(atmLinkJarray);
+ 	json_object_put(bridgeBrJarray);
+ 	json_object_put(routerObj);
+@@ -1805,8 +1806,10 @@
+ 
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ETH_IFACE, &iid, &Obj) == ZCFG_SUCCESS) {
+-		if(json_object_get_boolean(json_object_object_get(Obj, "Upstream")) || json_object_get_boolean(json_object_object_get(Obj, "X_ZYXEL_Upstream")))
++		if(json_object_get_boolean(json_object_object_get(Obj, "Upstream")) || json_object_get_boolean(json_object_object_get(Obj, "X_ZYXEL_Upstream"))){
++			json_object_put(Obj);
+ 			continue;
++		}
+ 
+ 		sprintf(intfPath, "Ethernet.Interface.%u", iid.idx[0]);
+ 		X_ZYXEL_LanPort = json_object_get_string(json_object_object_get(Obj, "X_ZYXEL_LanPort"));
+@@ -3510,11 +3513,16 @@
+ 										}
+ 										printf("wanIntf error.\n");
+ 										ZOS_FREE(nameList);
++										json_object_put(obj);
++										obj = NULL;
+ 										return false;
+ 									}
+ 								}			
+ 							}
+ 					 	}
++						json_object_put(obj);
++						obj = NULL;
++						
+ 						intfName = strtok_r(nameList, ",", &tmp_ptr);
+ 						while(intfName != NULL){
+ 							if(*intfName != '\0'){
+@@ -3747,14 +3755,17 @@
+ 							obj_tmp = json_object_array_get_idx(obj, k);
+ 							Policer= json_object_get_string(json_object_object_get(obj_tmp, "Policer"));
+ 							if(!strcmp(Policer, "")){
+-								json_object_array_add(newObj, obj_tmp);
++								json_object_array_add(newObj, JSON_OBJ_COPY(obj_tmp));
+ 							}
+ 						}
+ 						if(checkValidateParameter(stringPtr, &newObj, "Name") == false){
+ 								printf("Wrong parameter value <%s> of %s\n", stringPtr, paramList[i].paraName);
+-								json_object_put(obj);
+ 								ret = false;
+ 							}
++						json_object_put(obj);
++						json_object_put(newObj);
++						newObj = NULL;
++						obj = NULL;
+ 						break;
+ 					case dalType_QueueList:
+ 						stringPtr = json_object_get_string(pramJobj);
+@@ -3864,6 +3875,8 @@
+ 							}
+ 							nameList = strtok_r(tmp_ptr, ",", &tmp_ptr);
+ 						}
++						json_object_put(VoipList);
++						VoipList = NULL;
+ 
+ 						if(voipList[strlen(voipList) - 1] == ',')
+ 							voipList[strlen(voipList) - 1] = '\0';
+@@ -3875,9 +3888,12 @@
+ 						if(checkValidateParameter(stringPtr, &VoipList, "VoipServiceProvider") == false){
+ 							printf("Wrong parameter value <%s> of %s\n", stringPtr, paramList[i].paraName);
+ 							json_object_put(VoipList);
++							VoipList = NULL;
+ 							return NULL;
+ 						}
+ 						json_object_object_add(Jobj, paramList[i].paraName, json_object_new_string(stringPtr));
++						json_object_put(VoipList);
++						VoipList = NULL;
+ 						break;
+ 					case dalType_ICMPv6:
+ 						stringPtr = json_object_get_string(pramJobj);
+@@ -4063,6 +4079,8 @@
+                                     }
+                                 }
+                             }
++							json_object_put(LanPortListJarray);
++							LanPortListJarray = NULL;
+                         }
+                         else
+                         {
+@@ -4086,6 +4104,8 @@
+                                     }
+                                 }
+                             }
++							json_object_put(WanLanListJarray);
++							WanLanListJarray = NULL;
+                         }
+ 
+                         if (!found)

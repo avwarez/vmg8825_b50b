@@ -1,0 +1,289 @@
+Index: linux-4.1.51/net/netfilter/nfnetlink_queue_core.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/nfnetlink_queue_core.c	2018-03-28 04:15:21.000000000 +0800
++++ linux-4.1.51/net/netfilter/nfnetlink_queue_core.c	2019-04-16 19:38:25.069079423 +0800
+@@ -41,6 +41,8 @@
+ #include "../bridge/br_private.h"
+ #endif
+ 
++#include "zld/zld_cb_data.h"
++
+ #define NFQNL_QMAX_DEFAULT 1024
+ 
+ /* We're using struct nlattr which has 16bit nla_len. Note that nla_len
+@@ -451,6 +453,10 @@
+ 	    nla_put_be32(skb, NFQA_MARK, htonl(entskb->mark)))
+ 		goto nla_put_failure;
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	if (ZLD_CB_DATA(entskb)->zextmark)
++		nla_put_be32(skb, NFQA_ZEXTMARK, htonl(ZLD_CB_DATA(entskb)->zextmark));
++#endif
+ 	if (indev && entskb->dev &&
+ 	    entskb->mac_header != entskb->network_header) {
+ 		struct nfqnl_msg_packet_hw phw;
+@@ -879,6 +885,9 @@
+ static const struct nla_policy nfqa_verdict_policy[NFQA_MAX+1] = {
+ 	[NFQA_VERDICT_HDR]	= { .len = sizeof(struct nfqnl_msg_verdict_hdr) },
+ 	[NFQA_MARK]		= { .type = NLA_U32 },
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	[NFQA_ZEXTMARK]		= { .type = NLA_U32 },
++#endif
+ 	[NFQA_PAYLOAD]		= { .type = NLA_UNSPEC },
+ 	[NFQA_CT]		= { .type = NLA_UNSPEC },
+ 	[NFQA_EXP]		= { .type = NLA_UNSPEC },
+@@ -887,6 +896,9 @@
+ static const struct nla_policy nfqa_verdict_batch_policy[NFQA_MAX+1] = {
+ 	[NFQA_VERDICT_HDR]	= { .len = sizeof(struct nfqnl_msg_verdict_hdr) },
+ 	[NFQA_MARK]		= { .type = NLA_U32 },
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	[NFQA_ZEXTMARK]		= { .type = NLA_U32 },
++#endif
+ };
+ 
+ static struct nfqnl_instance *
+@@ -970,6 +982,11 @@
+ 	list_for_each_entry_safe(entry, tmp, &batch_list, list) {
+ 		if (nfqa[NFQA_MARK])
+ 			entry->skb->mark = ntohl(nla_get_be32(nfqa[NFQA_MARK]));
++
++#if defined(CONFIG_SBG_SKB_MARK)//jessy
++		if (nfqa[NFQA_ZEXTMARK])
++			ZLD_CB_DATA(entry->skb)->zextmark = ntohl(nla_get_be32(nfqa[NFQA_ZEXTMARK]));
++#endif
+ 		nf_reinject(entry, verdict);
+ 	}
+ 	return 0;
+@@ -1033,7 +1050,10 @@
+ 
+ 	if (nfqa[NFQA_MARK])
+ 		entry->skb->mark = ntohl(nla_get_be32(nfqa[NFQA_MARK]));
+-
++#if defined(CONFIG_SBG_SKB_MARK)//jessy
++	if (nfqa[NFQA_ZEXTMARK])
++			ZLD_CB_DATA(entry->skb)->zextmark = ntohl(nla_get_be32(nfqa[NFQA_ZEXTMARK]));
++#endif
+ 	nf_reinject(entry, verdict);
+ 	return 0;
+ }
+Index: linux-4.1.51/include/uapi/linux/netfilter/nfnetlink_log.h
+===================================================================
+--- linux-4.1.51.orig/include/uapi/linux/netfilter/nfnetlink_log.h	2018-03-28 04:15:21.000000000 +0800
++++ linux-4.1.51/include/uapi/linux/netfilter/nfnetlink_log.h	2019-04-16 19:38:25.069079423 +0800
+@@ -36,6 +36,7 @@
+ 	NFULA_UNSPEC,
+ 	NFULA_PACKET_HDR,
+ 	NFULA_MARK,			/* __u32 nfmark */
++	NFULA_ZEXTMARK,			/* u_int32_t nfzextmark */
+ 	NFULA_TIMESTAMP,		/* nfulnl_msg_packet_timestamp */
+ 	NFULA_IFINDEX_INDEV,		/* __u32 ifindex */
+ 	NFULA_IFINDEX_OUTDEV,		/* __u32 ifindex */
+Index: linux-4.1.51/net/netfilter/nfnetlink_log.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/nfnetlink_log.c	2018-03-28 04:15:21.000000000 +0800
++++ linux-4.1.51/net/netfilter/nfnetlink_log.c	2019-04-16 19:38:25.073079423 +0800
+@@ -44,6 +44,8 @@
+ #include "../bridge/br_private.h"
+ #endif
+ 
++#include "zld/zld_cb_data.h"
++
+ #define NFULNL_NLBUFSIZ_DEFAULT	NLMSG_GOODSIZE
+ #define NFULNL_TIMEOUT_DEFAULT 	100	/* every second */
+ #define NFULNL_QTHRESH_DEFAULT 	100	/* 100 packets */
+@@ -504,6 +506,11 @@
+ 	if (skb->mark &&
+ 	    nla_put_be32(inst->skb, NFULA_MARK, htonl(skb->mark)))
+ 		goto nla_put_failure;
++#if defined(CONFIG_SBG_SKB_MARK)//jessy
++	if (ZLD_CB_DATA(skb)->zextmark)
++		nla_put_be32(inst->skb, NFULA_ZEXTMARK, htonl(ZLD_CB_DATA(skb)->zextmark));
++#endif
++
+ 
+ 	if (indev && skb->dev &&
+ 	    skb->mac_header != skb->network_header) {
+Index: linux-4.1.51/net/netfilter/xt_connzextmark.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/xt_connzextmark.c	2019-04-16 19:38:25.057079423 +0800
++++ linux-4.1.51/net/netfilter/xt_connzextmark.c	2019-04-16 19:38:25.073079423 +0800
+@@ -29,11 +29,11 @@
+ 	if (ct == NULL)
+ 		return XT_CONTINUE;
+ 
+-
++#if 0
+     printk("[%s %d]info->mode[0x%x],ct->zextmark (0x%x),newmark(0x%x)\n",
+             __FUNCTION__,__LINE__,
+             info->mode,ct->zextmark ,newmark);
+-
++#endif
+ 
+ 	switch (info->mode) {
+ 	case XT_CONNMARK_SET:
+@@ -57,11 +57,11 @@
+ 		ZLD_CB_DATA(skb)->zextmark = newmark;
+ 		break;
+ 	}
+-
++#if 0
+     printk("[%s %d]info->mode[0x%x],ct->zextmark (0x%x),newmark(0x%x)\n",
+             __FUNCTION__,__LINE__,
+             info->mode,ct->zextmark ,newmark);
+-            
++ #endif
+ 	return XT_CONTINUE;
+ }
+ 
+Index: linux-4.1.51/net/netfilter/xt_zextmark.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/xt_zextmark.c	2019-04-16 19:38:25.057079423 +0800
++++ linux-4.1.51/net/netfilter/xt_zextmark.c	2019-04-16 19:38:25.073079423 +0800
+@@ -36,11 +36,11 @@
+ {
+ 	const struct xt_mark_tginfo2 *markinfo = par->targinfo;
+ 	int mark = 0;
+-
++#if 0
+     printk("[%s %d]markinfo->mode(0x%x) ZLD_CB_DATA(skb)->zextmark(0x%x)\n",
+             __FUNCTION__,__LINE__,
+             markinfo->mode,ZLD_CB_DATA(skb)->zextmark);
+-
++#endif
+ 	switch (markinfo->mode) {
+ 		case XT_MARK_SET:
+ 			mark = markinfo->mark;
+@@ -72,9 +72,12 @@
+ #endif
+     
+ 	ZLD_CB_DATA(skb)->zextmark = mark;
++
++#if 0
+     printk("[%s %d]markinfo->mode(0x%x) ZLD_CB_DATA(skb)->zextmark(0x%x)\n",
+             __FUNCTION__,__LINE__,
+             markinfo->mode,ZLD_CB_DATA(skb)->zextmark);
++#endif
+ 	return XT_CONTINUE;
+ }
+ 
+@@ -104,10 +107,11 @@
+ {
+ 	const struct xt_mark_mtinfo1 *info = par->matchinfo;
+ 
++#if 0
+     printk("[%s %d]return (%d)\n",
+             __FUNCTION__,__LINE__,
+             ((ZLD_CB_DATA(skb)->zextmark & info->mask) == info->mark) ^ info->invert);
+-            
++#endif
+ 	return ((ZLD_CB_DATA(skb)->zextmark & info->mask) == info->mark) ^ info->invert;
+ }
+ 
+Index: linux-4.1.51/net/netfilter/nf_conntrack_netlink.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/nf_conntrack_netlink.c	2019-04-16 19:38:25.057079423 +0800
++++ linux-4.1.51/net/netfilter/nf_conntrack_netlink.c	2019-04-16 19:38:25.073079423 +0800
+@@ -1173,6 +1173,7 @@
+ 	[CTA_MARK_MASK]		= { .type = NLA_U32 },
+ #ifdef CONFIG_ZYXEL_EXT_MARK
+ 	[CTA_ZEXTMARK]		= { .type = NLA_U32 }, // 20180620 jessy zyxel
++	[CTA_ZEXTMARK_MASK]		= { .type = NLA_U32 }, // 20180620 jessy zyxel
+ #endif
+ 	[CTA_LABELS]		= { .type = NLA_BINARY,
+ 				    .len = NF_CT_LABELS_MAX_SIZE },
+@@ -1276,7 +1277,7 @@
+ #ifndef CONFIG_ZYXEL_EXT_MARK
+ 		if (cda[CTA_MARK] && cda[CTA_MARK_MASK]) {
+ #else
+-		if ((cda[CTA_MARK] && cda[CTA_MARK_MASK]) || cda[CTA_ZEXTMARK]) {  // 20180620 jessy zyxel
++		if ((cda[CTA_MARK] && cda[CTA_MARK_MASK]) || (cda[CTA_ZEXTMARK]&& cda[CTA_ZEXTMARK_MASK])) {  // 20180620 jessy zyxel
+ #endif
+ 			struct ctnetlink_filter *filter;
+ 
+@@ -1285,15 +1286,16 @@
+ 				return PTR_ERR(filter);
+ 
+ #ifdef CONFIG_ZYXEL_EXT_MARK
+-            if (cda[CTA_MARK] && cda[CTA_MARK_MASK])   // 20180621 jessy zyxel
+-            {
+-			    filter->mark.val = ntohl(nla_get_be32(cda[CTA_MARK]));
+-			    filter->mark.mask =
+-				    ntohl(nla_get_be32(cda[CTA_MARK_MASK]));	
+-		    }
+-			
+-			if (cda[CTA_ZEXTMARK])    // 20180621 jessy zyxel
+-			    filter->zextmark.val = ntohl(nla_get_be32(cda[CTA_ZEXTMARK]));
++			if (cda[CTA_MARK] && cda[CTA_MARK_MASK])  { // 20180621 jessy zyxel
++				    filter->mark.val = ntohl(nla_get_be32(cda[CTA_MARK]));
++				    filter->mark.mask =
++					    ntohl(nla_get_be32(cda[CTA_MARK_MASK]));
++			}
++
++			if (cda[CTA_ZEXTMARK] && cda[CTA_ZEXTMARK_MASK])  {  // 20180621 jessy zyxel
++				filter->zextmark.val = ntohl(nla_get_be32(cda[CTA_ZEXTMARK]));
++				filter->zextmark.mask = ntohl(nla_get_be32(cda[CTA_ZEXTMARK_MASK]));
++			}
+ #endif
+ 			c.data = filter;
+ 		}
+Index: linux-4.1.51/include/uapi/linux/netfilter/nfnetlink_conntrack.h
+===================================================================
+--- linux-4.1.51.orig/include/uapi/linux/netfilter/nfnetlink_conntrack.h	2019-04-16 19:38:25.057079423 +0800
++++ linux-4.1.51/include/uapi/linux/netfilter/nfnetlink_conntrack.h	2019-04-16 19:38:25.073079423 +0800
+@@ -52,6 +52,7 @@
+ 	CTA_TIMESTAMP,
+ 	CTA_MARK_MASK,
+ 	CTA_ZEXTMARK,  // zyxel jessy 20180621
++	CTA_ZEXTMARK_MASK,  // zyxel jessy 20180621
+ 	CTA_LABELS,
+ 	CTA_LABELS_MASK,
+ #if defined(CONFIG_BCM_KF_DPI) && defined(CONFIG_BCM_DPI_MODULE)
+Index: linux-4.1.51/include/net/fib_rules.h
+===================================================================
+--- linux-4.1.51.orig/include/net/fib_rules.h	2018-03-28 04:15:21.000000000 +0800
++++ linux-4.1.51/include/net/fib_rules.h	2019-04-16 19:58:09.747280450 +0800
+@@ -14,6 +14,10 @@
+ 	int			oifindex;
+ 	u32			mark;
+ 	u32			mark_mask;
++#ifdef CONFIG_SBG_SKB_MARK
++	u32			zextmark;
++	u32			zextmark_mask;
++#endif /* CONFIG_SBG_SKB_MARK */
+ 	u32			flags;
+ 	u32			table;
+ 	u8			action;
+@@ -78,18 +82,31 @@
+ 	struct net		*fro_net;
+ 	struct rcu_head		rcu;
+ };
+-
++#ifdef NETFILTER_XT_CONNZEXTMARK
+ #define FRA_GENERIC_POLICY \
+ 	[FRA_IIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
+ 	[FRA_OIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
+ 	[FRA_PRIORITY]	= { .type = NLA_U32 }, \
+ 	[FRA_FWMARK]	= { .type = NLA_U32 }, \
+ 	[FRA_FWMASK]	= { .type = NLA_U32 }, \
++	[FRA_ZEXTMARK]	= { .type = NLA_U32 }, \
++	[FRA_ZEXTMASK]	= { .type = NLA_U32 }, \
+ 	[FRA_TABLE]     = { .type = NLA_U32 }, \
+ 	[FRA_SUPPRESS_PREFIXLEN] = { .type = NLA_U32 }, \
+ 	[FRA_SUPPRESS_IFGROUP] = { .type = NLA_U32 }, \
+ 	[FRA_GOTO]	= { .type = NLA_U32 }
+-
++#else
++#define FRA_GENERIC_POLICY \
++	[FRA_IIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
++	[FRA_OIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
++	[FRA_PRIORITY]	= { .type = NLA_U32 }, \
++	[FRA_FWMARK]	= { .type = NLA_U32 }, \
++	[FRA_FWMASK]	= { .type = NLA_U32 }, \
++	[FRA_TABLE]     = { .type = NLA_U32 }, \
++	[FRA_SUPPRESS_PREFIXLEN] = { .type = NLA_U32 }, \
++	[FRA_SUPPRESS_IFGROUP] = { .type = NLA_U32 }, \
++	[FRA_GOTO]	= { .type = NLA_U32 }
++#endif
+ static inline void fib_rule_get(struct fib_rule *rule)
+ {
+ 	atomic_inc(&rule->refcnt);

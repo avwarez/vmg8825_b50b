@@ -1,0 +1,161 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_cbt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_cbt.c
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_cbt.c
+@@ -17,6 +17,7 @@
+ // RDM Json Object
+ struct json_object *cbtSsidObj = NULL;
+ struct json_object *cbt5GSsidObj = NULL;
++struct json_object *cbt5GGuestSsidObj = NULL;
+ struct json_object *cbtSecObj = NULL;
+ struct json_object *cbt5GSecObj = NULL;
+ struct json_object *cbtDevInfoObj = NULL;
+@@ -28,6 +29,7 @@ struct json_object *cbt5GApObj = NULL;
+ // RDM Iid
+ objIndex_t cbtSsidIid = {0};
+ objIndex_t cbt5GSsidIid = {0};
++objIndex_t cbt5GGuestSsidIid = {0};
+ objIndex_t cbtSecIid = {0};
+ objIndex_t cbt5GSecIid = {0};
+ objIndex_t cbtDevInfoIid = {0};
+@@ -52,6 +54,7 @@ const char* cbt5GWifiSsid;
+ bool cbtGuestWifiConfig;
+ bool cbtWifiConfig;
+ unsigned int cbtGuestCountdownTime = 0;
++unsigned int cbtGuest5GCountdownTime = 0;
+ bool cbtSameSsidChange;
+ const char* cbtWifiPskValue;
+ const char* cbt5GWifiPskValue;
+@@ -84,6 +87,7 @@ dal_param_t WIFI_CBT_param[]={
+ 	{"cbt5GIntraBssBlock",		dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ 	{"cbtGuestSsidHide",		dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ 	{"cbtGuest5GSsidHide",		dalType_boolean,	0,	0,	NULL,		NULL,			0},
++	{"cbtGuest5GWifiTimes",		dalType_int,	0,	0,	NULL,		NULL,			0},
+ #endif
+ 	{NULL,		0,	0,	0,	NULL},
+ };
+@@ -140,6 +144,7 @@ void initCbtWifiObjects(){
+ 	
+ 	cbtSsidObj = NULL;
+ 	cbt5GSsidObj = NULL;
++	cbt5GGuestSsidObj = NULL;
+ 	cbtSecObj = NULL;
+ 	cbt5GSecObj = NULL;
+ 	cbtDevInfoObj = NULL;
+@@ -150,6 +155,7 @@ void initCbtWifiObjects(){
+ 	
+ 	IID_INIT(cbtSsidIid);
+ 	IID_INIT(cbt5GSsidIid);
++	IID_INIT(cbt5GGuestSsidIid);
+ 	IID_INIT(cbtSecIid);
+ 	IID_INIT(cbt5GSecIid);
+ 	IID_INIT(cbtDevInfoIid);
+@@ -164,6 +170,7 @@ zcfgRet_t freeAllCbtWifiObjects(){
+ 	
+ 	if(cbtSsidObj) json_object_put(cbtSsidObj);
+ 	if(cbt5GSsidObj) json_object_put(cbt5GSsidObj);
++	if(cbt5GGuestSsidObj) json_object_put(cbt5GGuestSsidObj);
+ 	if(cbtSecObj) json_object_put(cbtSecObj);
+ 	if(cbt5GSecObj) json_object_put(cbt5GSecObj);
+ 	if(cbtApObj) json_object_put(cbtApObj);
+@@ -194,6 +201,9 @@ void getCbtBasicWifiInfo(struct json_obj
+ 	cbtWifi5GIntraBssBlock = json_object_get_boolean(json_object_object_get(Jobj, "cbt5GIntraBssBlock"));	// Enable/Disable
+ 	cbtWifiHideSsid = json_object_get_boolean(json_object_object_get(Jobj, "cbtGuestSsidHide"));		// Enable/Disable
+ 	cbtWifi5GHideSsid = json_object_get_boolean(json_object_object_get(Jobj, "cbtGuest5GSsidHide"));	// Enable/Disable
++	if(!cbtWifiConfig && !isExtraWiFi && !cbtSameSsid){
++		cbtGuest5GCountdownTime = json_object_get_int(json_object_object_get(Jobj, "cbtGuest5GWifiTimes")); // countdown Time
++	}
+ #endif
+ 	
+ #ifdef BUILD_SONIQ
+@@ -228,6 +238,7 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+ 	const char *serialNum;
+ 	char tempSerial[6] = {0};
+ 	char temp5GSsid[32] = {0};
++	char temp5GGuestSsid[32] = {0};
+ 	char originalSsid[32] = {0};
+ #if defined (ZYXEL_WEB_WIRELESS_NEW_VERSION_ONE) && defined (ZYXEL_ONESSID)
+ 		objIndex_t oneSsidObjIid;
+@@ -282,7 +293,13 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+ 				return ret;
+ 			}
+ 			json_object_object_add(cbt5GSsidObj, "Enable", json_object_new_boolean(cbtWifiEnable));
+-			json_object_object_add(cbt5GSsidObj, "X_ZYXEL_GuestEnableTime", json_object_new_int(cbtGuestCountdownTime));
++			
++			cbt5GGuestSsidIid.level = 1;
++			cbt5GGuestSsidIid.idx[0] = 6;
++			// 5G guest et data and set value to object
++			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &cbt5GGuestSsidIid, &cbt5GGuestSsidObj)) != ZCFG_SUCCESS) {
++				return ret;
++			}
+ 
+ 			// The same SSID or not
+ 			if(cbtSameSsid){ // 2.4G / 5G using the same SSID base on 2.4G SSID
+@@ -296,6 +313,7 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+        			if(oneSsidObj)
+        				zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ONE_SSID, &oneSsidObjIid, oneSsidObj, NULL);
+        			zcfgFeJsonObjFree(oneSsidObj);
++       			json_object_object_add(cbt5GSsidObj, "X_ZYXEL_GuestEnableTime", json_object_new_int(cbtGuestCountdownTime));
+ #endif
+ 			}else{ // 2.4G / 5G using different SSID
+ #if defined (ZYXEL_WEB_WIRELESS_NEW_VERSION_ONE) && defined (ZYXEL_ONESSID)
+@@ -306,6 +324,7 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+        			if(oneSsidObj)
+        				zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ONE_SSID, &oneSsidObjIid, oneSsidObj, NULL);
+        			zcfgFeJsonObjFree(oneSsidObj);
++       			json_object_object_add(cbt5GSsidObj, "X_ZYXEL_GuestEnableTime", json_object_new_int(cbtGuest5GCountdownTime));
+ #endif
+ 				if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_DEV_INFO, &cbtDevInfoIid, &cbtDevInfoObj)) != ZCFG_SUCCESS) {
+ 					return ret;
+@@ -319,13 +338,16 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+ 
+ 					if(!strcmp(cbtWifiSsid, originalSsid)) // default SSID
+ 						sprintf(temp5GSsid, "Fioptics%s-5G", tempSerial);
+-					else // user define SSID
++					else{ // user define SSID
+ #ifdef CBT_CUSTOMIZATION
+ 						sprintf(temp5GSsid, "%s-5G", cbtWifiSsid);
+ #else
++						const char* wifi_5g_guest_ssid;
+ 						sprintf(temp5GSsid, "%s_5G", cbtWifiSsid);
++						wifi_5g_guest_ssid = json_object_get_string(json_object_object_get(cbt5GGuestSsidObj,"SSID"));
++						sprintf(temp5GGuestSsid, "%s_5G", wifi_5g_guest_ssid);
+ #endif
+-
++					}
+ 				}else{ // Guest WiFi
+ 					sprintf(originalSsid, "Fioptics%s-Guest", tempSerial);
+ 
+@@ -343,13 +365,14 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+ 				const char* wifi_5g_ssid;
+ 				wifi_24g_ssid = json_object_get_string(json_object_object_get(cbtSsidObj,"SSID"));
+ 				wifi_5g_ssid = json_object_get_string(json_object_object_get(cbt5GSsidObj,"SSID"));
+-				if(json_object_get_boolean(json_object_object_get(cbtSsidObj, "X_ZYXEL_MasterMain"))){
++				if(json_object_get_boolean(json_object_object_get(cbtSsidObj, "X_ZYXEL_MasterMain")) && cbtWifiConfig){
+ 					// compare with last set 2.4G SSID
+ 					json_object_object_add(cbtSsidObj, "SSID", json_object_new_string(cbtWifiSsid));
+ 					if(!strcmp(wifi_5g_ssid, cbt5GWifiSsid)) // compare with last set 5G SSID
+ 						json_object_object_add(cbt5GSsidObj, "SSID", json_object_new_string(temp5GSsid));
+ 					else
+ 						json_object_object_add(cbt5GSsidObj, "SSID", json_object_new_string(cbt5GWifiSsid));
++					json_object_object_add(cbt5GGuestSsidObj, "SSID", json_object_new_string(temp5GGuestSsid));
+ 				}
+ 				else{
+ 					json_object_object_add(cbtSsidObj, "SSID", json_object_new_string(cbtWifiSsid));
+@@ -543,7 +566,7 @@ zcfgRet_t editCbtWifiSecObject(struct js
+ 				}
+ 
+ 				cbtSecTmpIid.idx[0] = cbtGuestWifiNumber + 1;
+-				cbt5GSecTmpIid.idx[0] = cbtGuestWifiNumber + (TOTAL_INTERFACE_24G + 1);
++				cbt5GSecTmpIid.idx[0] = cbtGuestWifiNumber + 5;
+ 
+ 				for(iidIdx = 1; iidIdx < 6; iidIdx++){
+ 					cbtSecTmpIid.idx[iidIdx] = cbtSecIid.idx[iidIdx];
+@@ -814,6 +837,7 @@ zcfgRet_t setAllCbtWifiObjects(struct js
+ 	if(cbtSsidObj) zcfgFeObjJsonSet(RDM_OID_WIFI_SSID, &cbtSsidIid, cbtSsidObj, NULL);
+ 	// 5G SSID
+ 	if(cbt5GSsidObj) zcfgFeObjJsonSet(RDM_OID_WIFI_SSID, &cbt5GSsidIid, cbt5GSsidObj, NULL);
++	if(cbt5GGuestSsidObj && cbtWifiConfig) zcfgFeObjJsonSet(RDM_OID_WIFI_SSID, &cbt5GGuestSsidIid, cbt5GGuestSsidObj, NULL);
+ 
+ 
+ 	return ret;

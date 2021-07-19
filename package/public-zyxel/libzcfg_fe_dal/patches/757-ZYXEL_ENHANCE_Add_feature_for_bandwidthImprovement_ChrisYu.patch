@@ -1,0 +1,193 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2019-11-12 16:31:33.401749113 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2019-11-12 16:35:21.413524285 +0800
+@@ -134,6 +134,10 @@
+ CFLAGS += -DZYXEL_REMOTE_ACCESS_PRIVILEGE
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_BANDWIDTH_IMPROVEMENT),y)
++CFLAGS += -DZYXEL_BANDWIDTH_IMPROVEMENT
++endif
++
+ #WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ ifeq ($(CONFIG_ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON),y)
+ CFLAGS += -DZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_wwanbackup_bwi.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_wwanbackup_bwi.c	2019-11-12 16:37:51.719945500 +0800
+@@ -0,0 +1,130 @@
++#include <json/json.h>
++
++#include "zcfg_common.h"
++#include "zcfg_rdm_oid.h"
++#include "zcfg_rdm_obj.h"
++#include "zcfg_debug.h"
++#include "zcfg_fe_rdm_string.h"
++#include "zcfg_fe_dal_common.h"
++
++#define CWMP_SOAP_MSG_DEBUG (1 << 1)
++
++dal_param_t Bandwidth_Improvement_param[] =
++{
++	{"Enable",				dalType_boolean,	0,	0,	NULL,	NULL,	NULL},		
++	{"Status",				dalType_int,		0,	0,	NULL,	NULL,	NULL},	
++	{"BWMInterval",			dalType_int,		0,	0,	NULL,	NULL,	NULL},	
++	{"TriggerLording",		dalType_int, 		0,	0,	NULL,	NULL,	NULL},
++	{"DeTriggerLording",	dalType_int, 		0,	0,	NULL,	NULL,	NULL},
++	{NULL,		           	0,					0,	0,	NULL,	NULL,	0}
++};
++
++void zcfgFeDalShowBandwidthImprovement(struct json_object *Jarray){
++	struct json_object *Jobj;
++	if(json_object_get_type(Jarray) != json_type_array){
++		printf("wrong Jobj format!\n");
++		return;
++	}
++	Jobj = json_object_array_get_idx(Jarray,0);
++
++	printf("Bandwidth Improvement Setup: \n");
++	printf("%-25s %u\n", "Enable", json_object_get_boolean(json_object_object_get(Jobj, "Enable")));
++	printf("%-25s %s\n", "Status", json_object_get_int(json_object_object_get(Jobj, "Status")));
++	printf("%-40s %u\n", "BWMInterval", json_object_get_int(json_object_object_get(Jobj, "BWMInterval")));
++	printf("%-50s %u\n", "TriggerLording", json_object_get_int(json_object_object_get(Jobj, "TriggerLording")));
++	printf("%-50s %u\n", "DeTriggerLording", json_object_get_int(json_object_object_get(Jobj, "DeTriggerLording")));
++	
++}
++
++zcfgRet_t zcfgFeDalBandwidthImprovementGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg){
++	
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *paramJobj = NULL;
++	struct json_object *improvementObj = NULL;
++
++	objIndex_t improvementIid = {0};
++
++	paramJobj = json_object_new_object();
++	if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ZY_BAND_WIDTH_IMPROVEMENT, &improvementIid, &improvementObj) == ZCFG_SUCCESS){
++		json_object_object_add(paramJobj, "Enable", JSON_OBJ_COPY(json_object_object_get(improvementObj, "Enable")));
++		json_object_object_add(paramJobj, "Status", JSON_OBJ_COPY(json_object_object_get(improvementObj, "Status")));
++		json_object_object_add(paramJobj, "BWMInterval", JSON_OBJ_COPY(json_object_object_get(improvementObj, "BWMInterval")));
++		json_object_object_add(paramJobj, "TriggerLording", JSON_OBJ_COPY(json_object_object_get(improvementObj, "TriggerLording")));
++		json_object_object_add(paramJobj, "DeTriggerLording", JSON_OBJ_COPY(json_object_object_get(improvementObj, "DeTriggerLording")));
++		zcfgFeJsonObjFree(improvementObj);
++	}
++
++	json_object_array_add(Jarray, paramJobj);
++	return ret;
++
++}
++
++zcfgRet_t zcfgFeDalBandwidthImprovementEdit(struct json_object *Jobj, char *replyMsg){
++	
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *improvementObj = NULL;
++	objIndex_t improvementIid = {0};
++	
++	bool bwi_Enable = false;
++	char *bwi_Status = NULL;
++	int bwi_BWMInterval = 0;
++	int bwi_TriggerLording = 0;
++	int bwi_DeTriggerLording = 0;
++
++	IID_INIT(improvementIid);
++	
++	bwi_Enable = json_object_get_boolean(json_object_object_get(Jobj, "Enable"));
++	bwi_Status = json_object_get_int(json_object_object_get(Jobj, "Status"));
++	bwi_BWMInterval = json_object_get_int(json_object_object_get(Jobj, "BWMInterval"));
++	bwi_TriggerLording = json_object_get_int(json_object_object_get(Jobj, "TriggerLording"));
++	bwi_DeTriggerLording = json_object_get_int(json_object_object_get(Jobj, "DeTriggerLording"));
++
++	//printf("zcfgFeDalBandwidthImprovementEdit: DAL BandwidthImprovement SET Enable=%d\n", bwi_Enable);
++	//printf("zcfgFeDalBandwidthImprovementEdit: DAL BandwidthImprovement SET bwi_Enable=%d\n", bwi_Status);
++	//printf("zcfgFeDalBandwidthImprovementEdit: DAL BandwidthImprovement SET bwi_BWMInterval=%d\n", bwi_BWMInterval);
++	//printf("zcfgFeDalBandwidthImprovementEdit: DAL BandwidthImprovement SET bwi_TriggerLording=%d\n", bwi_TriggerLording);
++	//printf("zcfgFeDalBandwidthImprovementEdit: DAL BandwidthImprovement SET bwi_DeTriggerLording=%d\n", bwi_DeTriggerLording);
++
++	if (zcfgFeObjJsonGet(RDM_OID_ZY_BAND_WIDTH_IMPROVEMENT, &improvementIid, &improvementObj) != ZCFG_SUCCESS){	
++			printf("Get RDM_OID_ZY_BAND_WIDTH_IMPROVEMENT object fail!\n");
++		return ret;
++	}
++	else{	
++		//printf("GET RDM_OID_ZY_BAND_WIDTH_IMPROVEMENT ZCFG_SUCCESS\n");
++		if(json_object_object_get(Jobj, "Enable")){
++			json_object_object_add(improvementObj, "Enable", json_object_new_boolean(bwi_Enable));
++		}
++		if(json_object_object_get(Jobj, "Status")){
++			json_object_object_add(improvementObj, "Status", json_object_new_int(bwi_Status));
++		}
++		if(json_object_object_get(Jobj, "BWMInterval")){
++			json_object_object_add(improvementObj, "BWMInterval", json_object_new_int(bwi_BWMInterval));
++		}
++		if(json_object_object_get(Jobj, "TriggerLording")){
++			json_object_object_add(improvementObj, "TriggerLording", json_object_new_int(bwi_TriggerLording));
++		}
++		if(json_object_object_get(Jobj, "DeTriggerLording")){
++			json_object_object_add(improvementObj, "DeTriggerLording", json_object_new_int(bwi_DeTriggerLording));
++		}
++		zcfgFeObjJsonSet(RDM_OID_ZY_BAND_WIDTH_IMPROVEMENT, &improvementIid, improvementObj, NULL);
++		zcfgFeJsonObjFree(improvementObj);
++	}
++	return ret;
++}
++
++zcfgRet_t zcfgFeDalBandwidthImprovement(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
++{
++	zcfgRet_t ret = ZCFG_SUCCESS;
++
++	if(!method || !Jobj)
++		return ZCFG_INTERNAL_ERROR;
++
++	if(!strcmp(method, "PUT")) {
++		ret = zcfgFeDalBandwidthImprovementEdit(Jobj, NULL);
++	}
++	else if(!strcmp(method, "GET")) {
++		ret = zcfgFeDalBandwidthImprovementGet(Jobj, Jarray, NULL);
++	}
++	
++	return ret;
++}
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-03-03 16:06:18.043452658 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-03-03 16:11:23.248676003 +0800
+@@ -23,6 +23,9 @@
+ extern dal_param_t ETHWANLAN_param[];
+ extern dal_param_t ADVANCE_param[];
+ extern dal_param_t WWANBACKUP_param[];
++#ifdef ZYXEL_BANDWIDTH_IMPROVEMENT
++extern dal_param_t Bandwidth_Improvement_param[];
++#endif
+ extern dal_param_t ETH_CTL_param[];
+ extern dal_param_t DNS_ENTRY_param[];
+ extern dal_param_t D_DNS_param[];
+@@ -154,6 +157,9 @@
+ extern zcfgRet_t zcfgFeDalEthWanLan(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalWanAdvance(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalWwanBackup(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
++#ifdef ZYXEL_BANDWIDTH_IMPROVEMENT
++extern zcfgRet_t zcfgFeDalBandwidthImprovement(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
++#endif
+ extern zcfgRet_t zcfgFeDalEthCtl(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalStaticRoute(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ extern zcfgRet_t zcfgFeDalDnsRoute(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+@@ -368,6 +374,8 @@
+ extern void zcfgFeDalShowEthWanLan(struct json_object *Jarray);
+ extern void zcfgFeDalShowWlanScheduler(struct json_object *Jarray);
+ extern void zcfgFeDalShowWlanSchAccess(struct json_object *Jarray);
++extern void zcfgFeDalShowBandwidthImprovement(struct json_object *Jarray);
++
+ extern void zcfgFeDalShowPORT_MIRROR(struct json_object *Jarray);
+ #ifdef MOS_SUPPORT
+ extern void zcfgFeDalShowGpon(struct json_object *Jarray);
+@@ -395,6 +403,9 @@
+ {"ddns",			D_DNS_param,		zcfgFeDalDDns,			zcfgFeDalShowDDns,			"get|edit",			"DNS"},
+ {"wan_adv",			ADVANCE_param,		zcfgFeDalWanAdvance,	zcfgFeDalShowWanAdvance,	"get|edit",				"Broadband"}, //Broadband
+ {"cellular", 		WWANBACKUP_param,	zcfgFeDalWwanBackup,	zcfgFeDalShowWwanBackup,	"get|edit",				"Broadband"}, //Broadband
++#ifdef ZYXEL_BANDWIDTH_IMPROVEMENT
++{"bandwidth_improvement",Bandwidth_Improvement_param,	zcfgFeDalBandwidthImprovement, zcfgFeDalShowBandwidthImprovement, "edit|get",	"Broadband"},
++#endif
+ {"ethctl",			ETH_CTL_param,		zcfgFeDalEthCtl,		zcfgFeDalShowEthCtl,		"get|edit",				"ethctl"}, //ETHCTL command
+ {"static_route", 	STATICROUTE_param,	zcfgFeDalStaticRoute,	zcfgFeDalShowStaticRoute,	"get|add|edit|delete",	"Routing"},
+ {"dns_route", 		DNSROUTE_param,		zcfgFeDalDnsRoute,		zcfgFeDalShowDnsRoute,		"get|add|edit|delete",	"Routing"}, //Routing

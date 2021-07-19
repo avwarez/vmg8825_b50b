@@ -1,0 +1,101 @@
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_portmirror.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_portmirror.c	2020-07-22 09:59:29.317353630 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_portmirror.c	2020-07-22 11:14:54.982473454 +0800
+@@ -18,6 +18,11 @@
+ 	{"LanPort", 	 dalType_string,	0,	0,	NULL,"LAN1|LAN2|LAN3|LAN4",0},
+ 	{"Status", 	 dalType_boolean,	0,	0,	NULL},
+ 	{"ZCFG_LOG_Enable", 	 dalType_boolean,	0,	0,	NULL},
++	{"Enable", 	 dalType_boolean,	0,	0,	NULL},
++	{"LogServerIP", 	 dalType_v4Addr,	0,	0,	NULL},
++	{"SendLogPeriodicTime", 	 dalType_int,	0,	0,	NULL},
++	{"LogServerAccount", 	 dalType_string,	0,	0,	NULL},
++	{"LogServerPwd", 	 dalType_string,	0,	0,	NULL},
+ 	{NULL,					0,	0,	0,	NULL},
+ 
+ };
+@@ -66,6 +71,11 @@
+ 	const char *LanPort = NULL, *ethName = NULL;
+ 	char buff[5] = {0};
+ 	bool status = false, log_enable = false, *loginlevel = NULL;
++	struct json_object *newdbgObj = NULL, *curdbgObj = NULL;
++	objIndex_t dbgIid = {0};
++	bool new_dbg_enable = false, cur_dbg_enable = false;
++	int new_period = 0, cur_period = 0;	
++	const char *new_remote_IP = NULL, *cur_remote_IP = NULL, *new_server_account = NULL, *cur_server_account = NULL, *new_server_pwd = NULL, *cur_server_pwd = NULL;
+ 
+ 	if(json_object_get_type(Jobj) == json_type_object){			//for CLI...
+ 		index = json_object_get_int(json_object_object_get(Jobj, "Index"));
+@@ -112,7 +122,7 @@
+ 			return ZCFG_INVALID_PARAM_VALUE;
+ 		}
+ 		len = json_object_array_length(Jobj);
+-		for(i=0; i<len-1; i++) {
++		for(i=0; i<len-2; i++) {
+ 			obj = json_object_array_get_idx(Jobj, i);
+ 			index = json_object_get_int(json_object_object_get(obj, "Index"));
+ 			LanPort = json_object_get_string(json_object_object_get(obj, "LanPort"));
+@@ -136,13 +146,40 @@
+ 				zcfgFeJsonObjFree(portMirrorObj);
+ 			}
+ 		}
+-		log_obj = json_object_array_get_idx(Jobj, len-1);
++		log_obj = json_object_array_get_idx(Jobj, len-2);
+ 		log_enable = json_object_get_boolean(json_object_object_get(log_obj, "Log_Enable"));
+ 		if(zcfgFeObjJsonGet(RDM_OID_LOG_SETTING, &logIid, &logObj) == ZCFG_SUCCESS) {
+ 			json_object_object_add(logObj, "ZCFG_LOG_Enable", json_object_new_boolean(log_enable));
+ 			zcfgFeObjJsonSet(RDM_OID_LOG_SETTING, &logIid, logObj, NULL);
+ 			zcfgFeJsonObjFree(logObj);
+ 		}
++
++		newdbgObj = json_object_object_get(json_object_array_get_idx(Jobj, len-1), "System_Debug");
++		new_dbg_enable = json_object_get_boolean(json_object_object_get(newdbgObj, "Enable"));
++		new_period = json_object_get_int(json_object_object_get(newdbgObj, "SendLogPeriodicTime"));
++		new_remote_IP = json_object_get_string(json_object_object_get(newdbgObj, "LogServerIP"));
++		new_server_account = json_object_get_string(json_object_object_get(newdbgObj, "LogServerAccount"));
++		new_server_pwd = json_object_get_string(json_object_object_get(newdbgObj, "LogServerPwd"));
++		if(zcfgFeObjJsonGet(RDM_OID_SYSTEM_DEBUG, &dbgIid, &curdbgObj) == ZCFG_SUCCESS) {
++			cur_dbg_enable = json_object_get_boolean(json_object_object_get(curdbgObj, "Enable"));
++			cur_period = json_object_get_int(json_object_object_get(curdbgObj, "SendLogPeriodicTime"));
++			cur_remote_IP = json_object_get_string(json_object_object_get(curdbgObj, "LogServerIP"));
++			cur_server_account = json_object_get_string(json_object_object_get(newdbgObj, "LogServerAccount"));
++			cur_server_pwd = json_object_get_string(json_object_object_get(newdbgObj, "LogServerPwd"));
++
++			if((new_dbg_enable != cur_dbg_enable) || (strcmp(new_remote_IP, cur_remote_IP)) || (new_period != cur_period) ||
++				(strcmp(new_server_account, cur_server_account)) || (strcmp(new_server_pwd, cur_server_pwd))){
++				json_object_object_add(curdbgObj, "Enable", json_object_new_boolean(new_dbg_enable));
++				json_object_object_add(curdbgObj, "SendLogPeriodicTime", json_object_new_int(new_period));
++				json_object_object_add(curdbgObj, "LogServerIP", json_object_new_string(new_remote_IP));
++				json_object_object_add(curdbgObj, "LogServerAccount", json_object_new_string(new_server_account));
++				json_object_object_add(curdbgObj, "LogServerPwd", json_object_new_string(new_server_pwd));
++
++				zcfgFeObjJsonSet(RDM_OID_SYSTEM_DEBUG, &dbgIid, curdbgObj, NULL);
++			}
++			zcfgFeJsonObjFree(curdbgObj);
++		}
++
+ 		
+ 	}	
+ 	return ret;
+@@ -156,6 +193,8 @@
+ 	objIndex_t logIid = {0};
+ 	const char *mirrorIntf = NULL, *ethName = NULL, *LanPort = NULL, *loginlevel = NULL;
+ 	bool direction = false;
++	struct json_object *dbgObj = NULL;
++	objIndex_t dbgIid = {0};
+ 
+ 	
+ 	loginlevel = json_object_get_string(json_object_object_get(Jobj, "DAL_LOGIN_LEVEL"));
+@@ -203,7 +242,11 @@
+ 	if(zcfgFeObjJsonGet(RDM_OID_LOG_SETTING, &logIid, &logObj) == ZCFG_SUCCESS){
+ 		json_object_object_add(tmp_array, "logSetting", logObj);	
+ 	}
+-	json_object_object_add(tmp_array, "portmirror", port_mirror_array);		
++	json_object_object_add(tmp_array, "portmirror", port_mirror_array);
++
++	if(zcfgFeObjJsonGet(RDM_OID_SYSTEM_DEBUG, &dbgIid, &dbgObj) == ZCFG_SUCCESS){
++		json_object_object_add(tmp_array, "sys_dbg", dbgObj);
++	}
+ 
+ 
+ 	

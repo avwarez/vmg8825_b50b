@@ -1,0 +1,89 @@
+Index: pure-ftpd-1.0.30/src/ftpd.c
+===================================================================
+--- pure-ftpd-1.0.30.orig/src/ftpd.c	2020-08-25 09:51:42.616291134 +0800
++++ pure-ftpd-1.0.30/src/ftpd.c	2020-08-25 09:56:22.626027060 +0800
+@@ -1941,6 +1941,31 @@
+ #endif //ZYXEL_REMOMGMT_ONLY_HTTPS_ALLOWS_FOR_WLAN_CONNECT
+ 
+ #ifdef ZYXEL_REMOTE_ACCESS_PRIVILEGE
++bool beCheckLANLinkLocalAddr(char *remoteAddr)
++{
++	char cmd[256]={0};
++	FILE *fp = NULL;
++	char *lst = calloc(128, sizeof(char));
++	int ret = 0; //set ip addr from wan by default
++
++	sprintf(cmd, "ip -6 neigh | grep '%s' | grep br > /tmp/CheckLANLinkLocalResult", remoteAddr);
++	system(cmd);
++
++	fp = fopen("/tmp/CheckLANLinkLocalResult", "r");
++	if(fp != NULL){
++		if( fgets (lst, 128, fp)!=NULL ) {
++			if(strstr(lst, "br") != 0)
++				ret = 1; //LAN
++   		}
++		fclose(fp);
++	}
++	
++	unlink("/tmp/CheckLANLinkLocalResult");
++	
++	free(lst);
++	return ret;	
++}
++
+ void checkClientFromLANWAN(char *remoaddr, char *remoAddr_Type)
+ {
+ 	int addrType = 0;
+@@ -1953,6 +1978,7 @@
+ 	char lanip[64] = {0};
+ 	char perfix[8] = {0};
+ 	bool found = false;
++	int fromLAN=0;
+ 	
+ 	addrType = ipType(remoaddr);
+ 	if (addrType != AF_INET && addrType != AF_INET6) {
+@@ -1991,6 +2017,27 @@
+ 					}
+ 					zcfgFeObjStructFree(ipv6Obj);
+ 				}
++
++				//check if login account from link-local address
++				if(!found){
++
++					fromLAN = beCheckLANLinkLocalAddr(remoaddr);
++					if(!fromLAN){
++						//this address not come from LAN, no need to check with device linklocal addr
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}					
++					if( strcmp(ipObj->X_ZYXEL_IPv6LocalAddress, "") == 0 ){
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++
++					if (checkCidrBlock(ipObj->X_ZYXEL_IPv6LocalAddress, "64", remoaddr) == 1) {
++						found = true;
++						zcfgFeObjStructFree(ipObj);
++						break;
++					}
++				}				
+ 			}
+ 		}
+ 		zcfgFeObjStructFree(ipObj);
+@@ -2041,8 +2088,14 @@
+         addreply_noformat(530, MSG_WHOAREYOU);
+         return;
+     }
+-	char hostip[64] = {0};
+-	getnameinfo((struct sockaddr *) &peer, STORAGE_LEN(peer), hostip, sizeof hostip, NULL, (size_t) 0U, NI_NUMERICHOST);
++	char hostip[64] = {0},tmphostip[64] = {0};
++	getnameinfo((struct sockaddr *) &peer, STORAGE_LEN(peer), tmphostip, sizeof tmphostip, NULL, (size_t) 0U, NI_NUMERICHOST);
++
++	if(strstr(tmphostip, "%") != 0)
++		sscanf(tmphostip, "%[^%]", hostip);
++	else
++		sscanf(tmphostip, "%s", hostip);
++
+ 	int authGpPrivilege = 1 ;
+ 
+ 	char logStr[128] = {0};

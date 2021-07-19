@@ -1,0 +1,13 @@
+Index: linux-4.1.52/net/netfilter/xt_AUTOMAP.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/xt_AUTOMAP.c	2018-01-25 15:25:13.558787586 +0800
++++ linux-4.1.52/net/netfilter/xt_AUTOMAP.c	2018-01-26 11:21:43.874653775 +0800
+@@ -76,7 +76,7 @@
+     }
+ 	else{
+          /* for new broadcom vlan device */
+-         TCI = ntohs(((struct vlan_hdr *)(skb->vlan_header))->h_vlan_TCI);
++         TCI = ((struct vlan_hdr *)(skb->vlan_header))->h_vlan_TCI;
+          id = TCI & VLAN_VID_MASK;
+          *prio = (TCI >> 13) & 0x7;
+     }

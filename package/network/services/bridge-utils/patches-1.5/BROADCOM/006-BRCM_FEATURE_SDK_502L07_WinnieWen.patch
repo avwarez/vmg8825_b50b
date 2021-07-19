@@ -1,0 +1,161 @@
+Index: bridge-utils-1.5/brctl/brctl_cmd.c
+===================================================================
+--- bridge-utils-1.5.orig/brctl/brctl_cmd.c	2019-07-29 03:10:56.144420487 +0000
++++ bridge-utils-1.5/brctl/brctl_cmd.c	2019-07-29 03:15:47.636084041 +0000
+@@ -25,12 +25,12 @@
+ #include "libbridge.h"
+ #include "brctl.h"
+ #if defined(PLATFORM_BROADCOM)
+-#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ #include <sys/ioctl.h>
+ #include <unistd.h>
+ #endif
+ #include <linux/sockios.h>
+-#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ #include <linux/netlink.h>
+ #include <linux/neighbour.h>
+ #include <linux/rtnetlink.h>
+@@ -313,7 +313,7 @@
+ }
+ 
+ #if defined(PLATFORM_BROADCOM)
+-#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ // brcm begin
+ static int dump_port_mac_limits(const char *br, const char *p,  void *arg)
+ {
+@@ -348,7 +348,7 @@
+ 	return err != 0;
+ }
+ 
+-#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ static int br_cmd_local_switch_disable(int argc, char *const* argv)
+ {
+ 	int disable, err;
+@@ -588,9 +588,9 @@
+ 
+     return 0;
+ }
+-#endif //#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#endif //#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ 
+-#else //#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#else //#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ static int br_cmd_enableportsnooping(int argc, char*const* argv)
+ {
+ 	int err;
+@@ -1090,7 +1090,7 @@
+ 	return err != 0;
+ }
+ 
+-#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ static int br_get_port_list(const char *brname, int *ifindices, int num)
+ {
+ 	unsigned long args[4] = { BRCTL_GET_PORT_LIST,
+@@ -1240,7 +1240,7 @@
+ 	  "<bridge> <port> <prio>\tset port priority" },
+ 	{ 3, "setmaclearning", br_cmd_set_macaddrlearning,
+ 	  "<bridge> <port> <value>\t\t port: ifname(0=no specific port), value: 0-disable 1-enable"},
+-#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ 	{ 2, "enableportsnooping", br_cmd_enableportsnooping,
+ 	  "<bridge> <value>\t0-disable 1-standard 2-blocking" },
+ #if (!defined(BRCM_SDK_416L04)) && (!defined(BRCM_SDK_416L05))
+@@ -1252,7 +1252,7 @@
+ 	  "[ <bridge> ]\t\tshow a list of bridges" },
+ 	{ 1, "showmacs", br_cmd_showmacs, 
+ 	  "<bridge>\t\tshow a list of mac addrs"},
+-#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ 	{ 3, "addmacs", br_cmd_addmacs, 
+ 	  "<bridge> <ifname> <mac>\t\tadd mac addresses to the bridge table"},
+ 	{ 3, "delmacs", br_cmd_delmacs, 
+@@ -1265,11 +1265,11 @@
+ 	{ 2, "stp", br_cmd_stp,
+ 	  "<bridge> {on|off}\tturn stp on/off" },
+ #if defined(PLATFORM_BROADCOM)
+-#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ // brcm begin
+ 	{ 1, "showmaclmt", br_cmd_show_mac_lmt,
+ 	  "<bridge>\t\tshow a mac limit of bridge"},
+-#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ 	{ 2, "localswitchingdisable", br_cmd_local_switch_disable, 
+ 	  "<bridge> {on|off}\t\tLocal switching disable on bridge on/off"},
+ 	{ 3, "addmacs", br_cmd_addmacs, 
+Index: bridge-utils-1.5/libbridge/libbridge.h
+===================================================================
+--- bridge-utils-1.5.orig/libbridge/libbridge.h	2019-07-29 03:10:56.144420487 +0000
++++ bridge-utils-1.5/libbridge/libbridge.h	2019-07-29 03:17:13.162146754 +0000
+@@ -21,7 +21,7 @@
+ 
+ #include <sys/socket.h>
+ #include <linux/if.h>
+-//#if (defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++//#if (defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ //#include <bcm_local_kernel_include/linux/if_bridge.h>
+ //#else
+ #include <linux/if_bridge.h>
+@@ -119,7 +119,7 @@
+ extern int br_set_port_priority(const char *br, const char *p, 
+ 				int port_priority);
+ 
+-#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ extern int br_enable_port_snooping(const char *br, int enable);
+ extern int br_enable_proxy_mode(const char *br, int enable);
+ extern int br_igmp_enable_rate_limit(const char *br, int limit);
+@@ -143,7 +143,7 @@
+ extern int br_set_hairpin_mode(const char *bridge, const char *dev,
+ 			       int hairpin_mode);
+ 				   
+-#if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ // brcm begin
+ int br_get_fdb_limits(const char *brname, int *maxfdb, int *usedfdb );
+ int br_get_port_fdb_limits(const char *portname, int *maxfdb, int *minfdb, int *usedfdb );
+@@ -151,7 +151,7 @@
+ extern int br_block_stp(const char *bridge, const char *ifName);
+ extern int br_mark_dedicated_stp_port(const char *bridge,
+                                       const char *ifName, int setting);
+-#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06)
++#if defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07)
+ extern int br_set_local_switching_disable(const char *br, int disable_state);
+ #endif
+ // brcm end
+Index: bridge-utils-1.5/libbridge/libbridge_devif.c
+===================================================================
+--- bridge-utils-1.5.orig/libbridge/libbridge_devif.c	2019-07-29 03:10:56.144420487 +0000
++++ bridge-utils-1.5/libbridge/libbridge_devif.c	2019-07-29 03:17:51.153190708 +0000
+@@ -385,7 +385,7 @@
+ 		      BRCTL_SET_BRIDGE_PRIORITY);
+ }
+ 
+-#if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ int br_set_local_switching_disable(const char *br, int disable_state)
+ {
+ 	return br_set(br, "local_switching_disable", disable_state, BRCTL_GET_VERSION);
+@@ -428,7 +428,7 @@
+ 	return port_set(bridge, port, "priority", priority, BRCTL_SET_PORT_PRIORITY);
+ }
+ 
+-#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && !(defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ int br_enable_port_snooping(const char *br, int enable)
+ {
+ 	int ret;
+@@ -717,7 +717,7 @@
+ 	return n;
+ }
+ 
+-#if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06))
++#if defined(PLATFORM_BROADCOM) && (defined(BRCM_SDK_502L04) || defined(BRCM_SDK_502L05) || defined(BRCM_SDK_502L06) || defined(BRCM_SDK_502L07))
+ int br_get_fdb_limits(const char *brname, int *maxfdb, int *usedfdb )
+ {
+ 	DIR *d;

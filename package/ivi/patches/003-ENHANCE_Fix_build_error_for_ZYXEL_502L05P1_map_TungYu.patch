@@ -1,0 +1,119 @@
+Index: ivi-1.0/ivi_nf.c
+===================================================================
+--- ivi-1.0.orig/ivi_nf.c	2019-12-31 08:45:51.733861735 +0000
++++ ivi-1.0/ivi_nf.c	2019-12-31 09:03:51.681851436 +0000
+@@ -39,12 +39,26 @@
+ 
+ static int running;
+ 
++#if (LINUX_VERSION_CODE <= KERNEL_VERSION( 2,6,29 ))
++unsigned int nf_hook4(unsigned int hooknum, struct sk_buff *skb,
++		const struct net_device *in, const struct net_device *out,
++		int (*okfn)(struct sk_buff *)) {
++#elif (LINUX_VERSION_CODE <= KERNEL_VERSION( 3,18,21 ))
++static unsigned int nf_hook4(const struct nf_hook_ops *ops, struct sk_buff *skb,
++		const struct net_device *in, const struct net_device *out,
++		int (*okfn)(struct sk_buff *)) {
++#else
+ static unsigned int nf_hook4(const struct nf_hook_ops *ops,
+-                            struct sk_buff *skb,
+-    		                const struct nf_hook_state *state) {
++		struct sk_buff *skb,
++		const struct nf_hook_state *state) {
++#endif
+ 	unsigned int ret;
+ 
++#if (LINUX_VERSION_CODE <= KERNEL_VERSION( 3,18,21 ))
++	if ((!running) || (in != v4_dev)) {
++#else
+ 	if ((!running) || (state->in != v4_dev)) {
++#endif
+ 		return NF_ACCEPT;
+ 	}
+ 
+@@ -52,18 +66,34 @@
+ 
+ 	if (ret == 0)
+ 		return NF_DROP;
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION( 4,1,51 ))
+ 	else if (ret == NF_STOLEN)
+ 		return NF_STOLEN;
+ 	else
++#endif
+ 		return NF_ACCEPT;
+ }
+ 
++#if (LINUX_VERSION_CODE <= KERNEL_VERSION( 2,6,29 ))
++unsigned int nf_hook6(unsigned int hooknum, struct sk_buff *skb,
++		const struct net_device *in, const struct net_device *out,
++		int (*okfn)(struct sk_buff *)) {
++#elif (LINUX_VERSION_CODE <= KERNEL_VERSION( 3,18,21 ))
++static unsigned int nf_hook6(const struct nf_hook_ops *ops, struct sk_buff *skb,
++		const struct net_device *in, const struct net_device *out,
++		int (*okfn)(struct sk_buff *)) {
++#else
+ static unsigned int nf_hook6(const struct nf_hook_ops *ops,
+-                            struct sk_buff *skb,
+-    		                const struct nf_hook_state *state) {
++		struct sk_buff *skb,
++		const struct nf_hook_state *state) {
++#endif
+ 	unsigned int ret;
+ 
++#if (LINUX_VERSION_CODE <= KERNEL_VERSION( 3,18,21 ))
++	if ((!running) || (in != v6_dev)) {
++#else
+ 	if ((!running) || (state->in != v6_dev)) {
++#endif
+ 		return NF_ACCEPT;
+ 	}
+ 
+@@ -71,9 +101,11 @@
+ 
+ 	if (ret == 0)
+ 		return NF_DROP;
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION( 4,1,51 ))
+ 	else if (ret == NF_STOLEN)
+ 		return NF_STOLEN;
+ 	else
++#endif
+ 		return NF_ACCEPT;
+ }
+ 
+Index: ivi-1.0/Makefile
+===================================================================
+--- ivi-1.0.orig/Makefile	2019-12-31 08:45:51.733861735 +0000
++++ ivi-1.0/Makefile	2019-12-31 08:45:51.741861735 +0000
+@@ -1,12 +1,11 @@
+-#ivi-objs    :=  ivi_rule.o ivi_rule6.o ivi_map.o ivi_map_tcp.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o ivi_portmap.o
+-ivi-objs    :=  ivi_rule.o ivi_rule6.o ivi_map.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o ivi_portmap.o
++obj-m		+=	ivi.o
++#ivi-objs	:=	ivi_rule.o ivi_rule6.o ivi_map.o ivi_map_tcp.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o
++ivi-objs	:=	ivi_rule.o ivi_rule6.o ivi_map.o ivi_xmit.o ivi_nf.o ivi_ioctl.o ivi_module.o ivi_portmap.o
++#KERNELDIR	:=	/lib/modules/$(shell uname -r)/build
++PWD		:=	$(shell pwd)
+ 
+-obj-$(CONFIG_BCM_MAP) += ivi.o
+-
+-EXTRA_CFLAGS += -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD)
+-EXTRA_CFLAGS += -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD)
+-EXTRA_CFLAGS += -Werror -Wall
++all:
++	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+ 
+ clean:
+-	rm -f core *.o *.a *.s .*.cmd *.ko
+-
++	rm -rf *.ko *.o *.mod.c core Module.symvers Module.markers modules.order .*.cmd .tmp_versions
+Index: ivi-1.0/ivi_nf.h
+===================================================================
+--- ivi-1.0.orig/ivi_nf.h	2019-12-31 08:47:48.225860624 +0000
++++ ivi-1.0/ivi_nf.h	2019-12-31 08:48:14.845860370 +0000
+@@ -37,6 +37,7 @@
+ #ifndef IVI_NF_H
+ #define IVI_NF_H
+ 
++#include <linux/version.h>
+ #include <linux/module.h>
+ #include <linux/netfilter.h>
+ #include <linux/netfilter_ipv4.h>

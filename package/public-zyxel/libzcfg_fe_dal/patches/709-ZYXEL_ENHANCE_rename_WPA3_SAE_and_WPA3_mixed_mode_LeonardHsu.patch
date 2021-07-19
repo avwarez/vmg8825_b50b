@@ -1,0 +1,65 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2019-09-27 14:12:23.608419080 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2019-09-27 14:13:17.092419080 +0800
+@@ -377,9 +377,9 @@
+ 				//	json_object_object_add(pramJobj, "PskDisplay", json_object_new_string("None"));
+ 				//}
+ #ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+-				if(!strcmp("WPA-Personal",modeEn) || !strcmp("WPA2-Personal",modeEn)|| !strcmp("WPA-WPA2-Personal",modeEn) || !strcmp("None",modeEn) || !strcmp("WPA3-SAE",modeEn) || !strcmp("WPA2-Personal-WPA3-SAE",modeEn)){
++				if(!strcmp("WPA-Personal",modeEn) || !strcmp("WPA2-Personal",modeEn)|| !strcmp("WPA-WPA2-Personal",modeEn) || !strcmp("None",modeEn) || !strcmp("WPA3-Personal",modeEn) || !strcmp("WPA3-Personal-Transition",modeEn)){
+ #else
+-				if(!strcmp("WPA2-Personal",modeEn) || !strcmp("None",modeEn) || !strcmp("WPA3-SAE",modeEn) || !strcmp("WPA2-Personal-WPA3-SAE",modeEn)){
++				if(!strcmp("WPA2-Personal",modeEn) || !strcmp("None",modeEn) || !strcmp("WPA3-Personal",modeEn) || !strcmp("WPA3-Personal-Transition",modeEn)){
+ #endif
+ 					if(json_object_get_boolean(json_object_object_get(obj2, "X_ZYXEL_AutoGenPSK"))){
+ 						json_object_object_add(pramJobj, "PskDisplay", JSON_OBJ_COPY(json_object_object_get(obj2, "X_ZYXEL_Auto_PSK")));
+@@ -1066,7 +1066,7 @@
+ 		else if(!strcmp(wpaMode,"wpa3sae") || !strcmp(wpaMode,"wpa2pskwpa3sae"))
+ 		{
+ 			if(!strcmp(wpaMode,"wpa3sae")){
+-				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-SAE"));
++				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal"));
+ 				if (wlEnable == true) { //interface enable
+ 					json_object_object_add(wifiSecObj, "EnableManagementFrameProtection", json_object_new_boolean(true));
+ 					json_object_object_add(wifiSecObj, "X_ZYXEL_PmfMethod", json_object_new_int(0));
+@@ -1077,7 +1077,7 @@
+ 				}
+ 			}
+ 			else{
+-				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal-WPA3-SAE"));
++				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal-Transition"));
+ 			}
+ 				// AutoGenPSK be from user (Jobj) or default (wifiSecObj)
+ 			if(json_object_object_get(Jobj,"AutoGenPSK")){
+@@ -1264,10 +1264,10 @@
+ 			}
+ 			else if(!strcmp(wpaMode,"wpa3sae")|| !strcmp(wpaMode,"wpa2pskwpa3sae")){
+ 				if(!strcmp(wpaMode,"wpa3sae")){
+-					json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-SAE"));
++					json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal"));
+ 				}
+ 				else{
+-					json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal-WPA3-SAE"));
++					json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal-Transition"));
+ 				}
+ 				json_object_object_add(syncWifiSecObj, "X_ZYXEL_AutoGenPSK", json_object_new_boolean(X_ZYXEL_AutoGenPSK));
+ 				if(X_ZYXEL_AutoGenPSK)
+@@ -2109,7 +2109,7 @@
+ #ifndef ZYXEL_SUPPORT_8021X
+ 		// wpaMode must be set to a proper value
+ #ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+-		if(showwpa3mode == 1 && strstr(ModesSupported, "WPA3-SAE")){
++		if(showwpa3mode == 1 && strstr(ModesSupported, "WPA3")){
+ 			if(strcmp(wpaMode,"wpapsk") && strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpawpa2psk") && strcmp(wpaMode,"wpa3sae") && strcmp(wpaMode,"wpa2pskwpa3sae")){
+ 				printf("wpaMode must be set to \"wpapsk\" or \"wpa2psk\" or \"wpawpa2psk\" or \"wpa3sae\" or \"wpa2pskwpa3sae\".\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;
+@@ -2128,7 +2128,7 @@
+ 			return ZCFG_REQUEST_REJECT;
+ 		}
+ #else
+- 		if(showwpa3mode == 1 && strstr(ModesSupported, "WPA3-SAE")){
++ 		if(showwpa3mode == 1 && strstr(ModesSupported, "WPA3")){
+ 			if(strcmp(wpaMode,"wpa2psk") && strcmp(wpaMode,"wpa2") && strcmp(wpaMode,"wpa3sae") && strcmp(wpaMode,"wpa2pskwpa3sae")){
+ 				printf("wpaMode must be set to \"wpa2psk\" or \"wpa2\" or \"wpa3sae\" or \"wpa2pskwpa3sae\".\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;

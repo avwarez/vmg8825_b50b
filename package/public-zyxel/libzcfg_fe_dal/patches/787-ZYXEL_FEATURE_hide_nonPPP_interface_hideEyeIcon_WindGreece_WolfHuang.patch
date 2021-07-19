@@ -1,0 +1,53 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-06-03 17:15:26.482671886 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-06-03 17:15:26.514671886 +0800
+@@ -5046,7 +5046,7 @@
+ 		if( ret == ZCFG_SUCCESS )
+ 		{
+ 			count++;
+-			json_object_object_add(pramJobj, "index", json_object_new_int(count));
++			json_object_object_add(pramJobj, "index", json_object_new_int(ipIfaceIid.idx[0]));
+ 			Jadds(pramJobj, "ipIfacePath", ipIfacePath);
+             replaceParam(pramJobj, "X_ZYXEL_IfName", ipIfObj, "X_ZYXEL_IfName");
+ 
+@@ -5070,7 +5070,7 @@
+ 			}
+ 			if(json_object_object_get(Jobj, "Index")){
+ 				index = json_object_get_int(json_object_object_get(Jobj, "Index"));
+-				if(index == count){
++				if(index == ipIfaceIid.idx[0]){
+ 					json_object_object_add(pramJobj, "ShowDetail", json_object_new_boolean(true));
+ 					json_object_array_add(Jarray, JSON_OBJ_COPY(pramJobj));
+ 					zcfgFeJsonObjFree(pramJobj);
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-06-03 17:15:26.486671886 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-06-03 17:18:30.280101164 +0800
+@@ -1103,6 +1103,7 @@
+ 	struct json_object *Jobj = NULL;
+ 	char ifacePath[32] = {0}, BridgingBrPath[32] = {0};
+ 	int len, len2, i, j, X_ZYXEL_ConcurrentWan = 0;
++	int X_ZYXEL_HideByPriviledge = 0;
+ 	unsigned char idx;
+ 	const char *X_ZYXEL_BridgeName, *X_ZYXEL_SrvName, *X_ZYXEL_ConnectionType, *X_ZYXEL_IfName, *X_ZYXEL_Group_WAN_IpIface, *LowerLayers;
+ 	const char *Status, *ipIfaceStatus, *IPAddress, *X_ZYXEL_ActiveDefaultGateway, *X_ZYXEL_ActiveV6DefaultGateway;
+@@ -1170,6 +1171,7 @@
+ 		X_ZYXEL_SrvName = json_object_get_string(json_object_object_get(ipIfaceObj, "X_ZYXEL_SrvName"));
+ 		X_ZYXEL_ConnectionType = json_object_get_string(json_object_object_get(ipIfaceObj, "X_ZYXEL_ConnectionType"));
+ 		X_ZYXEL_ConcurrentWan = json_object_get_int(json_object_object_get(ipIfaceObj, "X_ZYXEL_ConcurrentWan"));
++		X_ZYXEL_HideByPriviledge = json_object_get_int(json_object_object_get(ipIfaceObj, "X_ZYXEL_HideByPriviledge"));
+ 		LowerLayers = json_object_get_string(json_object_object_get(ipIfaceObj, "LowerLayers"));
+ 		X_ZYXEL_Group_WAN_IpIface = json_object_get_string(json_object_object_get(ipIfaceObj, "X_ZYXEL_Group_WAN_IpIface"));
+ 		sprintf(ifacePath, "IP.Interface.%u", i+1);
+@@ -1186,8 +1188,9 @@
+ 
+ 		Jobj = json_object_new_object();
+ 		json_object_object_add(Jobj, "IpIfacePath", json_object_new_string(ifacePath));
++		json_object_object_add(Jobj, "ipiIndex", json_object_new_int(i+1));
+ 		json_object_object_add(Jobj, "Name", json_object_new_string(X_ZYXEL_SrvName));
+-
++		json_object_object_add(Jobj, "X_ZYXEL_HideByPriviledge", json_object_new_int(X_ZYXEL_HideByPriviledge));
+ 		json_object_object_add(Jobj, "Type", json_object_new_string("WAN"));
+ 		json_object_object_add(Jobj, "VpiVci", json_object_new_string(""));
+ 		Jaddi(Jobj, "VLANPriority", -1);

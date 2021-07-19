@@ -1,0 +1,15 @@
+Index: libzyuitimer-1.0/Makefile
+===================================================================
+--- libzyuitimer-1.0.orig/Makefile	2019-01-22 10:32:38.000000000 +0800
++++ libzyuitimer-1.0/Makefile	2019-11-25 10:00:26.627983344 +0800
+@@ -1,8 +1,10 @@
+ LIB_NAME = libzyuitimer
+ CFLAGS = -fPIC
+ INC_PATH = -I$(CURDIR)
++INC_PATH += -I$(STAGING_DIR)/usr/include
+ ZCFG_LIBS =
+ LIBS_PATH = -lpthread -lzos -lzlog
++LIBS_PATH += -L$(STAGING_DIR)/usr/lib
+ EXTRA_LIBS =
+ OBJS = uitimer.o timer_list.o
+ 

@@ -1,0 +1,19 @@
+Index: dnsmasq-2.78/src/dhcp.c
+===================================================================
+--- dnsmasq-2.78.orig/src/dhcp.c	2019-11-18 14:19:57.147260155 +0800
++++ dnsmasq-2.78/src/dhcp.c	2019-11-18 14:25:24.459009740 +0800
+@@ -102,8 +102,12 @@
+   saddr.sin_len = sizeof(struct sockaddr_in);
+ #endif
+ 
+-  if (bind(fd, (struct sockaddr *) &saddr, sizeof(struct sockaddr_in)))
+-    die(_("failed to bind DHCP server socket: %s"), NULL, EC_BADNET);
++  if (bind(fd, (struct sockaddr *) &saddr, sizeof(struct sockaddr_in))){
++	my_syslog(LOG_ERR, "!!! %s failed to bind DHCP server socket !!!\n", __FUNCTION__);
++	sleep(1);
++	  if (bind(fd, (struct sockaddr *) &saddr, sizeof(struct sockaddr_in)))
++    	die(_("failed to bind DHCP server socket: %s"), NULL, EC_BADNET);
++  }
+ 
+   return fd;
+ }

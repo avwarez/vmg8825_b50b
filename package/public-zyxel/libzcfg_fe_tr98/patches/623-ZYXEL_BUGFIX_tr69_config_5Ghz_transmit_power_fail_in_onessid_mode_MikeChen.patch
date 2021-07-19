@@ -1,0 +1,28 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-05-23 09:37:28.667231680 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-05-23 11:27:27.413559886 +0800
+@@ -5405,9 +5405,20 @@
+ 		main = guest++;
+ 
+ 		if(ssidIid.idx[0]==main || ssidIid.idx[0]==guest){//5G main,5G guest 1
+-			json_object_put(ssidJobj);
+-			json_object_put(radioJobj);
+-			return ZCFG_REQUEST_REJECT;
++			struct json_object *spvObj = NULL;
++
++			if (multiJobj) {
++				spvObj = json_object_object_get(multiJobj, "spv");
++				//printf("-- %s.%d spvObj:\n%s\n", __func__, __LINE__, json_object_to_json_string(spvObj));
++				if (json_object_object_get(spvObj, "SSID") || json_object_object_get(spvObj, "SSIDAdvertisementEnabled") || json_object_object_get(spvObj, "IsolationEnable") ||
++					json_object_object_get(spvObj, "X_ZYXEL_BssIdIsolation") || json_object_object_get(spvObj, "ModeEnabled") || json_object_object_get(spvObj, "X_ZYXEL_AutoGenPSK") ||
++					json_object_object_get(spvObj, "KeyPassphrase") || json_object_object_get(spvObj, "PreSharedKey") || json_object_object_get(spvObj, "X_ZYXEL_Encryption") ||
++					json_object_object_get(spvObj, "RekeyingInterval")) {
++					json_object_put(ssidJobj);
++					json_object_put(radioJobj);
++					return ZCFG_REQUEST_REJECT;
++				}
++			}
+ 		}
+ 	}
+ #endif

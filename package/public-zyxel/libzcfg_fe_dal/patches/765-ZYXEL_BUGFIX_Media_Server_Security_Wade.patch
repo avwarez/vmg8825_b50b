@@ -1,0 +1,48 @@
+Index: libzcfg_fe_dal-1.0/network/usbService/zcfg_fe_dal_usb_mediaserver.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/usbService/zcfg_fe_dal_usb_mediaserver.c	2020-04-14 15:37:52.701790091 +0800
++++ libzcfg_fe_dal-1.0/network/usbService/zcfg_fe_dal_usb_mediaserver.c	2020-04-14 15:42:01.822960800 +0800
+@@ -14,7 +14,7 @@
+ {
+ 	//Media server
+ 	{"Enable",				dalType_boolean,	0,	0,	NULL},
+-	{"MediaRelativePath",	dalType_string,		0,	0,	NULL},
++	{"MediaRelativePath",	dalType_mediaserverPath,		0,	0,	NULL},
+ 	{"Interface",			dalType_Lan,	 	0,	0,	NULL},	
+ 	{NULL,		0,	0,	0,	NULL}
+ };
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-04-14 15:38:02.037790441 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-04-14 15:40:40.579459300 +0800
+@@ -4091,6 +4091,16 @@
+                             return false;
+                         }
+                         break;
++					case dalType_mediaserverPath:
++						stringPtr = json_object_get_string(pramJobj);
++						if(stringPtr == NULL || !strcmp(stringPtr, ""))
++							return false;
++						if(strstr(stringPtr, "/mnt/") != NULL && strcmp(strstr(stringPtr, "/mnt/"),stringPtr) == 0 && strstr(stringPtr, "../") == NULL) 
++						{							
++						}
++		                else 
++							return false; 				
++						break;						
+ 					default:
+ 						break;
+ 				}
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal_common.h	2020-04-14 15:38:02.037790441 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h	2020-04-14 15:41:28.973135200 +0800
+@@ -144,7 +144,8 @@
+ 	dalType_intfVlan,					// vlan group name without BrRefKey value
+ 	dalType_wlanMode,					// 802.11b, 802.11g, 802.11n, ...
+ 	dalType_wifiSSID,
+-    dalType_ShaperIntf
++    dalType_ShaperIntf,
++	dalType_mediaserverPath
+ };
+ 
+ bool getSpecificObj(zcfg_offset_t oid, char *key, json_type type, void *value, objIndex_t *outIid, struct json_object **outJobj);

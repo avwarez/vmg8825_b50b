@@ -1,0 +1,19 @@
+Index: linux-4.1.52/net/netfilter/xt_nat.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/xt_nat.c	2018-03-28 04:15:21.000000000 +0800
++++ linux-4.1.52/net/netfilter/xt_nat.c	2018-11-21 16:41:24.542870472 +0800
+@@ -37,6 +37,14 @@
+ 	dst->max_addr.ip = src->max_ip;
+ 	dst->min_proto	 = src->min;
+ 	dst->max_proto	 = src->max;
++
++    /*+++ Kide@zyxel:
++     * Support one-to-one port mapping. __TELEFONICA__, ZyXEL Stan Su, 20120307.
++     */
++    dst->mappingFlag = src->mappingFlag;
++    dst->mappingMin = src->mappingMin;
++    dst->mappingMax = src->mappingMax;
++    /*---*/
+ }
+ 
+ static unsigned int

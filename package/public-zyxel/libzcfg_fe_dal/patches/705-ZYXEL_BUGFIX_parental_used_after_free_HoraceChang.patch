@@ -1,0 +1,179 @@
+Index: libzcfg_fe_dal-1.0/security/contentFilter/zcfg_fe_dal_contentFilter.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/contentFilter/zcfg_fe_dal_contentFilter.c	2019-09-16 09:39:19.829686795 +0800
++++ libzcfg_fe_dal-1.0/security/contentFilter/zcfg_fe_dal_contentFilter.c	2019-09-17 08:08:21.627806411 +0800
+@@ -123,8 +123,6 @@
+ 	struct json_object *pramJobj = NULL;
+ 
+ 	int index = 0;
+-	struct json_object *name = NULL;
+-	struct json_object *description = NULL;
+ 	char TR181Path[64] = {0};
+ 	int obj_MaxLength = 0;
+ 
+@@ -137,42 +135,41 @@
+ 		//sprintf(TR181Path, "X_ZYXEL_ContentFilter.%u", objIid.idx[0]);
+ 
+ 		pramJobj = json_object_new_object();
+-		json_object_object_add(pramJobj, "Name",JSON_OBJ_COPY(json_object_object_get(ContentFilterJobj, "Name")));
+-		json_object_object_add(pramJobj, "Description",JSON_OBJ_COPY(json_object_object_get(ContentFilterJobj, "Description")));
+-
+-		json_object_object_add(pramJobj, "ContentFilterEnable",json_object_object_get(ContentFilterJobj, "Enable"));
+-		json_object_object_add(pramJobj, "adultContent",json_object_object_get(ContentFilterJobj, "AdultContent"));
+-		json_object_object_add(pramJobj, "drugs",json_object_object_get(ContentFilterJobj, "Drugs"));
+-		json_object_object_add(pramJobj, "alcoholandTobacco",json_object_object_get(ContentFilterJobj, "AlcoholandTobacco"));
+-		json_object_object_add(pramJobj, "disturbing",json_object_object_get(ContentFilterJobj, "Disturbing"));
+-		json_object_object_add(pramJobj, "gambling",json_object_object_get(ContentFilterJobj, "Gambling"));
+-		json_object_object_add(pramJobj, "illegal",json_object_object_get(ContentFilterJobj, "Illegal"));
+-		json_object_object_add(pramJobj, "illegalDownloads",json_object_object_get(ContentFilterJobj, "IllegalDownloads"));
+-		json_object_object_add(pramJobj, "violence",json_object_object_get(ContentFilterJobj, "Violence"));
+-		json_object_object_add(pramJobj, "hate",json_object_object_get(ContentFilterJobj, "Hate"));
+-		json_object_object_add(pramJobj, "weapons",json_object_object_get(ContentFilterJobj, "Weapons"));
+-		json_object_object_add(pramJobj, "dating",json_object_object_get(ContentFilterJobj, "Dating"));
+-		json_object_object_add(pramJobj, "timeShoppingandAuctions",json_object_object_get(ContentFilterJobj, "TimeShoppingandAuctions"));
+-		json_object_object_add(pramJobj, "videoStreamingServices",json_object_object_get(ContentFilterJobj, "VideoStreamingServices"));
+-		json_object_object_add(pramJobj, "socialNetworks",json_object_object_get(ContentFilterJobj, "SocialNetworks"));
+-		json_object_object_add(pramJobj, "anonymizers",json_object_object_get(ContentFilterJobj, "Anonymizers"));
+-		json_object_object_add(pramJobj, "unknown",json_object_object_get(ContentFilterJobj, "Unknown"));
++		replaceParam(pramJobj,"Name",ContentFilterJobj,"Name");
++		replaceParam(pramJobj,"Description",ContentFilterJobj,"Description");
+ 
++		replaceParam(pramJobj,"ContentFilterEnable",ContentFilterJobj,"Enable");
++		replaceParam(pramJobj,"adultContent",ContentFilterJobj,"AdultContent");
++		replaceParam(pramJobj,"drugs",ContentFilterJobj,"Drugs");
++		replaceParam(pramJobj,"alcoholandTobacco",ContentFilterJobj,"AlcoholandTobacco");
++		replaceParam(pramJobj,"disturbing",ContentFilterJobj,"Disturbing");
++		replaceParam(pramJobj,"gambling",ContentFilterJobj,"Gambling");
++		replaceParam(pramJobj,"illegal",ContentFilterJobj,"Illegal");
++		replaceParam(pramJobj,"illegalDownloads",ContentFilterJobj,"IllegalDownloads");
++		replaceParam(pramJobj,"violence",ContentFilterJobj,"Violence");
++		replaceParam(pramJobj,"hate",ContentFilterJobj,"Hate");
++		replaceParam(pramJobj,"weapons",ContentFilterJobj,"Weapons");
++		replaceParam(pramJobj,"dating",ContentFilterJobj,"Dating");
++		replaceParam(pramJobj,"timeShoppingandAuctions",ContentFilterJobj,"TimeShoppingandAuctions");
++		replaceParam(pramJobj,"videoStreamingServices",ContentFilterJobj,"VideoStreamingServices");
++		replaceParam(pramJobj,"socialNetworks",ContentFilterJobj,"SocialNetworks");
++		replaceParam(pramJobj,"anonymizers",ContentFilterJobj,"Anonymizers");
++		replaceParam(pramJobj,"unknown",ContentFilterJobj,"Unknown");
+ 
+ 		if(json_object_object_get(Jobj, "Index")) {
+ 			if(index == json_object_get_int(json_object_object_get(Jobj, "Index"))) {
+ 				json_object_array_add(Jarray, pramJobj);
+-				if(pramJobj) json_object_put(pramJobj);
+-				if(ContentFilterJobj) json_object_put(ContentFilterJobj);	
++				if(ContentFilterJobj) zcfgFeJsonObjFree(ContentFilterJobj);
+ 				break;
+ 			}
++			if(pramJobj) zcfgFeJsonObjFree(pramJobj);
+ 		}
+ 		else {
+-			json_object_array_add(Jarray, JSON_OBJ_COPY(pramJobj));
+-		}		
+-	if(ContentFilterJobj) json_object_put(ContentFilterJobj);
+-	if(pramJobj) json_object_put(pramJobj);
++			json_object_array_add(Jarray, pramJobj);
++		}
++		if(ContentFilterJobj) zcfgFeJsonObjFree(ContentFilterJobj);
+ 	}
++
+ 	return ret;
+ 
+ 
+@@ -183,7 +180,6 @@
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 
+ 	struct json_object *ContentFilterJobj = NULL;
+-	struct json_object *pramJobj = NULL;
+ 	struct json_object *pramJobjcopy = NULL;
+ 	int objIndex;
+ 	char *newName= NULL;
+@@ -210,21 +206,18 @@
+ 
+ 	objIndex_t objIid={0};
+ 	IID_INIT(objIid);
+-	pramJobj = json_object_new_object();
+ 	objIndex = json_object_get_int(json_object_object_get(Jobj, "Index"));
+ 	ret = convertIndextoIid(objIndex, &objIid, RDM_OID_CONTENT_FILTER, NULL, NULL, replyMsg);
+ 	if(ret != ZCFG_SUCCESS){
+-		if(pramJobj) json_object_put(pramJobj);		
+ 		printf("Wrong index..\n");
+ 		return ret;
+ 	}
+ 	if((ret = zcfgFeObjJsonGet(RDM_OID_CONTENT_FILTER, &objIid, &ContentFilterJobj)) != ZCFG_SUCCESS) {
+-		if(pramJobj) json_object_put(pramJobj);		
+ 		printf("Get json fail..\n");
+ 		return ret;
+ 	}
+ 	if((pramJobjcopy = json_object_object_get(Jobj, "Name")) != NULL){
+-		newName = json_object_get_string(pramJobj);
++		newName = json_object_get_string(pramJobjcopy);
+ 		oldName = json_object_get_string(json_object_object_get(ContentFilterJobj, "Name"));
+ 		if(strcmp(newName,oldName)!=0){ // if newName != oldName
+ 			ret = dalcmdParamCheck(&objIid, newName, RDM_OID_CONTENT_FILTER, "Name", "Name", msg);
+@@ -235,7 +228,6 @@
+ 			else{
+ 				printf("%s\n",msg);
+ 				json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.ContentFilter.Input.pop_name_duplicate"));
+-				if(pramJobj) json_object_put(pramJobj); 	
+ 				if(ContentFilterJobj) json_object_put(ContentFilterJobj);
+ 				//if(pramJobjcopy) json_object_put(pramJobjcopy);
+ 				return ret;
+@@ -303,13 +295,11 @@
+ 
+ 	if((ret = zcfgFeObjJsonSet(RDM_OID_CONTENT_FILTER, &objIid, ContentFilterJobj, NULL)) != ZCFG_SUCCESS);{
+ 	 	if(ContentFilterJobj) json_object_put(ContentFilterJobj);
+-		if(pramJobj) json_object_put(pramJobj); 			
+ 		printf("Wrong jason set..\n");
+ 		return ret;
+-		}	
++	}
+ 
+ 	if(ContentFilterJobj) json_object_put(ContentFilterJobj);
+-	if(pramJobj) json_object_put(pramJobj); 	
+ }
+ 
+ 
+@@ -441,7 +431,7 @@
+ 
+ 	if(ContentFilterJobj) json_object_put(ContentFilterJobj);
+ 	if(pramJobj) json_object_put(pramJobj);	
+-	if(retJobj) json_object_put(retJobj);
++//	if(retJobj) json_object_put(retJobj);
+ 	return ret;
+ }
+ zcfgRet_t zcfgFeDalContentFilterDelete(struct json_object *Jobj, char *replyMsg)
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-09-16 09:39:19.849686795 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-09-16 17:52:30.429374521 +0800
+@@ -686,6 +686,9 @@
+ 			if(replyMsg)
+ 				sprintf(replyMsg, "Can't find --Index %d", pcpObjIid.idx[0]);
+ 			json_object_put(inputJobj);
++			//Horace Add begin
++			json_object_put(curJarray);
++			//Horace Add end
+ 			json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Parental_Control.error.get_pcp_err"));		
+ 			return ret;
+ 		}
+Index: libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-09-16 09:39:19.853686795 +0800
++++ libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-09-16 09:49:10.985395166 +0800
+@@ -259,7 +259,7 @@
+ 		json_object_object_add(pramJobj, "obj_MaxLength", json_object_new_int(obj_MaxLength));
+ 		if(json_object_object_get(Jobj, "Index")) {
+ 			if(index == json_object_get_int(json_object_object_get(Jobj, "Index"))) {
+-		json_object_array_add(Jarray, pramJobj);
++				json_object_array_add(Jarray, pramJobj);
+ 				zcfgFeJsonObjFree(ScheduleJobj);
+ 				break;
+ 			}
+@@ -382,6 +382,7 @@
+ 	}
+ 
+ 	if((ret = zcfgFeObjJsonSet(RDM_OID_SCHEDULE, &objIid, ScheduleJobj, NULL)) != ZCFG_SUCCESS){
++		json_object_put(ScheduleJobj);
+ 		return ret;
+ 	}
+ 	json_object_put(ScheduleJobj);

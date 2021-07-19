@@ -1,0 +1,30 @@
+Index: minidlna-1.2.1/scanner.c
+===================================================================
+--- minidlna-1.2.1.orig/scanner.c	2020-04-09 15:53:56.183751002 +0800
++++ minidlna-1.2.1/scanner.c	2020-04-09 15:57:35.124945140 +0800
+@@ -529,6 +529,7 @@
+ int
+ CreateDatabase(void)
+ {
++	int i=0;
+ 	int ret = sql_exec(db, create_objectTable_sqlite);
+ 	if( ret != SQLITE_OK )
+ 		goto sql_failed;
+@@ -553,7 +554,7 @@
+ 	ret = sql_exec(db, "INSERT into SETTINGS values ('UPDATE_ID', '0')");
+ 	if( ret != SQLITE_OK )
+ 		goto sql_failed;
+-	for( int i=0; containers[i].name; ++i )
++	for( i=0; containers[i].name; ++i )
+ 	{
+ 		const struct container_s *c = &containers[i];
+ 		const char *name = _(c->name);
+@@ -564,7 +565,7 @@
+ 		if( ret != SQLITE_OK )
+ 			goto sql_failed;
+ 	}
+-	for( int i=0; magic_containers[i].objectid_match; i++ )
++	for( i=0; magic_containers[i].objectid_match; i++ )
+ 	{
+ 		const struct magic_container_s *magic = &magic_containers[i];
+ 		if (!magic->name)

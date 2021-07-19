@@ -1,0 +1,58 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-08-22 16:10:38.304529450 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-08-22 16:11:20.082287000 +0800
+@@ -5211,12 +5211,21 @@
+ 					if(WifiCheckChannelAvailable(chanlist, tr98SetChannel)){
+ 						return CHAN_LOWER_OK;
+ 					}
++					else{						
++						return CHAN_NOT_OK;
++					}
+ 				}
+ 				else if(!strcmp(ExtChan, "AboveControlChannel")){
+ 					strcpy(chanlist, UpperChan);
+ 					if(WifiCheckChannelAvailable(chanlist, tr98SetChannel)){
+ 						return CHAN_UPPER_OK;
+ 					}
++					else{
++						return CHAN_NOT_OK;
++					}					
++				}
++				else{
++					return CHAN_NOT_OK;
+ 				}
+ 			}
+ 			else{
+@@ -5236,6 +5245,9 @@
+ 			else if(!strcmp(ExtChan, "AboveControlChannel")){
+ 				strcpy(chanlist, LowerChan);
+ 			}
++			else{
++				return CHAN_NOT_OK;
++			}
+ 		}
+ 		else if(!strcmp(opBandwidth, "80MHz")) {
+ 			strcpy(chanlist, BW80ChanList);
+@@ -5260,12 +5272,21 @@
+ 					if(WifiCheckChannelAvailable(chanlist, tr98SetChannel)){
+ 						return CHAN_LOWER_OK;
+ 					}
++					else{
++						return CHAN_NOT_OK;
++					}
+ 				}
+ 				else if(!strcmp(ExtChan, "AboveControlChannel")){
+ 					strcpy(chanlist, UpperChan);
+ 					if(WifiCheckChannelAvailable(chanlist, tr98SetChannel)){
+ 						return CHAN_UPPER_OK;
+ 					}
++					else{
++						return CHAN_NOT_OK;
++					}
++				}
++				else{
++					return CHAN_NOT_OK;
+ 				}
+ 			}
+ 			else{

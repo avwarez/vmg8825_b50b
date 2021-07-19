@@ -1,0 +1,11 @@
+diff -urN libzcfg_fe_dal-1.0.org/network/routing/zcfg_fe_dal_dns_route.c libzcfg_fe_dal-1.0/network/routing/zcfg_fe_dal_dns_route.c
+--- libzcfg_fe_dal-1.0.org/network/routing/zcfg_fe_dal_dns_route.c	2020-01-10 09:26:59.620573500 +0800
++++ libzcfg_fe_dal-1.0/network/routing/zcfg_fe_dal_dns_route.c	2020-01-10 09:34:41.565232753 +0800
+@@ -197,7 +197,6 @@
+ 	}
+ 
+ exit:
+-	freeAllDnsRouteObjects();
+ 	return ret;
+ }
+ 

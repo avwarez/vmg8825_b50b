@@ -1,0 +1,13 @@
+Index: libzcfg_fe_tr98-1.0/l2bridge_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/l2bridge_parameter.h	2019-10-18 14:02:27.409565800 +0800
++++ libzcfg_fe_tr98-1.0/l2bridge_parameter.h	2019-10-18 14:04:25.033570214 +0800
+@@ -14,7 +14,7 @@
+ 	
+ tr98Parameter_t para_Br[] = {	
+ 	{ "BridgeKey", PARAMETER_ATTR_READONLY, 0, json_type_uint32},	
+-	{ "BridgeStandard", PARAMETER_ATTR_WRITE, 0, json_type_boolean},	
++	{ "BridgeStandard", PARAMETER_ATTR_WRITE, 13, json_type_string},	
+ 	{ "BridgeEnable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},	
+ 	{ "BridgeStatus", PARAMETER_ATTR_READONLY, 10, json_type_string},	
+ 	{ "BridgeName", PARAMETER_ATTR_WRITE, 65, json_type_string},	

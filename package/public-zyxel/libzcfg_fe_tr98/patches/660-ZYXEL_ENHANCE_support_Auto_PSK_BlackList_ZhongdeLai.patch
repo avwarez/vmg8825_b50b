@@ -1,0 +1,29 @@
+Index: libzcfg_fe_tr98-1.0/Makefile
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/Makefile	2020-01-03 10:25:44.098885243 +0800
++++ libzcfg_fe_tr98-1.0/Makefile	2020-01-03 10:26:10.864994488 +0800
+@@ -121,6 +121,10 @@
+ CFLAGS += -DZYXEL_WEB_GUI_HIDE_CARD
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_BLACK_LIST_CHARACTERS_FOR_WIFI_PASSPHRASE),y)
++CFLAGS += -DZYXEL_BLACK_LIST_CHARACTERS_FOR_WIFI_PASSPHRASE
++endif
++
+ #define SONIQ
+ ifeq ($(CONFIG_ZYXEL_SONIQ),y)
+ 	CFLAGS += -DBUILD_SONIQ
+Index: libzcfg_fe_tr98-1.0/lanDev_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2020-01-03 10:25:44.330889434 +0800
++++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2020-01-03 10:26:05.173512638 +0800
+@@ -405,6 +405,9 @@
+ 	//{ "AssociatedDeviceMACAddress", PARAMETER_ATTR_WRITE, 19, json_type_string},
+ 	{ "X_ZYXEL_AutoGenPSK", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "X_ZYXEL_Auto_PSK_Length", PARAMETER_ATTR_WRITE, 0, json_type_uint32},
++#ifdef ZYXEL_BLACK_LIST_CHARACTERS_FOR_WIFI_PASSPHRASE
++	{ "X_ZYXEL_Auto_PSK_BlackList", PARAMETER_ATTR_WRITE, 180, json_type_string},
++#endif
+ 	{ NULL, 0, 0, 0}
+ };
+ 

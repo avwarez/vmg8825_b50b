@@ -1,0 +1,24 @@
+Index: linux-4.1.52/net/core/net-procfs.c
+===================================================================
+--- linux-4.1.52.orig/net/core/net-procfs.c	2018-01-22 14:21:12.629630787 +0800
++++ linux-4.1.52/net/core/net-procfs.c	2018-01-23 16:04:18.045254172 +0800
+@@ -148,11 +148,18 @@
+ 		   rx_unicast_packets, tx_unicast_packets, stats->rx_broadcast_packets, stats->tx_broadcast_packets, 
+ 		   stats->rx_unknown_packets);
+ 	else
++#if 1 //__ZYXEL__, Chi-Hsiang
++        /* Print placeholder with dashes */
++        seq_printf(seq, "     0      0      0 "  /* Multicast */
++                        "    0     0     0     0 "  /* Unicast and broadcast*/
++                        "    0\n");  /* Unknown RX errors */
++
++#else
+ 		/* Print placeholder with dashes */
+ 		seq_printf(seq, "     -      -      - "  /* Multicast */
+ 		   "    -     -     -     - "  /* Unicast and broadcast*/
+ 		   "    -\n");  /* Unknown RX errors */     
+-		
++#endif		
+ }
+ #endif
+ 

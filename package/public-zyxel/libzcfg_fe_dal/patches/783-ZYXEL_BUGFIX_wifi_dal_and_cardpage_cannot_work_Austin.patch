@@ -1,0 +1,169 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_easymesh.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_easymesh.c	2020-05-28 13:06:22.594119851 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_easymesh.c	2020-05-28 13:15:24.158971666 +0800
+@@ -57,9 +57,11 @@
+ 	IID_INIT(EasyMeshIid);
+ 	if(zcfgFeObjJsonGet(RDM_OID_EASY_MESH, &EasyMeshIid, &EasyMeshObj) == ZCFG_SUCCESS){
+ 		EasyMeshEnable_ori = json_object_get_int(json_object_object_get(EasyMeshObj, "Enable"));
+-		if(EasyMeshEnable != EasyMeshEnable_ori){
+-			json_object_object_add(EasyMeshObj, "Enable", json_object_new_boolean(EasyMeshEnable));
+-			zcfgFeObjJsonBlockedSet(RDM_OID_EASY_MESH, &EasyMeshIid, EasyMeshObj, NULL);
++		if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
++			if(EasyMeshEnable != EasyMeshEnable_ori){
++				json_object_object_add(EasyMeshObj, "Enable", json_object_new_boolean(EasyMeshEnable));
++				zcfgFeObjJsonBlockedSet(RDM_OID_EASY_MESH, &EasyMeshIid, EasyMeshObj, NULL);
++			}
+ 		}
+ 		zcfgFeJsonObjFree(EasyMeshObj);
+ 	}
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-05-28 13:07:19.910118315 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-05-28 15:05:19.934770278 +0800
+@@ -523,7 +523,7 @@
+ 	uint8_t tmpRadioIndex;
+ 	const char *band;
+ 	char *modeEn_ori;
+-	char modeEn[16];
++	char modeEn[32];
+ #ifdef ZYXEL_ONESSID
+ 
+ 	struct json_object *OneSsidObj = NULL;
+@@ -586,18 +586,34 @@
+ 	modeEn_ori = json_object_get_string(json_object_object_get(APSecObj, "ModeEnabled"));
+ 	encryp_ori = json_object_get_string(json_object_object_get(APSecObj, "X_ZYXEL_Encryption"));
+ 	// check card page case
++	if(wlEnable != wlEnable_ori){
++		*apply = true;
++		goto compare_done;
++	}
+ 	if(wpaMode == NULL || SSID == NULL || psk_value == NULL){
+ 		*apply = false;
+ 		goto compare_done;
+ 	}
+-	if(!strcmp(wpaMode,"wpa2psk"))
++	if(!strcmp(wpaMode,"wpa2pskwpa3sae"))
++		strcpy(modeEn,"WPA3-Personal-Transition");
++	else if(!strcmp(wpaMode,"wpa3sae"))
++		strcpy(modeEn,"WPA3-Personal");
++	else if(!strcmp(wpaMode,"wpa2psk"))
+ 		strcpy(modeEn,"WPA2-Personal");
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
+ 	else if (!strcmp(wpaMode,"wpapsk"))
+ 		strcpy(modeEn,"WPA-Personal");
++	else if(!strcmp(wpaMode,"wpawpa2psk"))
++		strcpy(modeEn,"WPA-WPA2-Personal");
++#endif
+ 	else
+ 		strcpy(modeEn,"None");
+ 
+-	if(!strcmp("WPA2-Personal",modeEn_ori))
++	if(!strcmp("WPA2-Personal",modeEn_ori) || !strcmp("WPA3-Personal-Transition",modeEn_ori) ||
++#if defined(ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE) || defined(ZYXEL_WIFI_SUPPORT_WPA_ONLY_MODE)
++		!strcmp("WPA-Personal",modeEn_ori) || !strcmp("WPA-WPA2-Personal",modeEn_ori) ||
++#endif
++		!strcmp("WPA3-Personal",modeEn_ori))
+ 		Secmode_ori = SLIDER_POS_MORESECURE;
+ 	else if (!strcmp("None",modeEn_ori))
+ 		Secmode_ori = SLIDER_POS_NONE;
+@@ -1747,9 +1763,19 @@
+ 		goto dalwlan_edit_fail;
+ 	prepareWlObj(Jobj);
+ 
+-	compareWlObj(Jobj, &apply);
+-	if(apply != true){
+-		goto dalwlan_edit_fail;
++	if(json_object_get_string(json_object_object_get(Jobj, "cmdtype"))!= NULL) {
++		if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
++			compareWlObj(Jobj, &apply);
++			if(apply != true){
++				goto dalwlan_edit_fail;
++			}
++		}
++	}
++	else{
++		compareWlObj(Jobj, &apply);
++		if(apply != true){
++			goto dalwlan_edit_fail;
++		}
+ 	}
+ 
+ 	if((ret = editWifiSsidObjects(Jobj)) != ZCFG_SUCCESS)
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_others.c	2020-05-28 13:06:22.902119843 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_others.c	2020-05-28 13:11:56.137002220 +0800
+@@ -343,11 +343,13 @@
+ 	InActiveChan = json_object_get_string(json_object_object_get(Jobj, "InActiveChan"));
+ 	singleSKU = json_object_get_string(json_object_object_get(Jobj, "singleSKU"));
+ 
+-	if ((atf_ori == atf) && !strcmp(wlPreamble_ori,wlPreamble) && !strcmp(wlProtect_ori,wlProtect) &&
+-	(wlTxPwrPcnt_ori == wlTxPwrPcnt) && !strcmp(wlMode_ori,wlMode) && (wlDtmIntvl_ori == wlDtmIntvl) &&
+-	(wlBcnIntvl_ori == wlBcnIntvl) && (wlFrgThrshld_ori == wlFrgThrshld) &&
+-	(wlRtsThrshld_ori == wlRtsThrshld) && !strcmp(wlPmf_ori,wlPmf)){
+-		*apply = false;
++	if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
++		if ((atf_ori == atf) && !strcmp(wlPreamble_ori,wlPreamble) && !strcmp(wlProtect_ori,wlProtect) &&
++		(wlTxPwrPcnt_ori == wlTxPwrPcnt) && !strcmp(wlMode_ori,wlMode) && (wlDtmIntvl_ori == wlDtmIntvl) &&
++		(wlBcnIntvl_ori == wlBcnIntvl) && (wlFrgThrshld_ori == wlFrgThrshld) &&
++		(wlRtsThrshld_ori == wlRtsThrshld) && !strcmp(wlPmf_ori,wlPmf)){
++			*apply = false;
++		}
+ 	}
+ 	if(SsidObj)
+ 		zcfgFeJsonObjFree(SsidObj);
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wmm.c	2020-05-28 13:06:22.594119851 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c	2020-05-28 13:39:23.046892922 +0800
+@@ -334,8 +334,11 @@
+ 				json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(true));
+ 			else
+ 				json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
+-
+-			if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
++			if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
++				if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
++					zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++			}
++			else
+ 				zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
+ 			json_object_put(WifiApWmmJobj);
+ 		}
+@@ -358,9 +361,12 @@
+ 			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(true));
+ 		else
+ 			json_object_object_add(WifiApWmmJobj, "UAPSDEnable", json_object_new_boolean(false));
+-
++	if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
+ 		if(wmmEn !=WMMEnable_ori || UAPSDEn != UAPSDEnable_ori)
+ 			zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
++	}
++	else
++		zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT, &objIid, WifiApWmmJobj, NULL);
+ 	json_object_put(WifiApWmmJobj);
+ 	}
+ 	return ret;
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wps.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wps.c	2020-05-28 13:06:22.594119851 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wps.c	2020-05-28 13:14:41.347803940 +0800
+@@ -318,9 +318,15 @@
+ 	if(configMethodsEnabled = json_object_object_get(Jobj,"ConfigMethodsEnabled")){
+ 		json_object_object_add(WifiApWpsJobj,"ConfigMethodsEnabled", JSON_OBJ_COPY(configMethodsEnabled));
+ 	}
+-	if(apply)
++	if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "cmdtype")), "GUI")){
++		if(apply)
++			if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_ACCESS_POINT_WPS, &objIid, WifiApWpsJobj, NULL)) != ZCFG_SUCCESS);
++				json_object_put(WifiApWpsJobj);
++	}
++	else{
+ 		if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_ACCESS_POINT_WPS, &objIid, WifiApWpsJobj, NULL)) != ZCFG_SUCCESS);
+-	json_object_put(WifiApWpsJobj);
++		 	json_object_put(WifiApWpsJobj);
++	}
+ 	return ret;
+ }
+ 

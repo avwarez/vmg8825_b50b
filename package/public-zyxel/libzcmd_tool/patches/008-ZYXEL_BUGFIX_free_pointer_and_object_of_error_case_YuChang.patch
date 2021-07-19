@@ -1,0 +1,14 @@
+Index: libzcmd_tool-1.0/zcmd_tool.c
+===================================================================
+--- libzcmd_tool-1.0.orig/zcmd_tool.c	2020-04-23 06:21:02.656906437 +0000
++++ libzcmd_tool-1.0/zcmd_tool.c	2020-04-23 06:25:24.868004524 +0000
+@@ -305,6 +305,9 @@
+                     }
+                 }else{
+                     zcfgLog(ZCFG_LOG_ERR, "Input value was too long!!\n");
++                    free(*objStruct);
++                    *objStruct = 0;
++                    json_object_put(jobj);
+                     return ZCFG_INVALID_PARAM_VALUE_LENGTH;
+                 }
+ 				break;

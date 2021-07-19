@@ -1,0 +1,505 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-02-26 13:26:10.657568515 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2020-02-26 13:26:39.001568515 +0800
+@@ -439,6 +439,11 @@
+ CFLAGS += -DZYXEL_WEB_GUI_SHOW_ZYEE
+ endif
+ 
++#Extender
++ifeq ($(CONFIG_ZYXEL_OPAL_EXTENDER),y)
++CFLAGS += -DZYXEL_OPAL_EXTENDER
++endif
++
+ ifeq ($(CONFIG_PACKAGE_mos),y)
+ CFLAGS += -DMOS_SUPPORT
+ endif
+Index: libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-02-26 13:26:10.677568515 +0800
++++ libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-02-26 13:54:44.417282500 +0800
+@@ -10,6 +10,7 @@
+ #include "zcfg_rdm_obj.h"
+ #include "zcfg_debug.h"
+ //#include "zcfg_eid.h"
++#include "zcfg_net.h"
+ #include "zcfg_msg.h"
+ #include "zcfg_fe_dal_common.h"
+ 
+@@ -62,6 +63,13 @@
+ 	//Other
+ 	{"IGMPSnoopingMode", dalType_string,	0,	0,	NULL, "Disabled|Standard|Blocking",	dalcmd_Forbid},
+ 	{"MLDSnoopingMode", dalType_string,	0,	0,	NULL, "Disabled|Standard|Blocking",	dalcmd_Forbid},
++#ifdef ZYXEL_OPAL_EXTENDER
++	//DHCP Client
++	{"EnableDHCPC", dalType_boolean,    0,  0,  NULL},
++	{"IPv4_GW", dalType_v4Addr, 0,  0,  NULL},
++	{"IPv6_GW", dalType_v6Addr, 0,  0,  NULL},
++	{"IPv6_StaticAddress", dalType_v6Addr, 0,  0,  NULL},
++#endif
+ 	{NULL,					0,	0,	0,	NULL},
+ };
+ 
+@@ -519,6 +527,9 @@
+ 	json_object_object_add(v4AddrObj, "Enable", json_object_new_boolean(true));
+ 	json_object_object_add(v4AddrObj, "IPAddress", json_object_new_string(IPAddress));
+ 	json_object_object_add(v4AddrObj, "SubnetMask", json_object_new_string(SubnetMask));
++#ifdef ZYXEL_OPAL_EXTENDER
++	json_object_object_add(v4AddrObj, "AddressingType", json_object_new_string("Static"));
++#endif
+ 	zcfgFeObjJsonSet(RDM_OID_IP_IFACE_V4_ADDR, &v4AddrIid, v4AddrObj, NULL);
+ 
+ done:
+@@ -526,6 +537,40 @@
+ 	return ret;
+ }
+ 
++#ifdef ZYXEL_OPAL_EXTENDER
++zcfgRet_t setDHCPCState(struct json_object *Jobj)
++{
++    zcfgRet_t ret = ZCFG_SUCCESS;
++    struct          json_object *dhcpClientObj = NULL;
++    objIndex_t      dhcpClientIid = {0};
++    bool            enableDhcpc = true;
++
++    //IPv4
++    enableDhcpc = json_object_get_boolean(json_object_object_get(Jobj, "EnableDHCPC"));
++    IID_INIT(dhcpClientIid);
++    dhcpClientIid.idx[0] = 1;
++    dhcpClientIid.level = 1;
++
++    if (zcfgFeObjJsonGet(RDM_OID_DHCPV4_CLIENT, &dhcpClientIid, &dhcpClientObj) != ZCFG_SUCCESS)
++    {
++        return ZCFG_INTERNAL_ERROR;
++    }
++
++    json_object_object_add(dhcpClientObj, "Enable", json_object_new_boolean(enableDhcpc));
++    if (enableDhcpc)
++    {
++        json_object_object_add(dhcpClientObj, "Status", json_object_new_string("Enabled"));
++    }
++    else
++    {
++        json_object_object_add(dhcpClientObj, "Status", json_object_new_string("Disabled"));
++    }
++
++    zcfgFeObjJsonSet(RDM_OID_DHCPV4_CLIENT, &dhcpClientIid, dhcpClientObj, NULL);
++    zcfgFeJsonObjFree(dhcpClientObj);
++    return ret;
++}
++#endif
+ zcfgRet_t setDHCPState(struct json_object *Jobj){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *dhcpSrvObj = NULL;
+@@ -921,7 +966,142 @@
+ 	zcfgFeObjJsonSet(RDM_OID_IP_IFACE, &curIpIfaceIid, curIpIfaceObj, NULL);
+ 	return ret;
+ }
+-
++
++zcfgRet_t setIp6LocalStaticAddress(struct json_object *Jobj)
++{
++    zcfgRet_t                   ret = ZCFG_SUCCESS;
++    struct json_object          *v6AddrObj = NULL;
++    struct json_object          *v6FwdObj = NULL;
++    struct json_object          *routerObj = NULL;
++    objIndex_t                  v6AddrIid = {0};
++    objIndex_t                  v6FwdIid = {0};
++    objIndex_t                  routerIid = {0};
++    const char                  *ip6Origin = NULL;
++    const char                  *ip6FwdOrigin = NULL;
++    const char                  *ip6StaticLocalAdr = NULL;
++    const char                  *ip6PrefixType = NULL;
++    const char                  *ip6Gateway = NULL;
++    zcfg_offset_t               oid;
++    bool                        found = false;
++    bool                        isStatic = false;
++    //char                        sysCmd[128] = {0};
++
++    ip6StaticLocalAdr = json_object_get_string(json_object_object_get(Jobj, "IPv6_StaticAddress"));
++    ip6PrefixType = json_object_get_string(json_object_object_get(Jobj, "IPv6_PrefixType"));
++    ip6Gateway = json_object_get_string(json_object_object_get(Jobj, "IPv6_GW"));
++    if (ip6PrefixType)
++    {
++        if (strcmp(ip6PrefixType,"Static") == 0)
++        {
++            isStatic = true;
++        }
++    }
++
++    if (isStatic)
++    {
++        while (zcfgFeSubInObjJsonGetNext(RDM_OID_IP_IFACE_V6_ADDR, &curIpIfaceIid, &v6AddrIid, &v6AddrObj)== ZCFG_SUCCESS)
++        {
++            ip6Origin = json_object_get_string(json_object_object_get(v6AddrObj, "Origin"));
++            if (ip6StaticLocalAdr == NULL)
++            {
++                zcfgFeJsonObjFree(v6AddrObj);
++                return ret;
++            }
++            if (strcmp(ip6Origin, "Static") == 0)
++            {
++                found = true;
++                json_object_object_add(v6AddrObj, "Enable", json_object_new_boolean(isStatic));
++                json_object_object_add(v6AddrObj, "IPAddress", json_object_new_string(ip6StaticLocalAdr));
++                zcfgFeObjJsonSet(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, v6AddrObj, NULL);
++            }
++            zcfgFeJsonObjFree(v6AddrObj);
++        }
++
++        if (!found)
++        {   //Post
++            IID_INIT(v6AddrIid);
++            memcpy(&v6AddrIid, &curIpIfaceIid, sizeof(objIndex_t));
++            v6AddrIid.level = 1;
++            ret = zcfgFeObjJsonAdd(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, NULL);
++            if (ret == ZCFG_SUCCESS)
++            {
++                ret = zcfgFeObjJsonGet(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, &v6AddrObj);
++                if (ret == ZCFG_SUCCESS)
++                {
++                    json_object_object_add(v6AddrObj, "Enable", json_object_new_boolean(isStatic));
++                    json_object_object_add(v6AddrObj, "Origin", json_object_new_string("Static"));
++                    json_object_object_add(v6AddrObj, "IPAddress", json_object_new_string(ip6StaticLocalAdr));
++                    zcfgFeObjJsonSet(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, v6AddrObj, NULL);
++                    zcfgFeJsonObjFree(v6AddrObj);
++                }
++            }
++        }
++        oid = RDM_OID_ROUTING_ROUTER_V6_FWD;
++
++        IID_INIT(v6FwdIid);
++        found = false;
++
++        while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V6_FWD, &v6FwdIid, &v6FwdObj) == ZCFG_SUCCESS)
++        {
++            ip6FwdOrigin = json_object_get_string(json_object_object_get(v6FwdObj, "Origin"));
++            if (strcmp(ip6FwdOrigin,"Static") == 0)
++            {
++                found = true;
++                break;
++            }
++            zcfgFeJsonObjFree(v6FwdObj);
++        }
++
++        if (!found)
++        {
++            v6FwdIid.level = 1;
++            v6FwdIid.idx[0] = 1;
++            zcfgFeObjJsonAdd(oid, &v6FwdIid, NULL);
++            zcfgFeObjJsonGetWithoutUpdate(oid, &v6FwdIid, &v6FwdObj);
++        }
++        json_object_object_add(v6FwdObj, "Enable", json_object_new_boolean(true));
++        json_object_object_add(v6FwdObj, "Origin", json_object_new_string("Static"));
++        json_object_object_add(v6FwdObj, "Interface", json_object_new_string("IP.Interface.1"));
++        json_object_object_add(v6FwdObj, "DestIPPrefix", json_object_new_string("::/0"));
++        replaceParam(v6FwdObj, "NextHop", Jobj, "IPv6_GW");
++        zcfgFeObjJsonSet(RDM_OID_ROUTING_ROUTER_V6_FWD, &v6FwdIid, v6FwdObj, NULL);
++        zcfgFeJsonObjFree(v6FwdObj);
++    }
++    else //!isStatic
++    {
++        IID_INIT(v6AddrIid);
++        while (zcfgFeSubInObjJsonGetNext(RDM_OID_IP_IFACE_V6_ADDR, &curIpIfaceIid, &v6AddrIid, &v6AddrObj)== ZCFG_SUCCESS)
++        {
++            ip6Origin = json_object_get_string(json_object_object_get(v6AddrObj, "Origin"));
++            if (strcmp(ip6Origin, "Static") == 0)
++            {
++                if (zcfgFeObjJsonDel(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, NULL) != ZCFG_SUCCESS)
++                {
++                    dbg_printf("%s: fail to delete RDM_OID_IP_IFACE_V6_ADDR obj \n", __FUNCTION__);
++                }
++            }
++            zcfgFeJsonObjFree(v6AddrObj);
++        }
++
++        IID_INIT(v6FwdIid);
++        while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V6_FWD, &v6FwdIid, &v6FwdObj) == ZCFG_SUCCESS)
++        {
++            ip6FwdOrigin = json_object_get_string(json_object_object_get(v6FwdObj, "Origin"));
++            if (strcmp(ip6FwdOrigin,"Static") == 0)
++            {
++                if (zcfgFeObjJsonDel(RDM_OID_IP_IFACE_V6_ADDR, &v6AddrIid, NULL) != ZCFG_SUCCESS)
++                {
++                    dbg_printf("%s: fail to delete RDM_OID_IP_IFACE_V6_ADDR obj \n", __FUNCTION__);
++                }
++            }
++            zcfgFeJsonObjFree(v6FwdObj);
++        }
++    }
++
++
++    return ret;
++}
++
+ zcfgRet_t setIp6LinkLocalEUI64(struct json_object *Jobj){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *v6AddrObj = NULL;
+@@ -982,7 +1162,67 @@
+ 	
+ 	return ret;
+ }
+-
++
++zcfgRet_t setIp6PreTypeNonStatic(struct json_object *Jobj, bool isEnable)
++{
++    zcfgRet_t                   ret = ZCFG_SUCCESS;
++    struct json_object          *v6prefixObj = NULL;
++    struct json_object          *rtInfoObj = NULL;
++    struct json_object          *v6FwdObj = NULL;
++    objIndex_t                  v6prefixIid = {0};
++    objIndex_t                  rtInfoIid = {0};
++    objIndex_t                  v6FwdIid = {0};
++    const char                  *ip6Prefix = NULL, *ipfacev6Prefix = NULL;
++    const char                  *v6PrefixAddress = NULL;
++    const char                  *ipv6Origin = NULL;
++    const char                  *ipv6FwdOrigin = NULL;
++    const char                  *rtInterface = NULL;
++    bool                        isCurPrefixEnable = true;
++    bool                        found = false;
++
++    IID_INIT(v6prefixIid);
++    while (zcfgFeSubInObjJsonGetNext(RDM_OID_IP_IFACE_V6_PREFIX, &curIpIfaceIid, &v6prefixIid, &v6prefixObj)== ZCFG_SUCCESS){
++        ipv6Origin = json_object_get_string(json_object_object_get(v6prefixObj, "Origin"));
++        isCurPrefixEnable = json_object_get_boolean(json_object_object_get(v6prefixObj, "Enable"));
++        if (isCurPrefixEnable &&
++           ((strcmp(ipv6Origin, TR181_PREFIX_RA) == 0) ||
++            (strcmp(ipv6Origin, TR181_PREFIX_AUTO) == 0)))
++        {
++            found = true;
++            break;
++        }
++        zcfgFeJsonObjFree(v6prefixObj);
++    }
++
++    if (found)
++    {
++        json_object_object_add(v6prefixObj, "Enable", json_object_new_boolean(isEnable));
++        zcfgFeObjJsonSet(RDM_OID_IP_IFACE_V6_PREFIX, &v6prefixIid, v6prefixObj, NULL);
++        zcfgFeJsonObjFree(v6prefixObj);
++    }
++
++
++
++    if (isEnable == false)
++    {
++        IID_INIT(v6FwdIid);
++        while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V6_FWD, &v6FwdIid, &v6FwdObj) == ZCFG_SUCCESS)
++        {
++            ipv6FwdOrigin = json_object_get_string(json_object_object_get(v6FwdObj, "Origin"));
++            if ((strcmp(ipv6FwdOrigin, TR181_FWD_RA) == 0) ||
++                (strcmp(ipv6FwdOrigin, TR181_FWD_DHCPV6) == 0))
++            {
++                zcfgFeJsonObjFree(v6FwdObj);
++                zcfgFeObjJsonDel(RDM_OID_ROUTING_ROUTER_V6_FWD, &v6FwdIid, NULL);
++                break;
++            }
++            zcfgFeJsonObjFree(v6FwdObj);
++        }
++    }
++
++    return ret;
++}
++
+ zcfgRet_t setIp6PreTypeStatic_Enable(struct json_object *Jobj){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *v6prefixObj = NULL;
+@@ -1041,8 +1281,8 @@
+ 	
+ 	zcfgFeJsonObjFree(v6prefixObj);
+ 	return ret;
+-}
+-
++}
++
+ zcfgRet_t setDHCPv6(struct json_object *Jobj, bool ip6PreTypeStatic){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *dhcp6SrvObj = NULL;;
+@@ -1226,14 +1466,66 @@
+ 	bool ipv6LanEnable = false;
+ 	bool ip6PreTypeStatic = false;
+ 	const char *IPv6_PrefixType = NULL;
+-
++
++#ifdef ZYXEL_OPAL_EXTENDER
++	const char *ip6LanAdrAssign = NULL;
++#endif
++
+ 	initGlobalLanObjs();
+ 	getLanInfo(Jobj);
+ 	json_object_object_add(curIpIfaceObj, "X_ZYXEL_SrvName", json_object_new_string(selbrName));
+ 	ret = setLanIP(Jobj);
+ 	if(ret != ZCFG_SUCCESS)
+ 		goto out;
++    if(json_object_object_get(Jobj, "IPv6_LanEnable"))
++        ipv6LanEnable = json_object_get_boolean(json_object_object_get(Jobj, "IPv6_LanEnable"));
++    else
++        ipv6LanEnable = json_object_get_boolean(json_object_object_get(curIpIfaceObj, "IPv6Enable"));
++
++    if (ipv6LanEnable)
++    {
++        IPv6_PrefixType = json_object_get_string(json_object_object_get(Jobj, "IPv6_PrefixType"));
++        if(json_object_object_get(Jobj, "IPv6_PrefixType")){
++        if(!strcmp(IPv6_PrefixType, "Static"))
++            ip6PreTypeStatic = true;
++        }
++    }
++
++#ifdef ZYXEL_OPAL_EXTENDER
++	ret = setDHCPCState(Jobj);
++    if(ret != ZCFG_SUCCESS)
++        goto out;
++    if (ipv6LanEnable && (json_object_object_get(Jobj, "IPv6_PrefixType")))
++    {
++        if(ip6PreTypeStatic)
++        {
++            json_object_object_add(curIpIfaceObj, "X_ZYXEL_IPv6Origin", json_object_new_string("Static"));
++            zcfgFeObjJsonSet(RDM_OID_IP_IFACE, &curIpIfaceIid, curIpIfaceObj, NULL);
++            //disable auto
++            setIp6PreTypeNonStatic(Jobj,false);
++            //enable static , change NextHop
++            setIp6LocalStaticAddress(Jobj);
++        }
++        else
++        {
++            //IPv6_LanAddrAssign : Stateful or Stateless
++            //disable static , disable NextHop
++            setIp6LocalStaticAddress(Jobj);
+ 
++            ip6LanAdrAssign = json_object_get_string(json_object_object_get(Jobj, "IPv6_LanAddrAssign"));
++            if (!strcmp(ip6LanAdrAssign, "Stateless"))
++            {
++                json_object_object_add(curIpIfaceObj, "X_ZYXEL_AdvManagedFlag", json_object_new_int(0));
++            }
++            else //if(!strcmp(ip6LanAdrAssign, "Stateful")){
++            {
++                json_object_object_add(curIpIfaceObj, "X_ZYXEL_AdvManagedFlag", json_object_new_int(1));
++            }
++            json_object_object_add(curIpIfaceObj, "X_ZYXEL_IPv6Origin", json_object_new_string("DelegateFromWan"));
++            zcfgFeObjJsonSet(RDM_OID_IP_IFACE, &curIpIfaceIid, curIpIfaceObj, NULL);
++        }
++    }
++#else //!ZYXEL_OPAL_EXTENDER
+ 	ret = setDHCPState(Jobj);
+ 	if(ret != ZCFG_SUCCESS)
+ 		goto out;
+@@ -1242,19 +1534,21 @@
+ 	if(ret != ZCFG_SUCCESS)
+ 		goto out;
+ 
+-
++/*
+ 	if(json_object_object_get(Jobj, "IPv6_LanEnable"))
+ 		ipv6LanEnable = json_object_get_boolean(json_object_object_get(Jobj, "IPv6_LanEnable"));
+ 	else
+ 		ipv6LanEnable = json_object_get_boolean(json_object_object_get(curIpIfaceObj, "IPv6Enable"));
+-	
++*/
+ 	if(ipv6LanEnable){
+ 		convertIPv6DnsList(Jobj);
++/*
+ 		IPv6_PrefixType = json_object_get_string(json_object_object_get(Jobj, "IPv6_PrefixType"));
+ 		if(json_object_object_get(Jobj, "IPv6_PrefixType")){
+ 		if(!strcmp(IPv6_PrefixType, "Static"))
+ 			ip6PreTypeStatic = true;
+ 		}
++*/
+ 		setmldSnooping(Jobj);
+ 		setIp6refixTypeDelegated(Jobj);
+ 
+@@ -1271,8 +1565,9 @@
+ 	}else{
+ 		json_object_object_add(curIpIfaceObj, "IPv6Enable", json_object_new_boolean(false));
+ 		zcfgFeObjJsonBlockedSet(RDM_OID_IP_IFACE, &curIpIfaceIid, curIpIfaceObj, NULL);
+-	}		
+-
++	}
++#endif //#ifdef ZYXEL_OPAL_EXTENDER
++
+ out:
+ 	freeAllLanObjs();
+ 	return ret;
+@@ -1313,7 +1608,16 @@
+ 	char currintf[32] = {0}, buff[32] = {0}, v6DNSServerTmp[256] = {0}, v6DNSListTmp[256] = {0}, brName[100]={0}, igmpType[100] = {0}, mldType[8] = {0};
+ 	char *dns1 = NULL, *dns2 = NULL, *v6dnstype1 = NULL, *v6dnstype2 = NULL, *v6dnstype3 = NULL, *v6dnsServer1 = NULL, *v6dnsServer2 = NULL, *v6dnsServer3 = NULL, *v6DNSservertmp = NULL, *v6dnstypetmp = NULL, *ptr = NULL, *brPtr = NULL;
+ 	const char *ip6Origin = NULL, *v6IPAddress = NULL, *LowerLayers = NULL;
+-
++
++#ifdef ZYXEL_OPAL_EXTENDER
++    struct json_object          *dhcpv4ClientObj = NULL;
++    struct json_object          *v6FwdObj = NULL;
++    objIndex_t                  v6FwdIid = {0};
++    objIndex_t                  dhcpv4ClientIid = {0};
++    const char                  *dhcpcIntf = NULL;
++    const char                  *v6Origin = NULL;
++#endif
++
+ 	while(zcfgFeObjJsonGetNext(RDM_OID_IP_IFACE, &ipifaceIid, &ipifaceObj) == ZCFG_SUCCESS){
+ 		if(showdetail){
+ 			break;
+@@ -1351,6 +1655,26 @@
+ 					showdetail = true;
+ 			}
+ 			json_object_object_add(paramJobj, "Name", JSON_OBJ_COPY(json_object_object_get(ipifaceObj, "X_ZYXEL_SrvName")));
++#ifdef ZYXEL_OPAL_EXTENDER
++			IID_INIT(dhcpv4ClientIid);
++			dhcpv4ClientIid.idx[0] = 1;
++			dhcpv4ClientIid.level = 1;
++			if (zcfgFeObjJsonGet(RDM_OID_DHCPV4_CLIENT, &dhcpv4ClientIid, &dhcpv4ClientObj) == ZCFG_SUCCESS)
++			{
++			    dhcpcIntf = Jgets(dhcpv4ClientObj, "Interface");
++			    if (strcmp(dhcpcIntf, "IP.Interface.1") == 0)
++			    {
++                    json_object_object_add(paramJobj, "EnableDHCPC", JSON_OBJ_COPY(json_object_object_get(dhcpv4ClientObj, "Enable")));
++                    json_object_object_add(paramJobj, "IPv4_GW", JSON_OBJ_COPY(json_object_object_get(dhcpv4ClientObj, "IPRouters")));
++			    }
++			    zcfgFeJsonObjFree(dhcpv4ClientObj);
++			}
++			else
++			{
++			    dbg_printf("%s: fail to get RDM_OID_DHCPV4_CLIENT obj \n", __FUNCTION__);
++			}
++
++#endif
+ 			ipv4addrIid.level = 2;
+ 			ipv4addrIid.idx[0] = ipifaceIid.idx[0];
+ 			ipv4addrIid.idx[1] = 1;
+@@ -1448,6 +1772,12 @@
+ 				while(zcfgFeObjJsonGetNext(RDM_OID_IP_IFACE_V6_ADDR, &ipv6addrIid, &ipv6addrObj) == ZCFG_SUCCESS){
+ 					ip6Origin = json_object_get_string(json_object_object_get(ipv6addrObj, "Origin"));
+ 					v6IPAddress = json_object_get_string(json_object_object_get(ipv6addrObj, "IPAddress"));
++#ifdef ZYXEL_OPAL_EXTENDER
++					if(!strcmp(ip6Origin, "Static"))
++					{
++					    json_object_object_add(paramJobj, "IPv6_StaticAddress", JSON_OBJ_COPY(json_object_object_get(ipv6addrObj, "IPAddress")));
++					}
++#endif
+ 					if(!strcmp(ip6Origin, "Static") && !strncasecmp(v6IPAddress, "fe80", 4)){
+ 						json_object_object_add(paramJobj, "IPv6_LinkLocalAddressType", json_object_new_string("Manual"));
+ 						json_object_object_add(paramJobj, "IPv6_LinkLocalAddress", JSON_OBJ_COPY(json_object_object_get(ipv6addrObj, "IPAddress")));
+@@ -1468,7 +1798,24 @@
+ 				else if(!strcmp(IPv6_PrefixType, "DelegateFromWan")){
+ 					json_object_object_add(paramJobj, "IPv6_PrefixWan", JSON_OBJ_COPY(json_object_object_get(ipifaceObj, "X_ZYXEL_IPv6PrefixDelegateWAN")));
+ 				}
+-
++
++#ifdef ZYXEL_OPAL_EXTENDER
++				IID_INIT(v6FwdIid);
++				while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V6_FWD, &v6FwdIid, &v6FwdObj) == ZCFG_SUCCESS)
++				{
++				    v6Origin = json_object_get_string(json_object_object_get(v6FwdObj, "Origin"));
++				    if (json_object_get_boolean(json_object_object_get(v6FwdObj, "Enable")) == true)
++				    {
++				        if (strcmp (v6Origin, "Static") == 0)
++				        {
++				            json_object_object_add(paramJobj, "IPv6_GW", JSON_OBJ_COPY(json_object_object_get(v6FwdObj, "NextHop")));
++				            zcfgFeJsonObjFree(v6FwdObj);
++				            break;
++				        }
++				    }
++				    zcfgFeJsonObjFree(v6FwdObj);
++				}
++#endif
+ 				//MLD snooping
+ 				IID_INIT(mldSnoopingIid);
+ 				if(zcfgFeObjJsonGet(RDM_OID_ZY_MLD, &mldSnoopingIid, &mldSnoopingObj) == ZCFG_SUCCESS){

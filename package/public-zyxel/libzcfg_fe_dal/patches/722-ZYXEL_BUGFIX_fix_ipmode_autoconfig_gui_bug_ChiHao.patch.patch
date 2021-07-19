@@ -1,0 +1,31 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-11-26 18:44:49.417713533 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-11-26 18:46:13.925711095 +0800
+@@ -4174,18 +4174,12 @@
+ 	if(!strcmp(CurrEncapsulation, "IPoE") || !strcmp(CurrEncapsulation, "IPoA")){
+ 		v4enable = json_object_get_boolean(json_object_object_get(ipIfaceObj, "IPv4Enable"));
+ 		v6enable = json_object_get_boolean(json_object_object_get(ipIfaceObj, "IPv6Enable"));
+-#ifdef ABUE_CUSTOMIZATION
+-		Enable_DSLite = json_object_get_boolean(json_object_object_get(ipIfaceObj, "X_ZYXEL_Enable_DSLite"));
+-#endif
+ 		json_object_object_add(pramJobj, "MaxMTUSize",json_object_object_get(ipIfaceObj, "MaxMTUSize"));
+ 	}
+ 	else{ //PPPoE or PPPoA
+ 		v4enable = json_object_get_boolean(json_object_object_get(pppIfaceObj, "IPCPEnable"));
+ 		v6enable = json_object_get_boolean(json_object_object_get(pppIfaceObj, "IPv6CPEnable"));
+ 		pppPassTh = json_object_get_string(json_object_object_get(pppIfaceObj, "X_ZYXEL_ConnectionType"));
+-#ifdef ABUE_CUSTOMIZATION
+-		Enable_DSLite = json_object_get_boolean(json_object_object_get(pppIfaceObj, "X_ZYXEL_Enable_DSLite"));
+-#endif
+ 
+ 		if(!strcmp(pppPassTh, "PPPoE_Bridged"))	
+ 			json_object_object_add(pramJobj, "pppoePassThrough",json_object_new_boolean(true));
+@@ -4199,6 +4193,7 @@
+ 		json_object_object_add(pramJobj, "ConnectionTrigger", JSON_OBJ_COPY(json_object_object_get(pppIfaceObj, "ConnectionTrigger")));
+ 	}
+ #ifdef ABUE_CUSTOMIZATION
++	Enable_DSLite = json_object_get_boolean(json_object_object_get(ipIfaceObj, "X_ZYXEL_Enable_DSLite"));
+ 	if(v4enable && v6enable && !Enable_DSLite)
+ 		strcpy(CurrIpMode, "DualStack");
+ 	else if(v4enable && v6enable && Enable_DSLite)

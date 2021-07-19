@@ -1,0 +1,12 @@
+Index: lxc-2.0.4/src/lxc/tools/lxc_snapshot.c
+===================================================================
+--- lxc-2.0.4.orig/src/lxc/tools/lxc_snapshot.c	2016-08-15 19:37:55.000000000 -0700
++++ lxc-2.0.4/src/lxc/tools/lxc_snapshot.c	2020-02-05 22:02:54.881031322 -0800
+@@ -16,6 +16,7 @@
+  * with this program; if not, write to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+  */
++#define _GNU_SOURCE
+ 
+ #include "confile.h"
+ #include <stdio.h>

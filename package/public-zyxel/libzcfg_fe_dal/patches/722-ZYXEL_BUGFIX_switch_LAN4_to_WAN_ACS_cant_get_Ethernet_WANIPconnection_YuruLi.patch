@@ -1,0 +1,32 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_ethwanlan.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_ethwanlan.c	2019-10-29 16:24:22.210468256 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_ethwanlan.c	2019-10-29 16:30:02.846294631 +0800
+@@ -187,20 +187,18 @@
+ 			const char *ipIfaceLowerLayers = json_object_get_string(json_object_object_get(ipIntObj, "LowerLayers"));
+ 			if(ipIfaceLowerLayers && strlen(ipIfaceLowerLayers)){
+ 				if(objectStepStackLowerLayer(ipIfaceLowerLayers, ethIfaceName, higherLayers, lowerLayers) == ZCFG_SUCCESS){
+-					break;
++					if(ipIntObj){
++						json_object_object_add(ipIntObj, "X_ZYXEL_AccessDescription", json_object_new_string("SetIpIfaceStackModified"));
++						if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_IP_IFACE, &ipIntIid, ipIntObj, NULL)) != ZCFG_SUCCESS){
++							zcfgLog(ZCFG_LOG_ERR, "%s(): set ipIntObj->X_ZYXEL_AccessDescription Fail.\n", __FUNCTION__);
++						}
++					}
+ 				}
+ 				json_object_put(ipIntObj);
+ 				ipIntObj = NULL;
+ 			}
+ 		}
+-		if(ipIntObj){
+-			json_object_object_add(ipIntObj, "X_ZYXEL_AccessDescription", json_object_new_string("SetIpIfaceStackModified"));
+-			if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_IP_IFACE, &ipIntIid, ipIntObj, NULL)) != ZCFG_SUCCESS){
+-				json_object_put(ipIntObj);
+-				return ret;
+-			}
+-			json_object_put(ipIntObj);
+-		}
++		
+ 	}
+ 
+ 	/*

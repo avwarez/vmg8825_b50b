@@ -1,0 +1,22 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-11-18 11:35:14.620987697 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-11-18 11:35:14.648987696 +0800
+@@ -6765,6 +6765,7 @@
+ 		fclose(arpfp);
+ 
+ 	/*fill up tr98 object from related tr181 objects*/
++	char TransRate[5] = {0};
+ 	*tr98Jobj = json_object_new_object();
+ 	paramList = tr98Obj[handler].parameter;
+ 	while(paramList->name != NULL) {
+@@ -6790,7 +6791,8 @@
+ 		}
+ 		else if(!strcmp(paramList->name, "LastDataTransmitRate")) {
+ 			paramValue = json_object_object_get(assocDevJobj, "LastDataUplinkRate");
+-			json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++			sprintf(TransRate, "%d", json_object_get_int(paramValue)/1000);
++			json_object_object_add(*tr98Jobj, paramList->name, json_object_new_string(TransRate));
+ 			paramList++;
+ 			continue;
+ 		}

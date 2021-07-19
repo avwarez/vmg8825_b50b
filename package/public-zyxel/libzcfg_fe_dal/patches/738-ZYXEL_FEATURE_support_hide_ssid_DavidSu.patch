@@ -1,0 +1,180 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_cbt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_cbt.c
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_cbt.c
+@@ -22,6 +22,8 @@ struct json_object *cbt5GSecObj = NULL;
+ struct json_object *cbtDevInfoObj = NULL;
+ struct json_object *cbtSecTmpObj = NULL;
+ struct json_object *cbt5GSecTmpObj = NULL;
++struct json_object *cbtApObj = NULL;
++struct json_object *cbt5GApObj = NULL;
+ 
+ // RDM Iid
+ objIndex_t cbtSsidIid = {0};
+@@ -31,6 +33,8 @@ objIndex_t cbt5GSecIid = {0};
+ objIndex_t cbtDevInfoIid = {0};
+ objIndex_t cbtSecTmpIid = {0};
+ objIndex_t cbt5GSecTmpIid = {0};
++objIndex_t cbtApIid = {0};
++objIndex_t cbt5GApIid = {0};
+ 
+ //WiFi Access Point Sec
+ const char* CBT_X_ZYXEL_Auto_PSK;
+@@ -52,6 +56,8 @@ bool cbtSameSsidChange;
+ const char* cbtWifiPskValue;
+ const char* cbt5GWifiPskValue;
+ bool isExtraWiFi = false;
++bool cbtWifiHideSsid;
++bool cbtWifi5GHideSsid;
+ 
+ time_t t1, t2;
+ 
+@@ -72,6 +78,8 @@ dal_param_t WIFI_CBT_param[]={
+ 	{"wpaMode_5G",		dalType_string,	0,	0,	NULL},
+ 	// CBT parameter
+ 	{"cbt5GPskValue",		dalType_string,	0,	0,	NULL,		NULL,			0},
++	{"cbtGuestSsidHide",		dalType_boolean,	0,	0,	NULL,		NULL,			0},
++	{"cbtGuest5GSsidHide",		dalType_boolean,	0,	0,	NULL,		NULL,			0},
+ #endif
+ 	{NULL,		0,	0,	0,	NULL},
+ };
+@@ -133,6 +141,8 @@ void initCbtWifiObjects(){
+ 	cbtDevInfoObj = NULL;
+ 	cbtSecTmpObj = NULL;
+ 	cbt5GSecTmpObj = NULL;
++	cbtApObj = NULL;
++	cbt5GApObj = NULL;
+ 	
+ 	IID_INIT(cbtSsidIid);
+ 	IID_INIT(cbt5GSsidIid);
+@@ -141,6 +151,8 @@ void initCbtWifiObjects(){
+ 	IID_INIT(cbtDevInfoIid);
+ 	IID_INIT(cbtSecTmpIid);
+ 	IID_INIT(cbt5GSecTmpIid);
++	IID_INIT(cbtApIid);
++	IID_INIT(cbt5GApIid);
+ }
+ 
+ zcfgRet_t freeAllCbtWifiObjects(){
+@@ -150,6 +162,8 @@ zcfgRet_t freeAllCbtWifiObjects(){
+ 	if(cbt5GSsidObj) json_object_put(cbt5GSsidObj);
+ 	if(cbtSecObj) json_object_put(cbtSecObj);
+ 	if(cbt5GSecObj) json_object_put(cbt5GSecObj);
++	if(cbtApObj) json_object_put(cbtApObj);
++	if(cbt5GApObj) json_object_put(cbt5GApObj);
+ 	if(cbtDevInfoObj) json_object_put(cbtDevInfoObj);
+ 	if(cbtSecTmpObj) json_object_put(cbtSecTmpObj);
+ 	if(cbt5GSecTmpObj) json_object_put(cbt5GSecTmpObj);
+@@ -172,6 +186,8 @@ void getCbtBasicWifiInfo(struct json_obj
+ #ifdef ZYXEL_WEB_WIRELESS_NEW_VERSION_ONE
+ 	cbt5GWpaMode = json_object_get_string(json_object_object_get(Jobj, "wpaMode_5G"));
+ 	cbt5GWifiPskValue = json_object_get_string(json_object_object_get(Jobj, "cbt5GPskValue"));
++	cbtWifiHideSsid = json_object_get_boolean(json_object_object_get(Jobj, "cbtGuestSsidHide"));		// Enable/Disable
++	cbtWifi5GHideSsid = json_object_get_boolean(json_object_object_get(Jobj, "cbtGuest5GSsidHide"));	// Enable/Disable
+ #endif
+ 	
+ #ifdef BUILD_SONIQ
+@@ -229,6 +245,7 @@ zcfgRet_t editCbtWifiSsidObjects(struct 
+ 			}
+ 			json_object_object_add(cbtSsidObj, "Enable", json_object_new_boolean(cbtWifiEnable));
+ 			json_object_object_add(cbtSsidObj, "SSID", json_object_new_string(cbtWifiSsid));
++			json_object_object_add(cbtSsidObj, "SSIDAdvertisementEnabled", json_object_new_boolean(!cbtWifiHideSsid));
+ 			
+ 		}else{
+ 			
+@@ -407,9 +424,20 @@ zcfgRet_t editCbtWifiSecObject(struct js
+ 				if(cbtSecIid.idx[iidIdx] != 0)
+ 					cbtSecIid.level = iidIdx+1;
+ 			}
++			
++			for(iidIdx=0;iidIdx<6;iidIdx++){
++				cbtApIid.idx[iidIdx] = json_object_get_int(json_object_array_get_idx(iidArray, iidIdx));
++				if(cbtApIid.idx[iidIdx] != 0)
++					cbtApIid.level = iidIdx+1;
++			}
++			
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT_SEC, &cbtSecIid, &cbtSecObj)) != ZCFG_SUCCESS) {
+ 				return ret;
+ 			}
++			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &cbtApIid, &cbtApObj)) != ZCFG_SUCCESS) {
++				return ret;
++			}
++			
+ 			if(!strcmp(cbtWpaMode,"wpa2psk") || !strcmp(cbtWpaMode,"wpapsk") || !strcmp(cbtWpaMode,"wpawpa2psk")){
+ 				if(!strcmp(cbtWpaMode,"wpa2psk")){
+ 					json_object_object_add(cbtSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal"));
+@@ -453,6 +481,7 @@ zcfgRet_t editCbtWifiSecObject(struct js
+ 				json_object_object_add(cbtSecObj, "ModeEnabled", json_object_new_string("None"));
+ 				json_object_object_add(cbtSecObj, "X_ZYXEL_WEPEncryption", json_object_new_string("None"));
+ 			}
++			json_object_object_add(cbtApObj, "SSIDAdvertisementEnabled", json_object_new_boolean(!cbtWifiHideSsid));
+ 		}else{
+ 			iidArray = json_object_object_get(Jobj, "cbtGuestWifiIid"); // 2.4G Iid
+ 			for(iidIdx=0;iidIdx<6;iidIdx++){
+@@ -461,6 +490,12 @@ zcfgRet_t editCbtWifiSecObject(struct js
+ 					cbtSecIid.level = iidIdx+1;
+ 			}
+ 
++			for(iidIdx=0;iidIdx<6;iidIdx++){
++				cbtApIid.idx[iidIdx] = json_object_get_int(json_object_array_get_idx(iidArray, iidIdx));
++				if(cbtApIid.idx[iidIdx] != 0)
++					cbtApIid.level = iidIdx+1;
++			}
++
+ 			iidArray = json_object_object_get(Jobj, "cbtGuest5GWifiIid"); // 5G Iid
+ 			for(iidIdx=0;iidIdx<6;iidIdx++){
+ 				cbt5GSecIid.idx[iidIdx] = json_object_get_int(json_object_array_get_idx(iidArray, iidIdx));
+@@ -468,12 +503,26 @@ zcfgRet_t editCbtWifiSecObject(struct js
+ 					cbt5GSecIid.level = iidIdx+1;
+ 			}
+ 		
++			for(iidIdx=0;iidIdx<6;iidIdx++){
++				cbt5GApIid.idx[iidIdx] = json_object_get_int(json_object_array_get_idx(iidArray, iidIdx));
++				if(cbt5GApIid.idx[iidIdx] != 0)
++					cbt5GApIid.level = iidIdx+1;
++			}
++		
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT_SEC, &cbtSecIid, &cbtSecObj)) != ZCFG_SUCCESS) {
+ 				return ret;
+ 			}
+ 			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT_SEC, &cbt5GSecIid, &cbt5GSecObj)) != ZCFG_SUCCESS) {
+ 				return ret;
+ 			}
++			
++			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &cbtApIid, &cbtApObj)) != ZCFG_SUCCESS) {
++				return ret;
++			}
++			if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_ACCESS_POINT, &cbt5GApIid, &cbt5GApObj)) != ZCFG_SUCCESS) {
++				return ret;
++			}
++			
+ 			//2.4G 5G Guest Iid when apply by main page
+ 			if(cbtWifiConfig){
+ 				IID_INIT(guiObjIid);
+@@ -620,9 +669,14 @@ zcfgRet_t editCbtWifiSecObject(struct js
+ 				json_object_object_add(cbt5GSecObj, "X_ZYXEL_WEPEncryption", json_object_new_string("None"));
+ 			}
+ 			//When enable one SSID, use 2.4G password to instead 5G password
+-			if(cbtSameSsid)
++			if(cbtSameSsid){
+ 				json_object_object_add(cbt5GSecObj, "KeyPassphrase", json_object_new_string(cbtWifiPskValue));
+-
++				json_object_object_add(cbtApObj, "SSIDAdvertisementEnabled", json_object_new_boolean(!cbtWifiHideSsid));
++				json_object_object_add(cbt5GApObj, "SSIDAdvertisementEnabled", json_object_new_boolean(!cbtWifiHideSsid));
++			}else{
++				json_object_object_add(cbtApObj, "SSIDAdvertisementEnabled", json_object_new_boolean(!cbtWifiHideSsid));
++				json_object_object_add(cbt5GApObj, "SSIDAdvertisementEnabled", json_object_new_boolean(!cbtWifi5GHideSsid));
++			}
+ #else
+ 			if(!strcmp(cbtWpaMode,"wpa2psk") || !strcmp(cbtWpaMode,"wpapsk") || !strcmp(cbtWpaMode,"wpawpa2psk")){
+ 				
+@@ -737,6 +791,9 @@ zcfgRet_t setAllCbtWifiObjects(struct js
+ 	if(cbtSecObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT_SEC, &cbtSecIid, cbtSecObj, NULL);
+ 	if(cbt5GSecObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT_SEC, &cbt5GSecIid, cbt5GSecObj, NULL);
+ 
++	if(cbtApObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &cbtApIid, cbtApObj, NULL);
++	if(cbt5GApObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &cbt5GApIid, cbt5GApObj, NULL);
++
+ 	// 2.4G SSID
+ 	if(cbtSsidObj) zcfgFeObjJsonSet(RDM_OID_WIFI_SSID, &cbtSsidIid, cbtSsidObj, NULL);
+ 	// 5G SSID

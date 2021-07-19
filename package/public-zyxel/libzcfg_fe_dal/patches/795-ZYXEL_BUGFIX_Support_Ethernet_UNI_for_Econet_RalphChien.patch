@@ -1,0 +1,39 @@
+Index: libzcfg_fe_dal-1.0/network/ethctl/zcfg_fe_dal_ethctl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/ethctl/zcfg_fe_dal_ethctl.c	2020-07-13 17:27:09.936474907 +0800
++++ libzcfg_fe_dal-1.0/network/ethctl/zcfg_fe_dal_ethctl.c	2020-07-13 17:54:44.332001292 +0800
+@@ -155,6 +155,7 @@
+ #else
+ 			strcpy(replyMsg, "Invalid parameters! Please enter --intf  <interface> --media-type <Auto|100FD|100HD|10FD|10HD>  or --enable <1|0>");
+ #endif
++			zcfgFeJsonObjFree(ethObj);
+ 			return ZCFG_REQUEST_REJECT;
+ 		}else{
+ 			//Enable/disable
+@@ -167,7 +168,7 @@
+ 			if(json_object_object_get(Jobj, "media-type") != NULL){
+ 				if(!curEnable && !newEnable){
+ 					strcpy(replyMsg, "The port is disable.");
+-					return ZCFG_REQUEST_REJECT;
++					// return ZCFG_REQUEST_REJECT;
+ 				}
+ 				//media-type
+ 				media_type = json_object_get_string(json_object_object_get(Jobj, "media-type"));
+@@ -202,7 +203,8 @@
+ 					strcpy(replyMsg, "Media type should be Auto,1000FD,1000HD,100FD,100HD,10FD or 10HD.");
+ #else
+ 					strcpy(replyMsg, "Duplex should be Full, Half or Auto. Speed should be 10 or 100.");
+-#endif				
++#endif
++					zcfgFeJsonObjFree(ethObj);
+ 					return ZCFG_INVALID_PARAM_VALUE;
+ 				}
+ 			}
+@@ -211,6 +213,7 @@
+ 		}
+ 	}
+ 	else{
++		zcfgFeJsonObjFree(ethObj);
+ 		return ZCFG_NOT_FOUND;
+ 	}
+ 

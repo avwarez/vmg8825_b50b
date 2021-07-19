@@ -1,0 +1,108 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-12-06 21:12:47.650456801 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-12-06 21:13:31.822313200 +0800
+@@ -135,6 +135,8 @@
+ #endif
+ bool ipStatic, ip6Static, Enable_6RD, ip6DnsStatic, IPv6Manual_IANA, IPv6Manual_IAPD;
+ 
++bool DSCPEnable;
++
+ char CurrType[16] = {0};
+ char CurrMode[16] = {0};
+ char CurrEncapsulation[16] = {0};
+@@ -2567,6 +2569,12 @@
+ 		json_object_object_add(ipIfaceObj, "LowerLayers", json_object_new_string(currLowerLayers));
+ 		//ret = zcfgFeObjJsonSet(RDM_OID_IP_IFACE, &ipIfaceIid, ipIfaceObj, NULL);
+ 		//json_object_put(ipIfaceObj);
++
++		if(DSCPEnable)
++			replaceParam(ipIfaceObj, "X_ZYXEL_DSCPMark", Jobj, "DSCP");
++		else
++			json_object_object_add(ipIfaceObj, "X_ZYXEL_DSCPMark", json_object_new_int(-1));
++
+ 		return ret;
+ 	}
+ 
+@@ -2587,6 +2595,11 @@
+ 		replaceParam(ipIfaceObj, "X_ZYXEL_SPIPv6Prefix", Jobj, "SPIPv6Prefix");
+ 		replaceParam(ipIfaceObj, "X_ZYXEL_IPv4MaskLength", Jobj, "IPv4MaskLength");
+ 		replaceParam(ipIfaceObj, "X_ZYXEL_BorderRelayIPv4Addresses", Jobj, "BorderRelayIPv4Addresses");
++
++		if(DSCPEnable)
++			replaceParam(ipIfaceObj, "X_ZYXEL_DSCPMark", Jobj, "DSCP");
++		else
++			json_object_object_add(ipIfaceObj, "X_ZYXEL_DSCPMark", json_object_new_int(-1));
+ 	}
+ 	if(!strcmp(ipMode, "IPv6")){
+ 		json_object_object_add(ipIfaceObj, "IPv6Enable", json_object_new_boolean(true));
+@@ -2603,6 +2616,11 @@
+         /* __ZyXEL__, Albert, 20180209,Support IPv6 option IA_NA and IA_PD  */
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvManagedFlag_Manual", Jobj, "IPv6Manual_IANA");
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvOtherConfigFlag_Manual", Jobj, "IPv6Manual_IAPD");
++
++		if(DSCPEnable)
++			replaceParam(ipIfaceObj, "X_ZYXEL_DSCPMark", Jobj, "DSCP");
++		else
++			json_object_object_add(ipIfaceObj, "X_ZYXEL_DSCPMark", json_object_new_int(-1));
+ 	}
+ #ifdef ABUE_CUSTOMIZATION
+ 	else if(!strcmp(ipMode, "AutoConfig")){
+@@ -2688,6 +2706,13 @@
+ 
+ 	if(!strcmp(Mode, "IP_Bridged")){
+ 		json_object_object_add(ipIfaceObj, "LowerLayers", json_object_new_string(currLowerLayers));
++
++
++		if(DSCPEnable)
++			replaceParam(ipIfaceObj, "X_ZYXEL_DSCPMark", Jobj, "DSCP");
++		else
++			json_object_object_add(ipIfaceObj, "X_ZYXEL_DSCPMark", json_object_new_int(-1));
++
+ 		return ret;
+ 	}
+ 
+@@ -2703,6 +2728,11 @@
+ 		replaceParam(ipIfaceObj, "X_ZYXEL_IPv4MaskLength", Jobj, "IPv4MaskLength");
+ 		replaceParam(ipIfaceObj, "X_ZYXEL_BorderRelayIPv4Addresses", Jobj, "BorderRelayIPv4Addresses");
+ 		json_object_object_add(ipIfaceObj, "X_ZYXEL_Enable_DSLite", json_object_new_boolean(false));
++
++		if(DSCPEnable)
++			replaceParam(ipIfaceObj, "X_ZYXEL_DSCPMark", Jobj, "DSCP");
++		else
++			json_object_object_add(ipIfaceObj, "X_ZYXEL_DSCPMark", json_object_new_int(-1));
+ 	}
+ 	if(!strcmp(ipMode, "IPv6")){
+ 		json_object_object_add(ipIfaceObj, "IPv4Enable", json_object_new_boolean(false));
+@@ -2724,6 +2754,11 @@
+         /* __ZyXEL__, Albert, 20180209,Support IPv6 option IA_NA and IA_PD  */
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvManagedFlag_Manual", Jobj, "IPv6Manual_IANA");
+         replaceParam(ipIfaceObj, "X_ZYXEL_AdvOtherConfigFlag_Manual", Jobj, "IPv6Manual_IAPD");      
++
++		if(DSCPEnable)
++			replaceParam(ipIfaceObj, "X_ZYXEL_DSCPMark", Jobj, "DSCP");
++		else
++			json_object_object_add(ipIfaceObj, "X_ZYXEL_DSCPMark", json_object_new_int(-1));
+ 	}
+ #ifdef ABUE_CUSTOMIZATION	
+ 	else if(!strcmp(ipMode, "AutoConfig")){
+@@ -2895,6 +2930,7 @@
+ 	Type = json_object_get_string(json_object_object_get(Jobj, "Type"));
+ 	Mode = json_object_get_string(json_object_object_get(Jobj, "Mode"));
+ 	Encapsulation = json_object_get_string(json_object_object_get(Jobj, "Encapsulation"));
++	DSCPEnable = json_object_get_boolean(json_object_object_get(Jobj, "DSCPEnable"));
+ 	ipMode = json_object_get_string(json_object_object_get(Jobj, "ipMode"));
+ 	ipStatic = json_object_get_boolean(json_object_object_get(Jobj, "ipStatic"));
+ 	ip6Static = json_object_get_boolean(json_object_object_get(Jobj, "ip6Static"));
+@@ -4736,6 +4772,11 @@
+ 			Jadds(pramJobj, "ipIfacePath", ipIfacePath);
+             replaceParam(pramJobj, "X_ZYXEL_IfName", ipIfObj, "X_ZYXEL_IfName");
+ 
++        	struct json_object *ipIfaceDSCPObj = json_object_object_get(ipIfObj, "X_ZYXEL_DSCPMark");
++        	int ipIfaceDSCPMark = ipIfaceDSCPObj ? json_object_get_int(ipIfaceDSCPObj) : -1;
++        	json_object_object_add(pramJobj, "DSCPEnable", (ipIfaceDSCPMark >= 0) ? json_object_new_boolean(true) : json_object_new_boolean(false));
++        	json_object_object_add(pramJobj, "DSCP", json_object_new_int(ipIfaceDSCPMark));
++
+ #if defined(SAME_FW_FOR_TWO_BOARD)
+             if (strcmp(CurrType, "ETH") == 0)
+             {

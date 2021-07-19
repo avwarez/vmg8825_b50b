@@ -1,0 +1,109 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-10-01 13:33:46.186858387 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-10-01 13:33:46.206868388 +0800
+@@ -15,7 +15,7 @@
+ 
+ #define WLAN_MAXBITRATE (1000)
+ #define WIFI_24_PRIMARY_LINK 1
+-#define WIFI_5_PRIMARY_LINK 5
++#define WIFI_5_PRIMARY_LINK (TOTAL_INTERFACE_24G + 1)
+ #define WPA2_ENTERPRISE 1
+ #define WPA2_PERSONAL  2
+ 
+Index: libzcfg_fe_tr98-1.0/Makefile
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/Makefile	2019-10-01 13:33:46.170850387 +0800
++++ libzcfg_fe_tr98-1.0/Makefile	2019-10-01 13:33:46.206868388 +0800
+@@ -112,6 +112,18 @@
+ CFLAGS += -DZYXEL_SUPPORT_TR98_LOGIN_ACCOUNT
+ endif
+ 
++#define SONIQ
++ifeq ($(CONFIG_ZYXEL_SONIQ),y)
++	CFLAGS += -DBUILD_SONIQ
++	export CONFIG_ZYXEL_SONIQ
++endif
++
++#define EASYMESH
++ifeq ($(CONFIG_ZYXEL_EASYMESH),y)
++	CFLAGS += -DZYXEL_EASYMESH
++	export CONFIG_ZYXEL_EASYMESH
++endif
++
+ #Sunrise
+ ifneq ($(strip $(CONFIG_SUNRISE_STB_PROVISION)),)
+ CFLAGS += -DSUNRISE_STB_PROVISION
+Index: libzcfg_fe_tr98-1.0/l2bridge.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/l2bridge.c	2019-10-01 13:33:45.746638387 +0800
++++ libzcfg_fe_tr98-1.0/l2bridge.c	2019-10-01 15:50:50.504962377 +0800
+@@ -1672,27 +1672,13 @@
+ 
+ #define ETHWAN_IFNAME "eth4.0"
+ #define MAX_ETH_INTF_NUM   4
+-#define MAX_LAN_INTF_NUM 12
++	#if defined(BUILD_SONIQ) || defined(ZYXEL_EASYMESH)
++		#define MAX_LAN_INTF_NUM (MAX_ETH_INTF_NUM + TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G - 2) //-2 :exclude preset & backhaul
++	#else
++		#define MAX_LAN_INTF_NUM (MAX_ETH_INTF_NUM + TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G)
++	#endif
+ #define MAX_INTERFACEKEY  20
+ 
+-#define	setIfName(ifName, interfaceKey) { \
+-	if(interfaceKey == 5) \
+-		sprintf(ifName, "wl0"); \
+-	else if(interfaceKey == 6) \
+-		sprintf(ifName, "wl0.1"); \
+-	else if(interfaceKey == 7) \
+-		sprintf(ifName, "wl0.2"); \
+-	else if(interfaceKey == 8) \
+-		sprintf(ifName, "wl0.3"); \
+-	else if(interfaceKey == 9) \
+-		sprintf(ifName, "wl1"); \
+-	else if(interfaceKey == 10) \
+-		sprintf(ifName, "wl1.1"); \
+-	else if(interfaceKey == 11) \
+-		sprintf(ifName, "wl1.2"); \
+-	else if(interfaceKey == 12) \
+-		sprintf(ifName, "wl1.3"); \
+-}
+ 
+ /*
+ 
+@@ -1701,8 +1687,9 @@
+ zcfgRet_t l2BrPortObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-	objIndex_t brBdgPtIid;
++	objIndex_t brBdgPtIid, ssidIid;
+ 	struct json_object *brBdgPtObj = NULL;
++	struct json_object *ssidObj = NULL;
+ 	char mappingPathName[MAX_TR181_PATHNAME] = {0};
+ 	struct json_object *paramValue, *tr181ParamValue, *tmpObj = NULL;
+ 	tr98Parameter_t *paramList = NULL;
+@@ -1761,7 +1748,6 @@
+ 			char *endptr = NULL;
+ 			char ifName[15] = {0}, trIntfName[20] = {0};
+ 			long int interfaceKey = strtol(portIntf, &endptr, 10);
+-
+ 			errno = 0;
+ 			if((errno == ERANGE && (interfaceKey == LONG_MAX || interfaceKey == LONG_MIN)) || (errno != 0 && interfaceKey == 0)
+ 				|| (interfaceKey > MAX_INTERFACEKEY)) {
+@@ -1780,7 +1766,15 @@
+ 			}
+ 			else if((interfaceKey > MAX_ETH_INTF_NUM) && (interfaceKey <= MAX_LAN_INTF_NUM)) {
+ 				sprintf(trIntfName, "WiFi.SSID.%hhu", (int)(interfaceKey-MAX_ETH_INTF_NUM));
+-				setIfName(ifName, interfaceKey);
++			// get ssid obj
++				IID_INIT(ssidIid);
++				ssidIid.level = 1;
++				ssidIid.idx[0] = (int)(interfaceKey-MAX_ETH_INTF_NUM);
++
++				if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &ssidIid, &ssidObj) == ZCFG_SUCCESS) {
++					strcpy(ifName, json_object_get_string(json_object_object_get(ssidObj, "Name")));
++				}
++				zcfgFeObjStructFree(ssidObj);
+ 			}
+ 			else {
+ 				if(!multiJobj)

@@ -1,0 +1,62 @@
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-08-07 17:58:34.368926283 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-08-07 18:01:04.603657551 +0800
+@@ -452,9 +452,9 @@
+ 			schRuleRetJarray = json_object_new_array();
+ 			
+ #ifdef ZYXEL_HOME_CYBER_SECURITY	
+-			if((ptr3 == NULL)||(!strcmp(ptr3,"false"))||(ptr3 == false)){
++			if((ptr3 == NULL)||(!strcmp(ptr3,"false"))||(!strcmp(ptr3,"0"))){
+ 				Jaddb(schRuleJobj, "Enable", false);				
+-			}else if ((!strcmp(ptr3,"true"))||(ptr3 == true)){
++			}else if ((!strcmp(ptr3,"true"))||(!strcmp(ptr3,"1"))){
+ 				Jaddb(schRuleJobj, "Enable", true);				
+ 			}else{
+ 				Jaddb(schRuleJobj, "Enable", true);					
+@@ -807,14 +807,15 @@
+ 			schRuleRetJarray = json_object_new_array();
+ #ifdef ZYXEL_HOME_CYBER_SECURITY		
+ 			if(ISSET("TimeEnable")){
+-				if((ptr3 == NULL)||(!strcmp(ptr3,"false"))||(ptr3 == false)){
+-					Jaddb(schRuleJobj, "Enable", false);				
+-				}else if ((!strcmp(ptr3,"true"))||(ptr3 == true)){
+-					Jaddb(schRuleJobj, "Enable", true); 			
++				if((!strcmp(ptr3,"false"))||(!strcmp(ptr3,"0"))){
++					Jaddb(schRuleJobj, "Enable", false);
++				}else if ((!strcmp(ptr3,"true"))||(!strcmp(ptr3,"1"))){
++					Jaddb(schRuleJobj, "Enable", true); 
+ 				}else{
+ 					Jaddb(schRuleJobj, "Enable", true); 				
+ 				}
+-			}
++			}else
++				printf("\n\nTimeEnable is not set\n");
+ #endif			
+ 			//Jaddb(schRuleJobj, "Enable", true);
+ 			if(ISSET("pcpName"))
+@@ -1058,7 +1059,9 @@
+ 		printf("\n");
+ 		printf("%-35s %s\n", "TimeType", Jgets(Jobj, "TimeType"));
+ 		printf("\n");
+-		printf("%-35s %s\n", "TimeEnable", Jgets(Jobj, "TimeEnable"));			
++		printf("%-35s %s\n", "TimeEnable", Jgets(Jobj, "TimeEnable"));	
++		printf("\n");
++		printf("%-35s %s\n", "ScheduleRuleList", Jgets(Jobj, "ScheduleRuleList"));			
+ 	
+ #endif		
+ #if 1
+Index: libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-08-07 17:58:34.368926283 +0800
++++ libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-08-07 18:03:21.765838158 +0800
+@@ -224,7 +224,9 @@
+ 		timeStartMin = json_object_object_get(ScheduleJobj, "TimeStartMin");
+ 		timeStopHour = json_object_object_get(ScheduleJobj, "TimeStopHour");
+ 		timeStopMin = json_object_object_get(ScheduleJobj, "TimeStopMin");
++#ifdef ZYXEL_HOME_CYBER_SECURITY		
+ 		type = json_object_object_get(ScheduleJobj, "Type");
++#endif
+ 		isPcpRule = false;
+ 
+ 		pramJobj = json_object_new_object();

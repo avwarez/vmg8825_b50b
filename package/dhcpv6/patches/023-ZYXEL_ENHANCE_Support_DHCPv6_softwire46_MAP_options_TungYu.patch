@@ -1,0 +1,443 @@
+Index: wide-dhcpv6-20080615/cfparse.y
+===================================================================
+--- wide-dhcpv6-20080615.orig/cfparse.y	2020-01-06 08:20:17.134578709 +0000
++++ wide-dhcpv6-20080615/cfparse.y	2020-01-06 08:20:17.370578707 +0000
+@@ -119,6 +119,8 @@
+ %token KEYINFO REALM KEYID SECRET KEYNAME EXPIRE
+ %token ADDRPOOL POOLNAME RANGE TO ADDRESS_POOL
+ %token INCLUDE
++%token S46_MAPE
++%token S46_MAPT
+ 
+ %token NUMBER SLASH EOS BCL ECL STRING QSTRING PREFIX INFINITY
+ %token COMMA
+@@ -752,6 +754,22 @@
+ 			/* currently no value */
+ 			$$ = l;
+ 		}
++	|	S46_MAPE
++		{
++			struct cf_list *l;
++
++			MAKE_CFLIST(l, DHCPOPT_S46_MAPE, NULL, NULL);
++			/* currently no value */
++			$$ = l;
++		}
++	|	S46_MAPT
++		{
++			struct cf_list *l;
++
++			MAKE_CFLIST(l, DHCPOPT_S46_MAPT, NULL, NULL);
++			/* currently no value */
++			$$ = l;
++		}
+ 	;
+ 
+ rangeparam:
+Index: wide-dhcpv6-20080615/cftoken.l
+===================================================================
+--- wide-dhcpv6-20080615.orig/cftoken.l	2020-01-06 08:20:17.134578709 +0000
++++ wide-dhcpv6-20080615/cftoken.l	2020-01-06 08:20:17.370578707 +0000
+@@ -207,6 +207,8 @@
+ <S_CNF>bcmcs-server-address { DECHO; return (BCMCS_SERVERS); }
+ <S_CNF>bcmcs-server-domain-name { DECHO; return (BCMCS_NAME); }
+ <S_CNF>refreshtime { DECHO; return (REFRESHTIME); }
++<S_CNF>mape { DECHO; return (S46_MAPE); }
++<S_CNF>mapt { DECHO; return (S46_MAPT); }
+ 
+ 	/* provided for a backward compatibility to WIDE-DHCPv6 before Oct 1 2006 */
+ <S_CNF>nis-server-domain-name { DECHO; return (NIS_NAME); }
+Index: wide-dhcpv6-20080615/common.c
+===================================================================
+--- wide-dhcpv6-20080615.orig/common.c	2020-01-06 08:20:17.174578709 +0000
++++ wide-dhcpv6-20080615/common.c	2020-01-06 08:20:17.386578707 +0000
+@@ -707,6 +707,31 @@
+ 	return (dst);
+ }
+ 
++static int
++dhcp6_get_map(optlen, cp, type, list)
++	int optlen;
++	void *cp;
++	dhcp6_listval_type_t type;
++	struct dhcp6_list *list;
++{
++	struct dhcp6_vbuf vb;
++	dprintf(LOG_DEBUG, FNAME, "enter");
++
++	vb.dv_len = optlen;
++	vb.dv_buf = cp;
++	dprintf(LOG_DEBUG, FNAME, "copy map%c %s",
++		type == DH6OPT_S46_CONT_MAPT ? 't' : (type == DH6OPT_S46_CONT_MAPE ? 'e' : '?'),
++		dhcp6optstr(type));
++	if (dhcp6_add_listval(list, DHCP6_LISTVAL_VBUF, &vb, NULL) == NULL) {
++		dprintf(LOG_ERR, FNAME, "failed to copy map%c %s",
++			type == DH6OPT_S46_CONT_MAPT ? 't' : (type == DH6OPT_S46_CONT_MAPE ? 'e' : '?'),
++			dhcp6optstr(type));
++		return -1;
++	}
++
++	return 0;
++}
++
+ /*
+  * Home-brew function of a 64-bit version of ntohl.
+  * XXX: is there any standard for this?
+@@ -1429,6 +1454,7 @@
+ 	TAILQ_INIT(&optinfo->nispname_list);
+ 	TAILQ_INIT(&optinfo->bcmcs_list);
+ 	TAILQ_INIT(&optinfo->bcmcsname_list);
++	TAILQ_INIT(&optinfo->map_list);
+ #if 1//def ZYXEL_DHCPV6_OPTION64
+ 	TAILQ_INIT(&optinfo->dslitename_list);
+ #endif
+@@ -1469,6 +1495,7 @@
+ 	dhcp6_clear_list(&optinfo->nispname_list);
+ 	dhcp6_clear_list(&optinfo->bcmcs_list);
+ 	dhcp6_clear_list(&optinfo->bcmcsname_list);
++	dhcp6_clear_list(&optinfo->map_list);
+ 
+ 	if (optinfo->relaymsg_msg != NULL)
+ 		free(optinfo->relaymsg_msg);
+@@ -1522,6 +1549,8 @@
+ 		goto fail;
+ 	if (dhcp6_copy_list(&dst->bcmcsname_list, &src->bcmcsname_list))
+ 		goto fail;
++	if (dhcp6_copy_list(&dst->map_list, &src->map_list))
++		goto fail;
+ 	dst->elapsed_time = src->elapsed_time;
+ 	dst->refreshtime = src->refreshtime;
+ 	dst->pref = src->pref;
+@@ -2006,6 +2035,13 @@
+ 			dhcp6_clear_list(&sublist);
+ 
+ 			break;
++		case DH6OPT_S46_CONT_MAPE:
++		case DH6OPT_S46_CONT_MAPT:
++			if (dhcp6_get_map(optlen, cp, opt, &optinfo->map_list) == -1) {
++				goto fail;
++			}
++
++			break;
+ #if 1//def ZYXEL_DHCPV6_OPTION64		//dslite
+ 					case DH6OPT_DS_LITE_NAME:
+ 						if (dhcp6_get_domain(optlen, cp, opt,&optinfo->dslitename_list) == -1) {			
+@@ -2022,7 +2058,7 @@
+ 			break;
+ 		}
+ 	}
+-
++dprintf(LOG_INFO, FNAME, "end");
+ 	return (0);
+ 
+   malformed:
+Index: wide-dhcpv6-20080615/common.h
+===================================================================
+--- wide-dhcpv6-20080615.orig/common.h	2020-01-06 08:20:16.982578711 +0000
++++ wide-dhcpv6-20080615/common.h	2020-01-06 08:20:17.386578707 +0000
+@@ -137,6 +137,16 @@
+ 	int eidtNameServer;/*check send name server msg or not*/
+ 	char domainName[128];
+ 	int eidtDomain;/*check send domain msg or not*/
++	int mapeAssigned;     /**< Have we been assigned mape config ? */
++	int maptAssigned;     /**< Have we been assigned mapt config ? */
++	char brIPv6Prefix[128]; /**< border relay address or prefix */
++	char ruleIPv4Prefix[128];
++	char ruleIPv6Prefix[128];
++	int eaLen;
++	int psidOffset;
++	int psidLen;
++	int psid;
++	int isFMR;
+ 	char serverIPv6Addr[49]; /*DHCP server's v6 ip */
+ 	char serverIPv6Duid[48]; /*server's DHCP Unique Identifier */
+ 	int refreshtime; /*DHCP refresh time */
+Index: wide-dhcpv6-20080615/config.c
+===================================================================
+--- wide-dhcpv6-20080615.orig/config.c	2020-01-06 08:20:17.198578709 +0000
++++ wide-dhcpv6-20080615/config.c	2020-01-06 08:20:17.386578707 +0000
+@@ -1659,6 +1659,8 @@
+ 		case DHCPOPT_NISPNAME:
+ 		case DHCPOPT_BCMCS:
+ 		case DHCPOPT_BCMCSNAME:
++		case DHCPOPT_S46_MAPE:
++		case DHCPOPT_S46_MAPT:
+ 		case DHCPOPT_REFRESHTIME:
+ #if 1//def ZYXEL_DHCPV6_OPTION64
+ 		case DHCPOPT_DSLITENAME:
+@@ -1698,6 +1700,12 @@
+ 			case DHCPOPT_BCMCSNAME:
+ 				opttype = DH6OPT_BCMCS_SERVER_D;
+ 				break;
++			case DHCPOPT_S46_MAPE:
++				opttype = DH6OPT_S46_CONT_MAPE;
++				break;
++			case DHCPOPT_S46_MAPT:
++				opttype = DH6OPT_S46_CONT_MAPT;
++				break;
+ 			case DHCPOPT_REFRESHTIME:
+ 				opttype = DH6OPT_REFRESHTIME;
+ 				break;
+Index: wide-dhcpv6-20080615/config.h
+===================================================================
+--- wide-dhcpv6-20080615.orig/config.h	2020-01-06 08:20:17.250578708 +0000
++++ wide-dhcpv6-20080615/config.h	2020-01-06 08:20:17.386578707 +0000
+@@ -288,6 +288,7 @@
+        DHCPOPT_NIS, DHCPOPT_NISNAME, 
+        DHCPOPT_NISP, DHCPOPT_NISPNAME, 
+        DHCPOPT_BCMCS, DHCPOPT_BCMCSNAME, 
++       DHCPOPT_S46_MAPE, DHCPOPT_S46_MAPT,
+        CFLISTENT_GENERIC,
+        IACONF_PIF, IACONF_PREFIX, IACONF_ADDR,
+        DHCPOPT_SIP, DHCPOPT_SIPNAME,
+Index: wide-dhcpv6-20080615/dhcp6.h
+===================================================================
+--- wide-dhcpv6-20080615.orig/dhcp6.h	2020-01-06 08:20:17.298578708 +0000
++++ wide-dhcpv6-20080615/dhcp6.h	2020-01-06 08:20:17.386578707 +0000
+@@ -211,6 +211,7 @@
+ 	struct dhcp6_list nispname_list; /* NIS+ domain list */
+ 	struct dhcp6_list bcmcs_list; /* BCMC server list */
+ 	struct dhcp6_list bcmcsname_list; /* BCMC domain list */
++	struct dhcp6_list map_list; /* MAP-E/MAP-T list */
+ 
+ 	struct dhcp6_vbuf relay_msg; /* relay message */
+ #define relaymsg_len relay_msg.dv_len
+@@ -341,6 +342,14 @@
+ //draft-ietf-softwire-ds-lite-tunnel-option
+ #define DH6OPT_DS_LITE_NAME 64  /*RFC6334 DH6OPT_AFTR_NAME*/
+ #endif
++/* RFC7598: Softwire46 options */
++#define DH6OPT_S46_RULE  89
++#define DH6OPT_S46_BR   90
++#define DH6OPT_S46_DMR   91
++#define DH6OPT_S46_PORT_PARAM   93
++#define DH6OPT_S46_CONT_MAPE  94
++#define DH6OPT_S46_CONT_MAPT  95
++
+ 
+ struct dhcp6opt {
+ 	u_int16_t dh6opt_type;
+Index: wide-dhcpv6-20080615/dhcp6c.c
+===================================================================
+--- wide-dhcpv6-20080615.orig/dhcp6c.c	2020-01-06 08:20:17.130578709 +0000
++++ wide-dhcpv6-20080615/dhcp6c.c	2020-01-06 08:20:17.390578707 +0000
+@@ -88,6 +88,7 @@
+ 
+ /*zyxel*/
+ #include "zcfg_common.h"
++#include "zcfg_net.h"
+ #include "zcfg_fe_rdm_access.h"
+ #include "zcfg_msg.h"
+ 
+@@ -306,6 +307,20 @@
+ 		json_object_object_add(dhcp6cMsgBody, "nameserver", json_object_new_string(dhcp6cMsg.nameserver));
+ 	if(dhcp6cMsg.eidtDomain)
+ 		json_object_object_add(dhcp6cMsgBody, "domainName", json_object_new_string(dhcp6cMsg.domainName));
++	if(dhcp6cMsg.mapeAssigned)
++		json_object_object_add(dhcp6cMsgBody, "mapeAssigned", json_object_new_boolean(dhcp6cMsg.mapeAssigned));
++	if(dhcp6cMsg.maptAssigned)
++		json_object_object_add(dhcp6cMsgBody, "maptAssigned", json_object_new_boolean(dhcp6cMsg.maptAssigned));
++	if(dhcp6cMsg.mapeAssigned || dhcp6cMsg.maptAssigned){
++		json_object_object_add(dhcp6cMsgBody, "brIPv6Prefix", json_object_new_string(dhcp6cMsg.brIPv6Prefix));
++		json_object_object_add(dhcp6cMsgBody, "ruleIPv4Prefix", json_object_new_string(dhcp6cMsg.ruleIPv4Prefix));
++		json_object_object_add(dhcp6cMsgBody, "ruleIPv6Prefix", json_object_new_string(dhcp6cMsg.ruleIPv6Prefix));
++		json_object_object_add(dhcp6cMsgBody, "eaLen", json_object_new_int(dhcp6cMsg.eaLen));
++		json_object_object_add(dhcp6cMsgBody, "psidOffset", json_object_new_int(dhcp6cMsg.psidOffset));
++		json_object_object_add(dhcp6cMsgBody, "psidLen", json_object_new_int(dhcp6cMsg.psidLen));
++		json_object_object_add(dhcp6cMsgBody, "psid", json_object_new_int(dhcp6cMsg.psid));
++		json_object_object_add(dhcp6cMsgBody, "isFMR", json_object_new_boolean(dhcp6cMsg.isFMR));
++	}
+ }
+ 
+ void
+@@ -2551,6 +2566,7 @@
+ 
+ 	/*zyxel*/
+ 	dhcp6sConfDnsListUpdate(optinfo);
++	addMapInfoToMsg(optinfo);
+ 
+ 	if (!TAILQ_EMPTY(&optinfo->ntp_list)) {
+ 		struct dhcp6_listval *d;
+@@ -2660,6 +2676,7 @@
+ 	msg = json_object_to_json_string(dhcp6cJsonMsg);
+ 	msgLen = strlen(msg) + 1;
+ 
++	dprintf(LOG_DEBUG, FNAME, "send ZCFG_MSG_DHCP6C_STATE_CHANGED Msg");
+ 	dhcp6MsgSend(ZCFG_MSG_DHCP6C_STATE_CHANGED, msgLen, msg);
+ 	memset(&dhcp6cMsg, 0, sizeof(dhcp6cMsg));
+ 	json_object_put(dhcp6cJsonMsg);
+@@ -3146,6 +3163,174 @@
+ 	return;
+ }
+ 
++int addMapInfoToMsg(struct dhcp6_optinfo *opt)
++{
++	struct dhcp6_listval *d;
++
++	d = TAILQ_FIRST(&opt->map_list);
++	if (d!=NULL)
++	{
++		struct dhcp6opt *np, opth, *p, *ep;
++		int opt, optlen;
++		char *cp;
++
++		p = (struct dhcp6opt *)d->val_vbuf.dv_buf;
++		ep = (struct dhcp6opt *)((char *)d->val_vbuf.dv_buf + d->val_vbuf.dv_len);
++
++		for (; p + 1 <= ep; p = np)
++		{
++			memcpy(&opth, p, sizeof(opth));
++			optlen = ntohs(opth.dh6opt_len);
++			opt = ntohs(opth.dh6opt_type);
++
++			cp = (char *)(p + 1);
++			np = (struct dhcp6opt *)(cp + optlen);
++
++			/* option length field overrun */
++			if (np > ep) {
++				dprintf(LOG_INFO, FNAME, "malformed MAP%c options",
++					dhcp6cMsg.maptAssigned ? 'T' : (dhcp6cMsg.mapeAssigned ? 'E' : '?'));
++				if (dhcp6cMsg.mapeAssigned)
++					dhcp6cMsg.mapeAssigned = FALSE;
++				if (dhcp6cMsg.maptAssigned)
++					dhcp6cMsg.maptAssigned = FALSE;
++				goto fail;
++			}
++			switch (opt) {
++				case DH6OPT_S46_RULE:
++				{
++					char * temp_ptr;
++					int i, flag, ealen, v4len, v4addr, v6len, v6bytelen, v6bitlen;
++					unsigned char *addr_str;
++					struct in6_addr v6addr;
++					char v6prefix[IP6ADDR_LENGTH];
++
++					temp_ptr = cp;
++					flag = (int)*temp_ptr;
++					ealen = (int)*(++temp_ptr);
++					v4len = (int)*(++temp_ptr);
++					temp_ptr++;
++					v4addr = *((int *)temp_ptr);
++					temp_ptr += 4;
++					addr_str = (unsigned char *) &v4addr;
++
++					dhcp6cMsg.eaLen = ealen;
++					dhcp6cMsg.isFMR = !flag?0:1;
++					sprintf(dhcp6cMsg.ruleIPv4Prefix, "%d.%d.%d.%d/%d",
++							addr_str[0], addr_str[1], addr_str[2], addr_str[3], v4len);
++
++					v6len = (int)*temp_ptr;
++					v6bytelen = v6len / 8;
++					v6bitlen = v6len % 8;
++					temp_ptr++;
++
++					memset(&v6addr, 0, sizeof(v6addr));
++					memcpy(&v6addr, temp_ptr, v6bytelen + (v6bitlen?1:0));
++					if (v6bitlen) *((char *)&v6addr + v6bytelen) &= 0xff << (8 - v6bitlen);
++					sprintf(v6prefix, "%s/%d", in6addr2str(&v6addr, 0), v6len);
++					strncpy(dhcp6cMsg.ruleIPv6Prefix, v6prefix, strlen(v6prefix));
++
++					/*
++						* check port parameter option:
++						* prefix6_len, located at 8th byte in rule option, specifies
++						* the length of following v6prefix. So the length of port
++						* param option, if any, must be rule_opt_len minus 8 minus v6bytelen minus (1 or 0)
++						*/
++					i = optlen - 8 - v6bytelen - (v6bitlen?1:0);
++					if (i > 0)
++					{
++						/* this rule option includes port param option */
++						if (i == 8) //Only support one port param option per rule option
++						{
++							struct dhcp6opt port_opt;
++							int opcode, optionlen;
++
++							temp_ptr += v6bytelen + (v6bitlen?1:0);
++							memcpy(&port_opt, temp_ptr, sizeof(port_opt));
++							optionlen = ntohs(port_opt.dh6opt_len);
++							opcode = ntohs(port_opt.dh6opt_type);
++
++							if ( opcode == DH6OPT_S46_PORT_PARAM &&
++								optionlen == 4 )
++							{
++								temp_ptr += 4;
++								dhcp6cMsg.psidOffset = (int)*temp_ptr;
++								dhcp6cMsg.psidLen = (int)*(++temp_ptr);
++								temp_ptr++;
++
++								/*
++								* RFC 7598: 4.5: 16 bits long. The first k bits on the left of
++								* this field contain the PSID binary value. The remaining (16 - k)
++								* bits on the right are padding zeros.
++								*/
++								dhcp6cMsg.psid = ntohs(*((u_int16_t *)temp_ptr)) >> (16 - dhcp6cMsg.psidLen);
++							}
++						}
++						else
++						{
++							dprintf(LOG_INFO, FNAME, "port param option len not equal to 8");
++						}
++					}
++
++					break;
++				}
++				case DH6OPT_S46_BR:
++				{
++					struct in6_addr addr;
++					char br[IP6ADDR_LENGTH];
++
++					dhcp6cMsg.mapeAssigned = TRUE;
++
++					memcpy(&addr, cp, optlen);
++					sprintf(br, "%s/%d", in6addr2str(&addr, 0), (optlen*8));
++					strncpy(dhcp6cMsg.brIPv6Prefix, br, strlen(br));
++					break;
++				}
++				case DH6OPT_S46_DMR:
++				{
++					struct in6_addr addr;
++					int len;
++					char *temp_ptr;
++					char br[IP6ADDR_LENGTH];
++
++					len = (int)*cp;
++					memset(&addr, 0, sizeof(addr));
++					temp_ptr = cp;
++
++					temp_ptr++;
++
++					dhcp6cMsg.maptAssigned = TRUE;
++
++					memcpy(&addr, temp_ptr, (len/8)); //RFC 6052: 2.2: len%8 must be 0!
++					sprintf(br, "%s/%d", in6addr2str(&addr, 0), len);
++					strncpy(dhcp6cMsg.brIPv6Prefix, br, strlen(br));
++					break;
++				}
++				default:
++					/* no option specific behavior */
++					dprintf(LOG_INFO, FNAME,
++					"unknown or unexpected MAP%c option %s, len %d",
++					dhcp6cMsg.maptAssigned ? 'T' : (dhcp6cMsg.mapeAssigned ? 'E' : '?'),
++					dhcp6optstr(opt), optlen);
++					break;
++			}
++		}
++
++		if (dhcp6cMsg.maptAssigned && dhcp6cMsg.mapeAssigned)
++		{
++			/* silently ignore */
++			dhcp6cMsg.mapeAssigned = FALSE;
++			dhcp6cMsg.maptAssigned = FALSE;
++		}
++
++fail:
++		dprintf(LOG_NOTICE, FNAME, "DHCP6C_MAPE_CHANGED: %d", dhcp6cMsg.mapeAssigned);
++		dprintf(LOG_NOTICE, FNAME, "DHCP6C_MAPT_CHANGED: %d", dhcp6cMsg.maptAssigned);
++	}
++
++	return 0;
++} /* addMapInfoToMsg */
++
+ void dhcp6_lifetime_timeout()
+ {
+ 	struct json_object *dhcp6cJsonMsg = NULL;

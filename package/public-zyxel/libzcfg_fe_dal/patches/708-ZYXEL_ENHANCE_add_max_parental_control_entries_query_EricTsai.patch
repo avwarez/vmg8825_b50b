@@ -1,0 +1,28 @@
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-09-25 10:35:57.540696690 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-09-25 10:35:57.552696690 +0800
+@@ -6,6 +6,7 @@
+ #include "zcfg_common.h"
+ #include "zcfg_fe_rdm_string.h"
+ #include "zcfg_fe_rdm_struct.h"
++#include "zcfg_fe_schema.h"
+ #include "zcfg_rdm_oid.h"
+ #include "zcfg_rdm_obj.h"
+ #include "zcfg_debug.h"
+@@ -1154,11 +1155,13 @@
+ 		}
+ 	}
+ 	else{
++		int maxlen = zcfgFeObjQueryMaxInstance(RDM_OID_PAREN_CTL_PROF);
++
+ 		IID_INIT(objIid);
+ 		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_PAREN_CTL, &objIid, &obj) == ZCFG_SUCCESS){
+ 			pramJobj = json_object_new_object();
+-			json_object_object_add(pramJobj,"PrentalCtlEnable",json_object_new_boolean(json_object_get_boolean(json_object_object_get(obj,"Enable"))));
+-			//replaceParam(pramJobj, "PrentalCtlEnable", obj, "Enable");
++			replaceParam(pramJobj, "PrentalCtlEnable", obj, "Enable");
++			json_object_object_add(pramJobj, "MaxLenPrentalCtlPrf", json_object_new_int(maxlen));
+ 			json_object_array_add(Jarray, pramJobj);
+ 			zcfgFeJsonObjFree(obj);
+ 		}

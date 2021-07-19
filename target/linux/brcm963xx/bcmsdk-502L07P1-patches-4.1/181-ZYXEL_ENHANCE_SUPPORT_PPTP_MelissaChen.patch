@@ -1,0 +1,27 @@
+Index: linux-4.1.52/Kconfig.zyxel
+===================================================================
+--- linux-4.1.52.orig/Kconfig.zyxel	2018-01-25 13:14:42.839122626 +0800
++++ linux-4.1.52/Kconfig.zyxel	2018-01-30 14:00:26.066828233 +0800
+@@ -4,3 +4,6 @@
+ 
+ config ZYXEL_NF_SESSION_CTL
+         bool "ZyXEL feature - netfilter session control"
++
++config ZYXEL_PPTP_SUPPORT
++		bool "Support PPTP VPN"
+Index: linux-4.1.52/drivers/net/ppp/ppp_generic.c
+===================================================================
+--- linux-4.1.52.orig/drivers/net/ppp/ppp_generic.c	2018-01-25 13:14:42.787122628 +0800
++++ linux-4.1.52/drivers/net/ppp/ppp_generic.c	2018-01-30 14:02:32.442827301 +0800
+@@ -3035,6 +3035,11 @@
+       num[2] = u<<(32-(FIELD2))>>(32-FIELD2);
+       if (num[1] == 0)
+       {
++	#if defined(CONFIG_ZYXEL_PPTP_SUPPORT)/* __ZyXEL__, MelissaChen, 20171122, Support PPTP VPN.  */
++		if (num[2] == 11 ) {
++		 sprintf(dev->name, "ppp%d", num[2]);
++		} else
++	#endif
+          sprintf(dev->name, "ppp%d", num[0]);
+       }
+       else if (num[1] == 1) /* vlan mux */

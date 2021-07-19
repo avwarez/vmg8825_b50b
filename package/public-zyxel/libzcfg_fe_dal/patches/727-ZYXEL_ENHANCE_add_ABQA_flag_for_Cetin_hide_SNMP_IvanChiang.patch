@@ -1,0 +1,106 @@
+Index: libzcfg_fe_dal-1.0/maintenance/zcfg_fe_dal_snmp.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/zcfg_fe_dal_snmp.c	2019-12-10 16:48:50.584943424 +0800
++++ libzcfg_fe_dal-1.0/maintenance/zcfg_fe_dal_snmp.c	2019-12-10 17:17:36.643137660 +0800
+@@ -14,11 +14,13 @@
+ #include "zcfg_fe_dal_common.h"
+ 
+ dal_param_t SNMP_param[]={
++#ifndef ABQA_CUSTOMIZATION
+ /* set RDM_OID_ZY_SNMP object */
+ {"Enable", 		dalType_boolean,	0,	0,	NULL},
+ {"GetCommunity", dalType_string, 	0, 15,	NULL},
+ {"SetCommunity", dalType_string, 	0, 15, NULL},
+ {"TrapCommunity", dalType_string, 	0, 15, NULL},
++#endif
+ /* set RDM_OID_SYSTEM_INFO object */
+ {"HostName", 	dalType_string, 	0, 30, NULL},
+ {"DomainName",	dalType_string, 	0, 30, NULL},	// system info
+@@ -27,9 +29,11 @@
+ #endif
+ {"Location", 	dalType_string,		0, 15, NULL},
+ {"Contact", 	dalType_string,		0, 50, NULL},
++#ifndef ABQA_CUSTOMIZATION
+ /* set RDM_OID_TRAP_ADDR object */
+ {"TrapDest",		dalType_v4v6Addr,	0, 0, NULL,	"None|undefined",	NULL},	// string "None" is for CLI use, "undefined" is for GUI use.
+ {"Port", 		dalType_int,		0, 65535, NULL},
++#endif
+ {NULL, 			0, 					0, 0, NULL}
+ };
+ 
+@@ -157,11 +161,11 @@
+ 
+ zcfgRet_t zcfgFeDal_SNMP_Edit(struct json_object *Jobj, char *replyMsg){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-
++#ifndef ABQA_CUSTOMIZATION
+ 	setSNMPObj(Jobj);
+-	setSysInfoObj(Jobj);
+ 	setTrap_addrObj(Jobj);
+-
++#endif
++	setSysInfoObj(Jobj);
+ 	return ret;
+ }
+ 
+@@ -178,7 +182,7 @@
+ 	len = json_object_array_length(Jarray);
+ 	for(i=0;i<len;i++){
+ 		obj = json_object_array_get_idx(Jarray,i);
+-
++#ifndef ABQA_CUSTOMIZATION
+ 		if(json_object_get_boolean(json_object_object_get(obj,"Enable")))
+ 			printf("%-20s: Enabled\n","SNMP Agent");
+ 		else
+@@ -187,12 +191,14 @@
+ 		printf("%-20s: %s\n","Get Community",json_object_get_string(json_object_object_get(obj, "GetCommunity")));
+ 		printf("%-20s: %s\n","Set Community",json_object_get_string(json_object_object_get(obj, "SetCommunity")));
+ 		printf("%-20s: %s\n","Trap Community",json_object_get_string(json_object_object_get(obj, "TrapCommunity")));
++#endif
+ 		printf("%-20s: %s\n","System Name",json_object_get_string(json_object_object_get(obj, "HostName")));
+ 		printf("%-20s: %s\n","System Location",json_object_get_string(json_object_object_get(obj, "Location")));
+ 		printf("%-20s: %s\n","System Contact",json_object_get_string(json_object_object_get(obj, "Contact")));
+ 		printf("%-20s: %s\n","Domain Name",json_object_get_string(json_object_object_get(obj, "DomainName")));
++#ifndef ABQA_CUSTOMIZATION
+ 		printf("%-20s: %s\n","Trap Destination",json_object_get_string(json_object_object_get(obj, "TrapDest")));
+-
++#endif
+ 	}
+ }
+ 
+@@ -227,7 +233,7 @@
+ 	char dest[32] = {0};
+ 
+ 	retObj = json_object_new_object();
+-
++#ifndef ABQA_CUSTOMIZATION
+ 	IID_INIT(snmpIid);
+ 	ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_ZY_SNMP, &snmpIid, &snmpObj);
+ 	if(ret == ZCFG_SUCCESS){
+@@ -241,7 +247,7 @@
+ 		json_object_object_add(retObj, "TrapCommunity", json_object_new_string(TrapCommunity));
+ 		zcfgFeJsonObjFree(snmpObj);
+ 	}
+-
++#endif
+ 	IID_INIT(SysInfoIid);
+ 	ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_SYSTEM_INFO, &SysInfoIid, &SysInfoObj);
+ 	if(ret == ZCFG_SUCCESS){
+@@ -261,7 +267,7 @@
+ 		json_object_object_add(retObj, "Contact", json_object_new_string(Contact));
+ 		zcfgFeJsonObjFree(SysInfoObj);
+ 	}
+-
++#ifndef ABQA_CUSTOMIZATION
+ 	IID_INIT(trapIid);
+ 	ret = zcfgFeObjJsonGetNext(RDM_OID_TRAP_ADDR, &trapIid, &trapObj);
+ 	if(ret == ZCFG_SUCCESS){
+@@ -279,7 +285,7 @@
+ 		json_object_object_add(retObj, "TrapDest", json_object_new_string(""));
+ 		dbg_printf("Fail to get object..\n");
+ 	}
+-
++#endif
+ 	json_object_array_add(Jarray, retObj);
+ 
+ 	return ZCFG_SUCCESS;

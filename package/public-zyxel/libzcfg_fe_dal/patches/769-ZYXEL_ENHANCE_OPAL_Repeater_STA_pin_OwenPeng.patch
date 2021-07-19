@@ -1,0 +1,59 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c	2020-04-17 11:43:37.670693999 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c	2020-04-23 14:21:52.118690000 +0800
+@@ -105,10 +105,11 @@
+ }
+ 
+ zcfgRet_t zcfgFeDalWifiOperatingModesEdit(struct json_object *Jobj, char *replyMsg){
++	bool apply = true;
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	objIndex_t ssidIid, epIid, repIid, epProfIid;
+ 	struct json_object *ssidObj = NULL, *epProfObj = NULL, *epProfSecObj = NULL, *epSecObj = NULL, *repObj = NULL, *epObj = NULL, *epWpsObj = NULL;
+-	struct json_object *enable = NULL, *enablePBC = NULL, *enableStaPin = NULL, *enableAPPin = NULL;
++	struct json_object *enable = NULL, *enablePBC = NULL, *enableStaPin = NULL, *enableAPPin = NULL, *X_ZYXEL_WPS_GenDevicePin = NULL;
+ 	unsigned int POS_NONE = 43, POS_BASIC = 149, POS_MORESECURE = 255;
+ 	char ModesSupported[200] = {0};
+ 	char *SSIDReference;
+@@ -122,6 +123,7 @@
+ 	enablePBC = json_object_object_get(Jobj, "enablePBC");
+ 	enableStaPin = json_object_object_get(Jobj, "enableStaPin");
+ 	enableAPPin = json_object_object_get(Jobj, "enableAPPin");
++	X_ZYXEL_WPS_GenDevicePin = json_object_object_get(Jobj, "X_ZYXEL_WPS_GenDevicePin");
+ 
+     if(ssidRef) {
+         IID_INIT(epIid);
+@@ -198,6 +200,11 @@
+ 					if(enableStaPin) json_object_object_add(epWpsObj,"X_ZYXEL_WPS_EnableStaPin", JSON_OBJ_COPY(enableStaPin));
+ 					if(enableAPPin) json_object_object_add(epWpsObj,"X_ZYXEL_WPS_EnableAPPin", JSON_OBJ_COPY(enableAPPin));
+ 					zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_END_POINT_WPS, &epIid, epWpsObj, NULL);
++					if(X_ZYXEL_WPS_GenDevicePin) {
++						apply = false;
++						json_object_object_add(epWpsObj,"X_ZYXEL_WPS_GenDevicePin", JSON_OBJ_COPY(X_ZYXEL_WPS_GenDevicePin));
++						zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_END_POINT_WPS, &epIid, epWpsObj, NULL);
++					}
+ 					zcfgFeJsonObjFree(epWpsObj);
+ 				}
+                 zcfgFeJsonObjFree(epObj);
+@@ -206,13 +213,15 @@
+             zcfgFeJsonObjFree(epObj);
+         }
+     }
++	if(apply){
++		IID_INIT(repIid);
++		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_REPEATER, &repIid, &repObj) == ZCFG_SUCCESS){
++			if(Mode) json_object_object_add(repObj,"Mode", json_object_new_string(Mode));
++			zcfgFeObjJsonBlockedSet(RDM_OID_REPEATER, &repIid, repObj, NULL);
++			zcfgFeJsonObjFree(repObj);
++		}
++	}
+ 
+-    IID_INIT(repIid);
+-    if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_REPEATER, &repIid, &repObj) == ZCFG_SUCCESS){
+-        if(Mode) json_object_object_add(repObj,"Mode", json_object_new_string(Mode));
+-        zcfgFeObjJsonBlockedSet(RDM_OID_REPEATER, &repIid, repObj, NULL);
+-        zcfgFeJsonObjFree(repObj);
+-    }
+ 
+     return ret;
+ }

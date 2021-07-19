@@ -1,0 +1,280 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-04-01 14:26:46.676914355 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2020-04-01 14:26:46.696914355 +0800
+@@ -186,6 +186,11 @@
+ CFLAGS += -DZYXEL_TR69_SUPPLEMENTAL_ACS
+ endif
+ 
++#XMPP
++ifeq ($(CONFIG_ZYXEL_TR69_XMPP_CONNECTION_REQUEST),y)
++CFLAGS += -DZYXEL_TR69_XMPP_CONNECTION_REQUEST
++endif
++
+ #ZYXEL_REMOTE_ACCESS_PRIVILEGE
+ ifeq ($(CONFIG_ZYXEL_REMOTE_ACCESS_PRIVILEGE),y)
+ CFLAGS += -DZYXEL_REMOTE_ACCESS_PRIVILEGE
+Index: libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2020-04-01 14:26:45.600914355 +0800
++++ libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2020-04-07 11:17:06.767370348 +0800
+@@ -7,6 +7,7 @@
+ #include "zcfg_debug.h"
+ #include "zcfg_fe_rdm_string.h"
+ #include "zcfg_fe_dal_common.h"
++#include "zlog_api.h"
+ 
+ #define CWMP_SOAP_MSG_DEBUG (1 << 1)
+ 
+@@ -48,6 +49,15 @@
+ 	{"X_ZYXEL_Supplemental_ConnReqPassword", dalType_string, 0, 256, NULL},
+ 	{"X_ZYXEL_Supplemental_ConnReqPort", dalType_int, 0, 0, NULL},
+ #endif
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++    {"EnableXmppConnReq", dalType_boolean, 0, 0, NULL},
++    {"XmppConnUsername", dalType_string, 0, 256, NULL},
++    {"XmppConnPassword", dalType_string, 0, 256, NULL},
++    {"XmppConnDomain", dalType_string, 0, 64, NULL},
++    {"XmppConnResource", dalType_string, 0, 64, NULL},
++    {"XmppServerAddress", dalType_string, 0, 256, NULL},
++    {"XmppServerPort", dalType_int, 0, 0, NULL},
++#endif
+ 	{NULL, 0, 0, 0, NULL}
+ };
+ 
+@@ -103,7 +113,54 @@
+ 	
+ 	
+ }
++static zcfgRet_t zcfgFeDalXmppInfoGet(struct json_object **xmppConnJobj, struct json_object **xmppConnSrvJobj, objIndex_t *xmppConnObjIid, objIndex_t *xmppConnSrvObjIid, const char * connPath)
++{
++    zcfgRet_t               ret = ZCFG_SUCCESS;
++    bool                    found = false;
++    struct json_object      *tmpObj = NULL;
++
++    IID_INIT(*xmppConnObjIid);
++    IID_INIT(*xmppConnSrvObjIid);
++
++    if (connPath)
++    {
++        if(strstr(connPath, "XMPP.Connection") != NULL)
++        {
++            sscanf(connPath,"XMPP.Connection.%hhu", &xmppConnObjIid->idx[0]);
++            sscanf(connPath,"XMPP.Connection.%hhu", &xmppConnSrvObjIid->idx[0]);
++            found = true;
++        }
++    }
++
++    if (!found)
++    {
++        xmppConnObjIid->idx[0] = 1;
++        xmppConnSrvObjIid->idx[0] = 1;
++    }
++
++    /* Get XMPP connection object*/
++    xmppConnObjIid->level = 1;
++    //xmppConnObjIid->idx[0] = 1;
++    if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_XMPP_CONN, xmppConnObjIid, &tmpObj)) != ZCFG_SUCCESS)
++    {
++        ZLOG_ERROR("RDM_OID_XMPP_CONN retrieve fail");
++        return ret;
++    }
++    *xmppConnJobj = tmpObj;
++
++    /* Get XMPP server object*/
++    xmppConnSrvObjIid->level = 2;
++    //xmppConnSrvObjIid->idx[0] = 1;
++    xmppConnSrvObjIid->idx[1] = 1;
++    if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_XMPP_CONN_SRV, xmppConnSrvObjIid, &tmpObj)) != ZCFG_SUCCESS)
++    {
++        ZLOG_ERROR("RDM_OID_XMPP_CONN_SRV retrieve fail");
++        return ret;
++    }
++    *xmppConnSrvJobj = tmpObj;
+ 
++    return ret;
++}
+ static zcfgRet_t zcfgFeDalMgmtGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+@@ -115,6 +172,12 @@
+ 	int intVal;
+ 	const char *str;
+ 	int n = 0;
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++    struct json_object  *xmppConnJobj = NULL;
++    struct json_object  *xmppConnSrvJobj = NULL;
++    objIndex_t      xmppConnObjIid = {0};
++    objIndex_t      xmppConnSrvObjIid = {0};
++#endif
+ 
+ 	paraName = (const char *)MGMT_param[n++].paraName;
+ 
+@@ -124,6 +187,14 @@
+ 		return ret;
+ 	}
+ 	
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++	str = json_object_get_string(json_object_object_get(mgmtJobj, "ConnReqXMPPConnection"));
++	if ((ret = zcfgFeDalXmppInfoGet(&xmppConnJobj, &xmppConnSrvJobj, &xmppConnObjIid, &xmppConnSrvObjIid, str)) != ZCFG_SUCCESS)
++	{
++	    return ret;
++	}
++#endif
++
+ 	pramJobj = json_object_new_object();	
+ 	while(paraName) {
+ 		if(!strcmp(paraName, "DebugLevelEnable")) {
+@@ -176,14 +247,55 @@
+ 			str = json_object_get_string(json_object_object_get(mgmtJobj, "X_ZYXEL_DataModelSpec"));
+ 			json_object_object_add(pramJobj, paraName, json_object_new_string(str));
+ 		}
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++        else if (!strcmp(paraName, "EnableXmppConnReq"))
++        {
++            enable = json_object_get_boolean(json_object_object_get(xmppConnJobj, "Enable"));
++            json_object_object_add(pramJobj, paraName, json_object_new_boolean(enable));
++        }
++        else if (!strcmp(paraName, "XmppConnUsername"))
++        {
++            str = json_object_get_string(json_object_object_get(xmppConnJobj, "Username"));
++            json_object_object_add(pramJobj, paraName, json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppConnPassword"))
++        {
++            str = json_object_get_string(json_object_object_get(xmppConnJobj, "Password"));
++            json_object_object_add(pramJobj, paraName, json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppConnDomain"))
++        {
++            str = json_object_get_string(json_object_object_get(xmppConnJobj, "Domain"));
++            json_object_object_add(pramJobj, paraName, json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppConnResource"))
++        {
++            str = json_object_get_string(json_object_object_get(xmppConnJobj, "Resource"));
++            json_object_object_add(pramJobj, paraName, json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppServerAddress"))
++        {
++            str = json_object_get_string(json_object_object_get(xmppConnSrvJobj, "ServerAddress"));
++            json_object_object_add(pramJobj, paraName, json_object_new_string(str));
++        }
++        else if(!strcmp(paraName, "XmppServerPort"))
++        {
++            intVal = json_object_get_int(json_object_object_get(xmppConnSrvJobj, "Port"));
++            json_object_object_add(pramJobj, paraName, json_object_new_int(intVal));
++        }
++#endif /* #ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST */
+ 		else {
+-			json_object_object_add(pramJobj, paraName, JSON_OBJ_COPY(json_object_object_get(mgmtJobj, paraName)));		
++			json_object_object_add(pramJobj, paraName, JSON_OBJ_COPY(json_object_object_get(mgmtJobj, paraName)));
+ 		}
+ 
+ 		paraName = (const char *)MGMT_param[n++].paraName;
+ 	}
+ 
+ 	json_object_put(mgmtJobj);
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++	json_object_put(xmppConnJobj);
++	json_object_put(xmppConnSrvJobj);
++#endif
+ 	json_object_array_add(Jarray, pramJobj);
+ 	
+ 	return ret;
+@@ -198,6 +310,15 @@
+ 	struct json_object *mgmtJobj = NULL;
+ 	int paramModified = 0, n = 0;
+ 
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++    struct json_object  *xmppConnJobj = NULL;
++    struct json_object  *xmppConnSrvJobj = NULL;
++    objIndex_t          xmppConnObjIid = {0};
++    objIndex_t          xmppConnSrvObjIid = {0};
++    const char          *connPath = NULL;
++#endif
++
++
+ 	paraName = (const char *)MGMT_param[n++].paraName;
+ 
+ 	IID_INIT(objIid);
+@@ -214,6 +335,14 @@
+ 			return ZCFG_INVALID_PARAM_VALUE;
+ 		}
+ 	}
++
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++    connPath = json_object_get_string(json_object_object_get(mgmtJobj, "ConnReqXMPPConnection"));
++	if ((ret = zcfgFeDalXmppInfoGet(&xmppConnJobj, &xmppConnSrvJobj, &xmppConnObjIid, &xmppConnSrvObjIid, connPath)) != ZCFG_SUCCESS)
++    {
++        return ret;
++    }
++#endif
+ 	while(paraName) {
+ 		struct json_object *paramValue = json_object_object_get(paramObj, paraName);
+ 		if(!paramValue) {
+@@ -310,6 +439,44 @@
+ 			json_object_object_add(mgmtJobj, "X_ZYXEL_DataModelSpec", json_object_new_string(certName));
+ 			paramModified = 1;
+ 		}
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++        else if (!strcmp(paraName, "EnableXmppConnReq"))
++        {
++            bool enable = json_object_get_boolean(paramValue);
++            json_object_object_add(xmppConnJobj, "Enable", json_object_new_boolean(enable));
++            json_object_object_add(xmppConnSrvJobj, "Enable", json_object_new_boolean(enable));
++        }
++        else if (!strcmp(paraName, "XmppConnUsername"))
++        {
++            const char *str = json_object_get_string(paramValue);
++            json_object_object_add(xmppConnJobj, "Username", json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppConnPassword"))
++        {
++            const char *str = json_object_get_string(paramValue);
++            json_object_object_add(xmppConnJobj, "Password", json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppConnDomain"))
++        {
++            const char *str = json_object_get_string(paramValue);
++            json_object_object_add(xmppConnJobj, "Domain", json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppConnResource"))
++        {
++            const char *str = json_object_get_string(paramValue);
++            json_object_object_add(xmppConnJobj, "Resource", json_object_new_string(str));
++        }
++        else if (!strcmp(paraName, "XmppServerAddress"))
++        {
++            const char *str = json_object_get_string(paramValue);
++            json_object_object_add(xmppConnSrvJobj, "ServerAddress", json_object_new_string(str));
++        }
++        else if(!strcmp(paraName, "XmppServerPort"))
++        {
++            int intVal = json_object_get_int(paramValue);
++            json_object_object_add(xmppConnSrvJobj, "Port", json_object_new_int(intVal));
++        }
++#endif /* #ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST */
+ 		else {
+ 			json_object_object_add(mgmtJobj, paraName, JSON_OBJ_COPY(paramValue));
+ 			paramModified = 1;			
+@@ -325,6 +492,19 @@
+ 
+ 	json_object_put(mgmtJobj);
+ 
++#ifdef ZYXEL_TR69_XMPP_CONNECTION_REQUEST
++	if((ret = zcfgFeObjJsonSet(RDM_OID_XMPP_CONN, &xmppConnObjIid, xmppConnJobj, NULL)) != ZCFG_SUCCESS)
++	{
++	    ZLOG_ERROR("%s: Write RDM_OID_XMPP_CONN object fail");
++	}
++	if((ret = zcfgFeObjJsonSet(RDM_OID_XMPP_CONN_SRV, &xmppConnSrvObjIid, xmppConnSrvJobj, NULL)) != ZCFG_SUCCESS)
++    {
++        ZLOG_ERROR("%s: Write RDM_OID_XMPP_CONN_SRV object fail");
++    }
++    json_object_put(xmppConnJobj);
++    json_object_put(xmppConnSrvJobj);
++#endif
++
+ 	return ret;
+ }
+ 

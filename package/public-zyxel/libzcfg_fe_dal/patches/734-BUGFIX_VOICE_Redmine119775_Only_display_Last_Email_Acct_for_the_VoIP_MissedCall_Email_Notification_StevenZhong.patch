@@ -1,0 +1,52 @@
+Index: libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_account.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/voip/sip/zcfg_fe_dal_sip_account.c	2019-12-24 11:31:41.612937000 +0800
++++ libzcfg_fe_dal-1.0/voip/sip/zcfg_fe_dal_sip_account.c	2019-12-24 11:33:54.172937000 +0800
+@@ -2060,26 +2060,38 @@
+ }
+ 
+ 
+-zcfgRet_t zcfgFeDalparseMailserviceObj(struct json_object *paserobj){
++zcfgRet_t zcfgFeDalparseMailserviceObj(struct json_object *paserobj)
++{
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	char emailList[256] = {0};
+-	//printf("%s(): Enter.. \n ",__FUNCTION__);
++	char tmp[256]={0};
++	//printf("%s(): Enter...\n", __FUNCTION__);
+ 
+ 	IID_INIT(lineMailServiceIid);
+-	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_MAIL_SERVICE, &lineMailServiceIid, &lineMailserviceObj) == ZCFG_SUCCESS){
+-		if(lineMailserviceObj != NULL){
++	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_MAIL_SERVICE, &lineMailServiceIid, &lineMailserviceObj) == ZCFG_SUCCESS)
++	{
++		if(lineMailserviceObj != NULL)
++		{
+ 			EmailAddress = json_object_get_string(json_object_object_get(lineMailserviceObj, "EmailAddress"));
+-			//printf("EmailAddress (%s) \n ",EmailAddress);
++			//printf("EmailAddress (%d) %s\n", __LINE__, EmailAddress);
+ 
+-			if(strcmp(emailList,"") == 0){
++			if(strcmp(emailList,"") == 0)
++			{
+ 				snprintf(emailList, sizeof(emailList), "%s", EmailAddress);
+-			}else{
+-				snprintf(emailList, sizeof(emailList), "%s,%s", emailList, EmailAddress);
++			}
++			else
++			{
++				//Steven.20191225.Modify: Change to use strcat to structure EmailAddress since the destination and source are the same paramter in sprintf will not work correctly on glibc.
++				if((sizeof(emailList)-strlen(emailList)-1) > strlen(EmailAddress))
++				{
++					strcat(emailList, ",");
++					strcat(emailList, EmailAddress);
++				}
++				//printf("emailList %d (%s) %s\n", __LINE__, emailList, EmailAddress);
+ 			}
+ 			zcfgFeJsonObjFree(lineMailserviceObj);
+ 		}
+ 	}
+-
+ 	json_object_object_add(paserobj, "EmailAddress", json_object_new_string(emailList));
+ 
+ 	return ret;

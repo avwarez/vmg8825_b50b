@@ -1,0 +1,430 @@
+Index: libzcfg_fe_tr98-1.0/Makefile
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/Makefile	2020-03-30 15:14:57.138399815 +0800
++++ libzcfg_fe_tr98-1.0/Makefile	2020-03-30 15:14:57.146399815 +0800
+@@ -1,7 +1,7 @@
+ CURRENT_DIR = $(shell pwd)
+ COMMON_ZCFG_INCLUDE_DIR = $(CURRENT_DIR)/../../../private/apps/zcfg/include
+ LIB_PATH = -L$(USRLIBDIR) -L$(INSTALL_DIR)/lib/public -L$(INSTALL_DIR)/lib/private
+-LINK_LIB = -ljson -lzcfg_msg -lzcfg_fe_rdm_access -lzcfg_fe_rdm_string -lzcfg_fe_rdm_struct
++LINK_LIB = -ljson -lzcfg_msg -lzcfg_fe_rdm_access -lzcfg_fe_rdm_string -lzcfg_fe_rdm_struct -lzlog
+ INC_PATH = -I$(TOOLCHAIN)/include -I$(COMMON_ZCFG_INCLUDE_DIR) -I.
+ OBJ_FILES = wanDev.o wanDev_api.o zyExt.o diag.o devInfo.o devTime.o root.o mgmtSrv.o lanDev.o l2bridge.o l3fwd.o lanConfSec.o firewall.o schedule.o qos.o voice.o ipv6Spec.o xgre.o ispService.o
+ 
+@@ -13,6 +13,10 @@
+ OBJ_FILES += oneConnect.o
+ endif
+ 
++ifeq ($(CONFIG_PACKAGE_zxmppc),y)
++OBJ_FILES += xmpp.o
++endif
++
+ OBJ_FILES += zcfg_fe_msg.o
+ OBJ_FILES += zcfg_fe_tr98.o
+ 
+@@ -321,6 +325,11 @@
+ CFLAGS += -DZYXEL_SFP_POWER_MGMT
+ endif
+ 
++#XMPP
++ifeq ($(CONFIG_PACKAGE_zxmppc),y)
++CFLAGS += -DZYXEL_XMPP
++endif
++
+ .PHONY : libzcfg_fe_tr98
+ 
+ all: clean libzcfg_fe_tr98
+Index: libzcfg_fe_tr98-1.0/xmpp.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ libzcfg_fe_tr98-1.0/xmpp.c	2020-04-06 12:17:59.487339948 +0800
+@@ -0,0 +1,243 @@
++#include <json/json.h>
++#include "zcfg_common.h"
++#include "zcfg_fe_rdm_access.h"
++#include "zcfg_fe_rdm_string.h"
++#include "zcfg_fe_rdm_struct.h"
++#include "zcmd_schema.h"
++#include "zcfg_rdm_oid.h"
++#include "zcfg_rdm_obj.h"
++#include "zcfg_msg.h"
++#include "zcfg_debug.h"
++#include "zcfg_fe_tr98.h"
++#include "zlog_api.h"
++#include "xmpp_parameter.h"
++
++extern tr98Object_t tr98Obj[];
++
++
++zcfgRet_t xmppObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++    zcfgRet_t           ret = ZCFG_SUCCESS;
++    objIndex_t          objIid = {0};
++    struct json_object  *xmppObj = NULL;
++    struct json_object  *paramValue = NULL;
++    tr98Parameter_t     *paramList = NULL;
++
++    ZLOG_DEBUG("Enter Function");
++
++    IID_INIT(objIid);
++    if (strcmp(tr98FullPathName, "InternetGatewayDevice.XMPP") == 0)
++    {
++        if ((ret = zcfgFeObjJsonGet(RDM_OID_XMPP, &objIid, &xmppObj)) != ZCFG_SUCCESS)
++        {
++            ZLOG_ERROR("fail to get object");
++            return ZCFG_INTERNAL_ERROR;
++        }
++    }
++
++    if (strstr(tr98FullPathName, "InternetGatewayDevice.XMPP.Connection") != NULL)
++    {
++        objIid.level=1;
++        sscanf(tr98FullPathName, "InternetGatewayDevice.XMPP.Connection.%hhu", &objIid.idx[0]);
++        if ((ret = zcfgFeObjJsonGet(RDM_OID_XMPP_CONN, &objIid, &xmppObj)) != ZCFG_SUCCESS)
++        {
++            ZLOG_ERROR("fail to get object with tr98FullPathName=%s",tr98FullPathName);
++            return ZCFG_INTERNAL_ERROR;
++        }
++    }
++
++    /* Fill up tr98 object from related tr181 objects */
++    *tr98Jobj = json_object_new_object();
++    paramList = tr98Obj[handler].parameter;
++    while (paramList->name != NULL)
++    {
++        /* Write parameter value from tr181 objects to tr98 object */
++        paramValue = json_object_object_get(xmppObj, paramList->name);
++        if (paramValue != NULL)
++        {
++            json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++            paramList++;
++            continue;
++        }
++
++        /* Not defined in tr181, give it a default value */
++        ZLOG_ERROR("Can't find parameter %s in TR181\n", paramList->name);
++        paramList++;
++    }
++
++    zcfgFeJsonObjFree(xmppObj);
++    return ZCFG_SUCCESS;
++
++}
++
++zcfgRet_t xmppConnSrvObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++    objIndex_t          objIid = {0};
++    struct json_object  *xmppConnSrvObj = NULL;
++    struct json_object  *paramValue = NULL;
++    tr98Parameter_t     *paramList = NULL;
++    char                xmppConnSrvPath[128] = "InternetGatewayDevice.XMPP.Connection.%hhu.Server.%hhu";
++
++    ZLOG_DEBUG("Enter Function");
++
++    IID_INIT(objIid);
++    objIid.level=2;
++    if (sscanf(tr98FullPathName, xmppConnSrvPath, &objIid.idx[0], &objIid.idx[1]) != 2)
++    {
++        ZLOG_ERROR("invalid object");
++        return ZCFG_INVALID_OBJECT;
++    }
++
++    if (zcfgFeObjJsonGet(RDM_OID_XMPP_CONN_SRV, &objIid, (void **)&xmppConnSrvObj) != ZCFG_SUCCESS)
++    {
++        ZLOG_ERROR("fail to get object with tr98FullPathName=%s",tr98FullPathName);
++        return ZCFG_INTERNAL_ERROR;
++    }
++
++    /* Fill up tr98 object from related tr181 objects */
++    *tr98Jobj = json_object_new_object();
++    paramList = tr98Obj[handler].parameter;
++    while (paramList->name != NULL)
++    {
++        /* Write parameter value from tr181 objects to tr98 object */
++        paramValue = json_object_object_get(xmppConnSrvObj, paramList->name);
++        if (paramValue != NULL)
++        {
++            json_object_object_add(*tr98Jobj, paramList->name, JSON_OBJ_COPY(paramValue));
++            paramList++;
++            continue;
++        }
++
++        /* Not defined in tr181, give it a default value */
++        ZLOG_ERROR("Can't find parameter %s in TR181\n", paramList->name);
++        paramList++;
++    }
++
++    zcfgFeJsonObjFree(xmppConnSrvObj);
++    return ZCFG_SUCCESS;
++}
++
++
++zcfgRet_t xmppObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++    zcfgRet_t                ret = ZCFG_SUCCESS;
++    struct json_object      *xmppConnObj = NULL;
++    struct json_object      *paramValue = NULL;
++    struct json_object      *tmpObj = NULL;
++    tr98Parameter_t         *paramList = NULL;
++    objIndex_t              objIid;
++    zcfg_offset_t           oid;
++
++    ZLOG_DEBUG("Enter Function");
++    oid = RDM_OID_XMPP_CONN;
++    IID_INIT(objIid);
++    objIid.level=1;
++    sscanf(tr98FullPathName, "InternetGatewayDevice.XMPP.Connection.%hhu", &objIid.idx[0]);
++    if ((ret = zcfgFeObjJsonGet(oid, &objIid, &xmppConnObj)) != ZCFG_SUCCESS)
++    {
++        ZLOG_ERROR("fail to get object with tr98FullPathName=%s",tr98FullPathName);
++        return ZCFG_INTERNAL_ERROR;
++    }
++
++    /* if multiple set is required, just appended JSON to multiJobj */
++    if (multiJobj)
++    {
++        tmpObj = xmppConnObj;
++        xmppConnObj = NULL;
++        xmppConnObj = zcfgFeJsonMultiObjAppend(oid, &objIid, multiJobj, tmpObj);
++    }
++
++    if (xmppConnObj)
++    {
++        paramList = tr98Obj[handler].parameter;
++        while (paramList->name)
++        {
++            paramValue = json_object_object_get(tr98Jobj, paramList->name);
++
++             if(paramValue != NULL)
++             {
++                json_object_object_add(xmppConnObj, paramList->name, JSON_OBJ_COPY(paramValue));
++            }
++
++            paramList++;
++            continue;
++        }
++
++        if (!multiJobj)
++        {
++            if ((ret = zcfgFeObjJsonSet(oid, &objIid, xmppConnObj, NULL)) != ZCFG_SUCCESS )
++            {
++                ZLOG_ERROR( "Set object(oid %d) Fail with ret=%d", oid, ret);
++            }
++            zcfgFeJsonObjFree(xmppConnObj);
++            return ret;
++        }
++        zcfgFeJsonObjFree(tmpObj);
++    }
++    return ZCFG_SUCCESS;
++}
++
++zcfgRet_t xmppConnSrvObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++
++    zcfgRet_t                ret = ZCFG_SUCCESS;
++    struct json_object      *xmppConnSrvObj = NULL;
++    struct json_object      *paramValue = NULL;
++    struct json_object      *tmpObj = NULL;
++    tr98Parameter_t         *paramList = NULL;
++    objIndex_t              objIid;
++    zcfg_offset_t           oid;
++    char                    xmppConnSrvPath[128] = "InternetGatewayDevice.XMPP.Connection.%hhu.Server.%hhu";
++
++    ZLOG_DEBUG("Enter Function");
++    oid = RDM_OID_XMPP_CONN_SRV;
++    IID_INIT(objIid);
++    objIid.level=2;
++    if (sscanf(tr98FullPathName, xmppConnSrvPath, &objIid.idx[0], &objIid.idx[1]) != 2)
++    {
++        return ZCFG_INVALID_OBJECT;
++    }
++
++    if ((ret = zcfgFeObjJsonGet(oid, &objIid, &xmppConnSrvObj)) != ZCFG_SUCCESS)
++    {
++        ZLOG_ERROR("fail to get object");
++        return ZCFG_INTERNAL_ERROR;
++    }
++
++    /* if multiple set is required, just appended JSON to multiJobj */
++    if (multiJobj)
++    {
++        tmpObj = xmppConnSrvObj;
++        xmppConnSrvObj = NULL;
++        xmppConnSrvObj = zcfgFeJsonMultiObjAppend(oid, &objIid, multiJobj, tmpObj);
++    }
++
++    if (xmppConnSrvObj)
++    {
++        paramList = tr98Obj[handler].parameter;
++        while (paramList->name)
++        {
++            paramValue = json_object_object_get(tr98Jobj, paramList->name);
++
++             if(paramValue != NULL)
++             {
++                json_object_object_add(xmppConnSrvObj, paramList->name, JSON_OBJ_COPY(paramValue));
++            }
++
++            paramList++;
++            continue;
++        }
++
++        if (!multiJobj)
++        {
++            if ((ret = zcfgFeObjJsonSetWithoutApply(oid, &objIid, xmppConnSrvObj, NULL)) != ZCFG_SUCCESS )
++            {
++                ZLOG_ERROR( "Set object(oid %d) Fail with ret=%d", oid, ret);
++            }
++            zcfgFeJsonObjFree(xmppConnSrvObj);
++            return ret;
++        }
++        zcfgFeJsonObjFree(tmpObj);
++    }
++    return ZCFG_SUCCESS;
++}
+Index: libzcfg_fe_tr98-1.0/xmpp.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ libzcfg_fe_tr98-1.0/xmpp.h	2020-03-30 15:18:32.091128495 +0800
+@@ -0,0 +1,17 @@
++#ifndef __XMPP_H__
++#define __XMPP_H__
++/*Parameter*/
++extern tr98Parameter_t para_Xmpp[];
++extern tr98Parameter_t para_XmppConn[];
++extern tr98Parameter_t para_XmppConnSrv[];
++
++/* InternetGatewayDevice.XMPP */
++/* InternetGatewayDevice.XMPP.Connection.i */
++extern zcfgRet_t xmppObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, struct json_object *multiJobj, char *paramfault);
++extern zcfgRet_t xmppObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault);
++
++/* InternetGatewayDevice.XMPP.Connection.i.Server.i */
++extern zcfgRet_t xmppConnSrvObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, struct json_object *multiJobj, char *paramfault);
++extern zcfgRet_t xmppConnSrvObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault);
++
++#endif
+Index: libzcfg_fe_tr98-1.0/xmpp_parameter.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ libzcfg_fe_tr98-1.0/xmpp_parameter.h	2020-03-30 15:14:57.146399815 +0800
+@@ -0,0 +1,35 @@
++#ifndef __XMPP_PARAMETER_H__
++#define __XMPP_PARAMETER_H__
++
++tr98Parameter_t para_Xmpp[] = {
++        { "ConnectionNumberOfEntries", PARAMETER_ATTR_READONLY, 0, json_type_uint32},
++        { NULL, 0, 0, 0}
++};
++
++tr98Parameter_t para_XmppConn[] = {
++        { "Enable",                 PARAMETER_ATTR_WRITE,    0,     json_type_boolean},
++        { "Alias",                  PARAMETER_ATTR_WRITE,    65,    json_type_string},
++        { "Username",               PARAMETER_ATTR_WRITE,    257,   json_type_string},
++        { "Password",               PARAMETER_ATTR_WRITE,    257,   json_type_string},
++        { "Domain",                 PARAMETER_ATTR_WRITE,    65,    json_type_string},
++        { "Resource",               PARAMETER_ATTR_WRITE,    65,    json_type_string},
++        { "JabberID",               PARAMETER_ATTR_READONLY, 257,   json_type_string},
++        { "Status",                 PARAMETER_ATTR_READONLY, 257,   json_type_string},
++        { "LastChangeDate",         PARAMETER_ATTR_READONLY, 32,    json_type_string},
++        { "KeepAliveInterval",      PARAMETER_ATTR_WRITE,    0,     json_type_int},
++        { "UseTLS",                 PARAMETER_ATTR_WRITE,    0,     json_type_boolean},
++        { "TLSEstablished",         PARAMETER_ATTR_READONLY, 0,     json_type_boolean},
++        { "ServerNumberOfEntries",  PARAMETER_ATTR_READONLY, 0,     json_type_uint32},
++        { NULL, 0, 0, 0}
++};
++
++tr98Parameter_t para_XmppConnSrv[] = {
++        { "Enable",                 PARAMETER_ATTR_WRITE,  0,   json_type_boolean},
++        { "Alias",                  PARAMETER_ATTR_WRITE,  65,  json_type_string},
++        { "Priority",               PARAMETER_ATTR_WRITE,  0,   json_type_uint32},
++        { "Weight",                 PARAMETER_ATTR_WRITE,  0,   json_type_int},
++        { "ServerAddress",          PARAMETER_ATTR_WRITE,  257, json_type_string},
++        { "Port",                   PARAMETER_ATTR_WRITE,  0,   json_type_uint32},
++        { NULL, 0, 0, 0}
++};
++#endif
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.c	2020-03-30 15:14:57.126399815 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c	2020-03-30 15:26:11.311388889 +0800
+@@ -30,6 +30,11 @@
+ #ifdef ZYXEL_GRE_SUPPORT
+ #include "xgre.h"
+ #endif
++
++#ifdef ZYXEL_XMPP
++#include "xmpp.h"
++#endif
++
+ #include "zcfg_fe_rdm_access.h"
+ #include "zcfg_fe_rdm_string.h"
+ #include "zcfg_fe_rdm_struct.h"
+@@ -41,6 +46,8 @@
+ #include "zcfg_tr98_common.h"
+ #include <zos_api.h>
+ 
++
++
+ #ifdef ZCFG_PARM_NAMEMAPPING
+ #define TR98MAPPING_PREFIX "Tr98_"
+ #define IS_HANDLE_ROUTINE_REQUIRED(attr) (attr & PARAMETER_ATTR_ROUTINE_REQ)
+@@ -406,6 +413,11 @@
+ #ifdef ZYXEL_SFP_POWER_MGMT
+ {e_TR98_SFP_MGMT					, &tr98Obj[e_TR98_SFP_MGMT					-e_TR98_START]}
+ #endif //#ifdef ZYXEL_ONESSID
++#ifdef ZYXEL_XMPP
++{e_TR98_XMPP                        , &tr98Obj[e_TR98_XMPP                      -e_TR98_START]},
++{e_TR98_XMPP_CONNECTION             , &tr98Obj[e_TR98_XMPP_CONNECTION           -e_TR98_START]},
++{e_TR98_XMPP_CONNECTION_SERVER      , &tr98Obj[e_TR98_XMPP_CONNECTION_SERVER    -e_TR98_START]}
++#endif //#ifdef ZYXEL_XMPP
+ };
+ 
+ static zcfgRet_t zcfgFeTr98ClassNameGet(char *objName, char *className);
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98_handle.h	2020-03-30 15:14:56.926399815 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h	2020-03-30 16:47:42.619707092 +0800
+@@ -362,6 +362,12 @@
+ #define TR98_SFP_MGMT						"InternetGatewayDevice.X_ZYXEL_EXT.SFP_Management"
+ #endif
+ 
++#ifdef ZYXEL_XMPP
++#define TR98_XMPP                       "InternetGatewayDevice.XMPP"
++#define TR98_XMPP_CONNECTION            "InternetGatewayDevice.XMPP.Connection.i"
++#define TR98_XMPP_CONNECTION_SERVER     "InternetGatewayDevice.XMPP.Connection.i.Server.i"
++#endif
++
+ #define OBSOLETED 1
+ //#define ZYXEL_EXT 1
+ 
+@@ -740,6 +746,12 @@
+ {TR98_DATA_USAGE_LAN,                           ATTR_INDEX_CREA,              para_DataUsageLan,                         zyExtDataUsageLanObjGet,            NULL,              NULL,             NULL,            NULL, NULL, NULL},
+ {TR98_DATA_USAGE_WAN,                           ATTR_INDEX_CREA,              para_DataUsageWan,                         zyExtDataUsageWanObjGet,            NULL,              NULL,             NULL,            NULL, NULL, NULL},
+ #endif
++#ifdef ZYXEL_XMPP
++/* TR98 Full Path Name          Attribute       Parameter List          Get func                 Set func                Add func          Del func         Notify func Get Attr func       Set Attr func*/
++{TR98_XMPP,                     0,              para_Xmpp,              xmppObjGet,               NULL,                     NULL,           NULL,           NULL},
++{TR98_XMPP_CONNECTION,          0,              para_XmppConn,          xmppObjGet,               xmppObjSet,               NULL,           NULL,           NULL},
++{TR98_XMPP_CONNECTION_SERVER,   0,              para_XmppConnSrv,       xmppConnSrvObjGet,        xmppConnSrvObjSet,        NULL,           NULL,           NULL},
++#endif
+ {NULL,                          0,              NULL,                   NULL,                    NULL,                   NULL,             NULL,            NULL}
+ };
+ 
+Index: libzcfg_fe_tr98-1.0/mgmtSrv_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/mgmtSrv_parameter.h	2020-03-30 15:14:56.754399815 +0800
++++ libzcfg_fe_tr98-1.0/mgmtSrv_parameter.h	2020-04-07 14:04:29.042729493 +0800
+@@ -54,6 +54,12 @@
+ 	{ "X_ZYXEL_ReplyAllObjectsWhileRootQuery", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "X_ZYXEL_QueryRootButNotRepliedObjects", PARAMETER_ATTR_WRITE, 513, json_type_string},
+ 	//{ "X_ZYXEL_QueryButNotRepliedObjects", PARAMETER_ATTR_WRITE, 513, json_type_string},
++#ifdef ZYXEL_XMPP
++    { "SupportedConnReqMethods", PARAMETER_ATTR_READONLY, 32, json_type_string},
++    { "ConnReqXMPPConnection", PARAMETER_ATTR_WRITE, 128, json_type_string},
++    { "ConnReqAllowedJabberIDs", PARAMETER_ATTR_WRITE, 8223, json_type_string},
++    { "ConnReqJabberID", PARAMETER_ATTR_READONLY, 256, json_type_string},
++#endif
+ 	{ NULL, 0, 0, 0}
+ };
+ 

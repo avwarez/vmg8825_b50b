@@ -1,0 +1,94 @@
+Index: libzcfg_fe_dal-1.0/network/nat/zcfg_fe_dal_nat_port_mapping.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/nat/zcfg_fe_dal_nat_port_mapping.c	2019-11-25 05:37:13.013147438 +0000
++++ libzcfg_fe_dal-1.0/network/nat/zcfg_fe_dal_nat_port_mapping.c	2019-11-25 05:42:32.220015045 +0000
+@@ -35,6 +35,60 @@
+ 	{NULL,							0,					0,	0,		NULL,	NULL,				NULL}
+ };
+ 
++zcfgRet_t zcfgFeDalNATPortRangeCheck(struct json_object *Jobj,int index,int portStart,int portEnd,char *replyMsg){
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *NatPortMappingJobj = NULL;
++	struct json_object *obj = NULL;
++	objIndex_t objIid = {0};
++	objIndex_t Iid = {0};
++	int externalport = portStart;
++	int externalportendrange = portEnd;
++	
++	
++	IID_INIT(Iid);
++	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_NAT_PORT_MAPPING, &Iid, &obj) == ZCFG_SUCCESS){
++		//new rule for port rule(one to one)
++		//new rule for port rule(many to one)
++		//printf("test:%d %d %lld %lld\n",externalport,externalportendrange,json_object_get_int(json_object_object_get(obj, "ExternalPort")),json_object_get_int(json_object_object_get(obj, "ExternalPortEndRange")));
++		if(index == Iid.idx[0])
++	    {
++			zcfgFeJsonObjFree(obj);
++			continue;
++		}
++		else{										
++			if(externalport==json_object_get_int(json_object_object_get(obj, "ExternalPort")))
++		    {
++				if(replyMsg != NULL)
++				{
++					strcat(replyMsg, "Port is duplicate.");	
++					json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.NAT.PortForwarding.error.port_duplicate"));
++				}
++                zcfgFeJsonObjFree(obj);
++                return ZCFG_INVALID_PARAM_VALUE;
++                    
++			}
++			if(externalport>json_object_get_int(json_object_object_get(obj, "ExternalPortEndRange"))||externalportendrange<json_object_get_int(json_object_object_get(obj, "ExternalPort")))
++			{
++				zcfgFeJsonObjFree(obj);
++			}
++			else{
++				if(replyMsg != NULL)
++				{	
++					strcat(replyMsg, "Port is duplicate.");
++					json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.NAT.PortForwarding.error.port_duplicate"));
++				}
++            zcfgFeJsonObjFree(obj);
++            return ZCFG_INVALID_PARAM_VALUE;
++			}
++		}
++	}
++    
++	return ret;
++}
++
++
++
++
+ void zcfgFeDalShowPortFwd(struct json_object *Jarray){
+ 	int i, len = 0;
+ 	struct json_object *obj;
+@@ -133,6 +187,13 @@
+ 		}
+ 	}
+ 
++	//declare for new port rule
++	externalport = json_object_get_int(json_object_object_get(Jobj, "ExternalPortStart"));
++	externalportendrange = json_object_get_int(json_object_object_get(Jobj, "ExternalPortEnd"));
++	if ((ret = zcfgFeDalNATPortRangeCheck(Jobj,0,externalport,externalportendrange, replyMsg)) != ZCFG_SUCCESS)
++		return ret;
++
++
+ 	IID_INIT(objIid);
+ 	ret = zcfgFeObjJsonAdd(RDM_OID_NAT_PORT_MAPPING, &objIid, NULL);
+ 	if(ret == ZCFG_SUCCESS){
+@@ -377,7 +438,13 @@
+ 			zcfgFeJsonObjFree(NatPortMappingJobj);
+ 			return ZCFG_INVALID_PARAM_VALUE;
+ 		}
+-
++	//declare for new port rule
++	externalport = json_object_get_int(json_object_object_get(Jobj, "ExternalPortStart"));
++	externalportendrange = json_object_get_int(json_object_object_get(Jobj, "ExternalPortEnd"));
++	IID_INIT(Iid);
++	if ((ret = zcfgFeDalNATPortRangeCheck(Jobj,index,externalport,externalportendrange, replyMsg)) != ZCFG_SUCCESS)
++		return ret;
++	
+ 		ret = zcfgFeObjJsonSet(RDM_OID_NAT_PORT_MAPPING, &objIid, NatPortMappingJobj, NULL);
+ 		zcfgFeJsonObjFree(NatPortMappingJobj);
+ 	}

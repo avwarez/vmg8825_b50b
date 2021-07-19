@@ -1,0 +1,20 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-08-20 18:06:37.457332814 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-08-20 18:04:56.879848400 +0800
+@@ -1789,12 +1789,13 @@
+ 	option61Enable = json_object_get_boolean(json_object_object_get(Jobj, "option61Enable"));
+ 	option125Enable = json_object_get_boolean(json_object_object_get(Jobj, "option125Enable"));
+ 	
+-	if(strcmp(ipMode, "IPv6") && strcmp(Encapsulation, "IPoA") && !ipStatic){
++	if(strcmp(ipMode, "IPv6") && strcmp(Encapsulation, "IPoA") && !ipStatic)
++	{
+ 		if(!getSpecificObj(RDM_OID_DHCPV4_CLIENT, "Interface", json_type_string, "", &v4ClientIid, &v4ClientObj))
+ 		{
+ 			IID_INIT(v4ClientIid);
+ 
+-			if(zcfgFeObjJsonAdd(RDM_OID_DHCPV4_CLIENT, &v4ClientIid, NULL))
++			if(zcfgFeObjJsonAdd(RDM_OID_DHCPV4_CLIENT, &v4ClientIid, NULL) == ZCFG_SUCCESS)
+ 				zcfgFeObjJsonGetWithoutUpdate(RDM_OID_DHCPV4_CLIENT, &v4ClientIid, &v4ClientObj);
+ 		}
+ 

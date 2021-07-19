@@ -1,0 +1,30 @@
+Index: libzyutil-1.0/zyutil_cofw.c
+===================================================================
+--- libzyutil-1.0.orig/zyutil_cofw.c	2019-12-02 06:01:18.595523359 +0000
++++ libzyutil-1.0/zyutil_cofw.c	2019-12-02 06:07:08.240907858 +0000
+@@ -48,6 +48,10 @@
+ 			return MODEL_VMG8825_B50B;
+ 		}else if (strstr(modelName,"AM3100-B0") != NULL){
+ 			return MODEL_AM3100_B0;
++		}else if (strstr(modelName,"DX5301-B0") != NULL){
++			return MODEL_DX5301_B0;
++		}else if (strstr(modelName,"EX5301-B0") != NULL){
++			return MODEL_EX5301_B0;
+ 		}
+ 	}
+ 
+Index: libzyutil-1.0/zyutil_cofw.h
+===================================================================
+--- libzyutil-1.0.orig/zyutil_cofw.h	2019-12-02 06:01:18.595523359 +0000
++++ libzyutil-1.0/zyutil_cofw.h	2019-12-02 06:04:55.130471997 +0000
+@@ -18,7 +18,9 @@
+     MODEL_PX7501_B0,
+     MODEL_AX7501_B0,
+     MODEL_VMG8825_B50B,
+-    MODEL_AM3100_B0
++    MODEL_AM3100_B0,
++    MODEL_DX5301_B0,
++    MODEL_EX5301_B0
+ } model_name_t;
+ 
+ /*!

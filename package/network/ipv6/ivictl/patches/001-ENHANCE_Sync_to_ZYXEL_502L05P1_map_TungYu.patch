@@ -1,0 +1,469 @@
+Index: ivictl-1.0/ivi_config.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ ivictl-1.0/ivi_config.h	2019-12-27 02:22:12.501377162 +0000
+@@ -0,0 +1,166 @@
++/*************************************************************************
++ *
++ * ivi_config.h :
++ *   
++ * MAP-T/MAP-E Configuration Header File
++ *
++ * Copyright (C) 2013 CERNET Network Center
++ * All rights reserved.
++ * 
++ * Design and coding: 
++ *   Xing Li <xing@cernet.edu.cn> 
++ *	 Congxiao Bao <congxiao@cernet.edu.cn>
++ * 	 Yuncheng Zhu <haoyu@cernet.edu.cn>
++ * 	 Wentao Shang <wentaoshang@gmail.com>
++ * 	 Guoliang Han <bupthgl@gmail.com>
++ * 
++ * Contributions:
++ *
++ * This file is part of MAP-T/MAP-E Kernel Module.
++ *
++ * Permission to use, copy, modify, and distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * You should have received a copy of the GNU General Public License 
++ * along with MAP-T/MAP-E Kernel Module. If not, see 
++ * <http://www.gnu.org/licenses/>.
++ *
++ * For more versions, please send an email to <bupthgl@gmail.com> to
++ * obtain an password to access the svn server.
++ *
++ * LIC: GPLv2
++ *
++ ************************************************************************/
++
++#ifndef IVI_CONFIG_H
++#define IVI_CONFIG_H
++
++#include <linux/types.h>
++#ifdef __KERNEL__
++#include <net/ipv6.h>
++#endif
++
++#define ADDR_FMT_NONE       0   // DMR format
++#define ADDR_FMT_MAPT       1   // BMR/FMR format
++#define ADDR_FMT_MAPX_CPE   2   // MAP CPE format with no eabits
++
++#define MAP_T   0  // Header translation
++#define MAP_E	1  // Header encapsulation mode 1: BR address is specified as a /128
++
++#define TCP_MAX_LOOP_NUM 20
++#define UDP_MAX_LOOP_NUM 6
++
++#ifndef IFNAMSIZ
++#define IFNAMSIZ 16
++#endif
++
++// comment this line out if you don't want to compile this code for the Linksys environment
++//#define LINKSYS_COMPILE
++//#define TP_LINK_COMPILE
++
++#ifdef LINKSYS_COMPILE
++static inline u32 get_unaligned_be32(const void *p) {
++	u32 tmp;
++	memcpy(&tmp, p, 4);
++	return tmp;
++}
++#endif
++
++#ifndef NIP4
++
++#define NIP4_FMT "%u.%u.%u.%u"
++
++#ifdef TP_LINK_COMPILE
++#define NIP4(addr) \
++	((unsigned char *)&addr)[0], \
++	((unsigned char *)&addr)[1], \
++	((unsigned char *)&addr)[2], \
++	((unsigned char *)&addr)[3]
++#else
++#define NIP4(addr) \
++	((unsigned char *)&addr)[3], \
++	((unsigned char *)&addr)[2], \
++	((unsigned char *)&addr)[1], \
++	((unsigned char *)&addr)[0]
++#endif
++
++#endif
++
++#ifndef NIP6
++#define NIP6(addr) \
++	ntohs((addr).s6_addr16[0]), \
++	ntohs((addr).s6_addr16[1]), \
++	ntohs((addr).s6_addr16[2]), \
++	ntohs((addr).s6_addr16[3]), \
++	ntohs((addr).s6_addr16[4]), \
++	ntohs((addr).s6_addr16[5]), \
++	ntohs((addr).s6_addr16[6]), \
++	ntohs((addr).s6_addr16[7])
++#define NIP6_FMT "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x"
++#endif
++
++struct rule_info {
++	__u32 prefix4;
++	int plen4;
++	struct in6_addr prefix6;
++	int plen6;
++	__u16 ratio;
++	__u16 adjacent;
++	__u8 format;
++	__u8 transport;
++};
++
++#define MAPT_PORTMAP_TCP	0
++#define MAPT_PORTMAP_UDP	1
++#define MAPT_PORTMAP_ICMP	2
++
++struct portmap_info {
++	__u32 lanAddr;
++	__u32 wanAddr;
++	__u16 port;
++	__u16 proto;
++};
++
++#ifdef __KERNEL__
++
++// comment this line out if you don't want to track any debug information
++//#define IVI_DEBUG
++
++// comment this line out if you don't want to track any debug information of tcp connection state
++//#define IVI_DEBUG_TCP
++
++// comment this line out if you don't want to track any debug information of rule mapping
++//#define IVI_DEBUG_RULE
++
++// comment this line out if you don't want to track any debug information of port mapping
++//#define IVI_DEBUG_MAP
++//#define IVI_DEBUG_MAP_TCP
++
++enum {
++	IVI_MODE_HGW = 0,		// Home gateway
++	IVI_MODE_HGW_NAT44,	    // Home gateway with NAT44
++};
++
++#define IVI_HTABLE_SIZE		32
++#define IVI_GOLDEN_RATIO_16		0x9e37
++#define IVI_GOLDEN_RATIO_32		0x9e370001
++
++// Generic hash function for a 16 bit value, see 'Introduction to Algorithms, 2nd Edition' Section 11.3.2
++static inline int port_hashfn(__be16 port)
++{
++	unsigned int m = port * IVI_GOLDEN_RATIO_16;
++	return ((m & 0xf800) >> 11);  // extract highest 6 bits as hash result
++}
++
++// Generic hash function for a 32 bit value, see 'Introduction to Algorithms, 2nd Edition' Section 11.3.2
++static inline int v4addr_port_hashfn(__be32 addr, __be16 port)
++{
++	__be32 m = addr + port;
++	m *= IVI_GOLDEN_RATIO_32;
++	return ((m & 0xf8000000) >> 27);
++}
++
++#endif /* __KERNEL__ */
++
++#endif /* IVI_CONFIG_H */
+Index: ivictl-1.0/ivictl.c
+===================================================================
+--- ivictl-1.0.orig/ivictl.c	2019-12-27 01:46:11.926749033 +0000
++++ ivictl-1.0/ivictl.c	2019-02-09 03:04:33.000000000 +0000
+@@ -40,7 +40,9 @@
+ #include <arpa/inet.h>
+ #include <getopt.h>
+ 
+-#include "../modules/ivi_ioctl.h"
++#include "./ivi_ioctl.h"
++
++#define MAPPORTMAP_INVALID_ADDRESS 0xFFFFFFFF
+ 
+ static const struct option longopts[] =
+ {
+@@ -78,6 +80,7 @@
+ static __u16 mss_val;
+ static struct in_addr v4addr;
+ static struct rule_info rule;
++static struct portmap_info portmap;
+ 
+ int ffs(int x)
+ {
+@@ -148,6 +151,10 @@
+ 	(used to start MAP module)\n\
+ 	ivictl -q\n\
+ 	(used to stop MAP module)\n\
++	ivictl -p\n\
++	(used to configure port mapping)\n\
++	ivictl -d\n\
++	(used to de-configure port mapping)\n\
+ 	ivictl -h\n\
+ 	(used to display this help information)\n\
+ \n\
+@@ -167,6 +174,17 @@
+ 	-T --translate\n\
+ 		specify the mapping rule is used for MAP-T\n\
+ \n\
++portmapping_options:\n\
++	-a LANADDR\n\
++		specify the IPv4 address of LAN server\n\
++	-P PROTO\n\
++		specify the protocol TCP UDP ICMP as bitmask\n\
++		Example: 100 (TCP only) 110 (TCP+UDP) 001(ICMP only)\n\
++	-p PORTNUM\n\
++		specify the port of LAN server\n\
++	-A REMOTEADDR\n\
++		specify the remote address of WAN client\n\
++\n\
+ start_options:\n\
+ 	-i --dev4 DEV4\n\
+ 		specify the name of ipv4 device\n\
+@@ -216,11 +234,13 @@
+ 	rule.adjacent = 1;
+ 	rule.format = ADDR_FMT_MAPT;
+ 	rule.transport = MAP_T;
++	memset(&portmap, 0, sizeof(portmap));
+ }
+ 
+ int main(int argc, char *argv[]) {
+ 	int retval, fd, temp, optc;
+ 	char *token = NULL;
++	int isAdd = 0;
+ 	
+ 	printf("MAP netfilter device controller utility v1.0\n");
+ 	
+@@ -231,7 +251,7 @@
+ 	
+ 	param_init();
+ 	
+-	optc = getopt_long(argc, argv, "rsqh", longopts, NULL);
++	optc = getopt_long(argc, argv, "rsqpdh", longopts, NULL);
+ 	switch (optc) 
+ 	{
+ 		case 'r':
+@@ -240,6 +260,14 @@
+ 		case 's':
+ 			goto start_opt;
+ 			break;
++		case 'p':
++			isAdd = 1;
++			goto portmapping_opt;
++			break;
++		case 'd':
++			isAdd = 0;
++			goto portmapping_opt;
++			break;
+ 		case 'q':
+ 			if ((retval = ioctl(fd, IVI_IOC_STOP, 0)) != 0) {
+ 				printf("\nError*****: failed to stop MAP module, code %d.\n\n", retval);
+@@ -380,6 +408,101 @@
+ 	}
+ 	
+ 	goto out;
++
++portmapping_opt:
++	while ((optc = getopt_long(argc, argv, "p:P:a:A", longopts, NULL)) != -1)
++	{
++		switch(optc)
++		{
++			case 'a':
++				if ((retval = inet_pton(AF_INET, optarg, (void*)(&(portmap.lanAddr)))) != 1) {
++					printf("\nError*****: failed to parse LAN IPv4 address, code %d.\n\n", retval);
++					retval = -1;
++					goto out;
++				}
++				break;
++			case 'p':
++				portmap.port = atoi(optarg);
++				if (portmap.port > 65535 || portmap.port < 1024) {
++					printf("\nError*****: invalid port number.\n\n");
++					usage(EXIT_FAILURE);
++					retval = -1;
++					goto out;
++				}
++				break;
++			case 'P':
++				portmap.proto = 0;
++				if (sizeof(optarg) == 4) {
++					char *ptr = optarg;
++					int i;
++
++					for (i=0;i<3;i++) {
++						portmap.proto |= ((*(ptr+i) - '0')?(1<<i):0);
++					}
++
++					if (portmap.proto > 7 || portmap.proto < 1) {
++						printf("\nError*****: proto format: xyz (x(TCP) y(UDP) z(ICMP)).\n\n");
++						usage(EXIT_FAILURE);
++						retval = -1;
++						goto out;
++					}
++				}
++				else {
++					printf("\nError*****: wrong proto<%s> format\n\n", optarg);
++					usage(EXIT_FAILURE);
++					retval = -1;
++					goto out;
++				}
++				break;
++			case 'A':
++				if ((retval = inet_pton(AF_INET, optarg, (void*)(&(portmap.wanAddr)))) != 1) {
++					printf("\nError*****: failed to parse remote IPv4 address, code %d.\n\n", retval);
++					retval = -1;
++					goto out;
++				}
++				break;
++			default:
++				printf("\nError*****: unknown option for port mapping rule\n\n");
++				close(fd);
++				usage(EXIT_FAILURE);
++				break;
++		}
++	}
++	
++	if (portmap.lanAddr == 0) {
++		printf("\nError*****: must enter LAN address for port mapping rule.\n\n");
++		usage(EXIT_FAILURE);
++		retval = -1;
++		goto out;
++	}
++
++	if (portmap.proto == 0) {
++		printf("\nError*****: must enter proto for port mapping rule.\n\n");
++		usage(EXIT_FAILURE);
++		retval = -1;
++		goto out;
++	}
++
++	if (portmap.port == 0) {
++		printf("\nError*****: must enter port number for port mapping rule.\n\n");
++		usage(EXIT_FAILURE);
++		retval = -1;
++		goto out;
++	}
++
++	if (portmap.wanAddr == 0) {
++		portmap.wanAddr = MAPPORTMAP_INVALID_ADDRESS;
++	}
++
++	// Insert port mapping rule
++	if ((retval = ioctl(fd, isAdd?IVI_IOC_ADD_PORTMAP:IVI_IOC_DEL_PORTMAP, &portmap)) < 0) {
++		printf("\nError*****: failed to add/delete port mapping rule, code %d.\n\n", retval);
++		usage(EXIT_FAILURE);
++	} else {
++		printf("Info: successfully add/delete port mapping rule.\n");
++	}
++	
++	goto out;
+ 
+ start_opt:
+ 	while ((optc = getopt_long(argc, argv, "i:I:A:a:P:R:z:o:fc:HNXET", longopts, NULL)) != -1)
+Index: ivictl-1.0/ivi_ioctl.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ ivictl-1.0/ivi_ioctl.h	2019-12-27 02:22:34.361376953 +0000
+@@ -0,0 +1,82 @@
++/*************************************************************************
++ *
++ * ivi_ioctl.h :
++ * 
++ * This file is the header file for the 'ivi_ioctl.c' file,
++ *
++ * Copyright (C) 2013 CERNET Network Center
++ * All rights reserved.
++ * 
++ * Design and coding: 
++ *   Xing Li <xing@cernet.edu.cn> 
++ *	 Congxiao Bao <congxiao@cernet.edu.cn>
++ *   Guoliang Han <bupthgl@gmail.com>
++ * 	 Yuncheng Zhu <haoyu@cernet.edu.cn>
++ * 	 Wentao Shang <wentaoshang@gmail.com>
++ * 	 
++ * 
++ * Contributions:
++ *
++ * This file is part of MAP-T/MAP-E Kernel Module.
++ *
++ * Permission to use, copy, modify, and distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * You should have received a copy of the GNU General Public License 
++ * along with MAP-T/MAP-E Kernel Module. If not, see 
++ * <http://www.gnu.org/licenses/>.
++ *
++ * For more versions, please send an email to <bupthgl@gmail.com> to
++ * obtain an password to access the svn server.
++ *
++ * LIC: GPLv2
++ *
++ ************************************************************************/
++
++
++#ifndef IVI_IOCTL_H
++#define IVI_IOCTL_H
++
++#include "ivi_config.h"
++
++#define IVI_DEVNAME	"ivi"
++
++#define IVI_IOCTL	3015
++
++typedef enum IviIoctl
++{
++    IVI_IOC_DUMMY = 999,
++    IVI_IOC_V4DEV,
++    IVI_IOC_V6DEV,
++    IVI_IOC_START,
++    IVI_IOC_STOP,
++    IVI_IOC_V4NET,
++    IVI_IOC_V4MASK,
++    IVI_IOC_V6NET,
++    IVI_IOC_V6MASK,
++    IVI_IOC_V4PUB,
++    IVI_IOC_V4PUBMASK,
++    IVI_IOC_NAT,
++    IVI_IOC_NONAT,
++    IVI_IOC_HGW_MAPX,
++    IVI_IOC_MAPT,
++    IVI_IOC_MSS_LIMIT,
++    IVI_IOC_ADJACENT,
++    IVI_IOC_ADD_RULE,
++    IVI_IOC_TRANSPT,
++    IVI_IOC_ADD_PORTMAP,
++    IVI_IOC_DEL_PORTMAP,
++} IviIoctl_t;
++
++#define IVI_IOCTL_LEN	32
++
++#ifdef __KERNEL__
++
++extern int ivi_ioctl_init(void);
++extern void ivi_ioctl_exit(void);
++
++#endif
++
++#endif /* IVI_IOCTL_H */
++
+Index: ivictl-1.0/Makefile
+===================================================================
+--- ivictl-1.0.orig/Makefile	2019-12-27 01:34:30.973404452 +0000
++++ ivictl-1.0/Makefile	2019-12-10 08:01:26.112747800 +0000
+@@ -1,5 +1,11 @@
+-all:	ivictl.c ../modules/ivi_ioctl.h
+-	$(CC) -o ivictl ivictl.c
++EXE = ivictl
++OBJS = $(EXE).o
++
++all dynamic install:$(EXE)
+ 
+ clean:
+-	rm -rf ivictl
++	-rm -f $(EXE) *.o
++	-rm -f $(INSTALL_DIR)/bin/$(EXE)
++
++$(EXE): $(OBJS)
++	$(CC) -o $@ $(OBJS)

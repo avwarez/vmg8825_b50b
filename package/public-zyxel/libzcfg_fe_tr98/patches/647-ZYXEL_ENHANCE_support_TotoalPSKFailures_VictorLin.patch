@@ -1,0 +1,27 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-10-23 13:34:53.468960955 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-10-23 13:39:14.978916775 +0800
+@@ -4751,6 +4751,9 @@
+ 		else if(!strcmp(paramList->name, "TotalPacketsReceived")) {
+ 			paramValue = json_object_object_get(ssidStatsJobj, "PacketsReceived");
+ 		}
++		else if(!strcmp(paramList->name, "TotalPSKFailures")) {
++			paramValue = json_object_object_get(ssidStatsJobj, "X_ZYXEL_TotalPSKFailures");
++		}
+ 		else if(!strcmp(paramList->name, "TotalAssociations")) {
+ 			paramValue = json_object_object_get(apJobj, "AssociatedDeviceNumberOfEntries");
+ 		}
+Index: libzcfg_fe_tr98-1.0/lanDev_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev_parameter.h	2019-10-23 13:34:53.468960955 +0800
++++ libzcfg_fe_tr98-1.0/lanDev_parameter.h	2019-10-23 13:36:06.390094340 +0800
+@@ -277,7 +277,7 @@
+ 	//{ "AutoRateFallBackEnabled", PARAMETER_ATTR_WRITE, 0, json_type_boolean},
+ 	{ "LocationDescription", PARAMETER_ATTR_WRITE, 4097, json_type_string},
+ 	{ "RegulatoryDomain", PARAMETER_ATTR_WRITE, 4, json_type_string},
+-	//{ "TotalPSKFailures", PARAMETER_ATTR_READONLY, 0, json_type_uint32},
++	{ "TotalPSKFailures", PARAMETER_ATTR_READONLY, 0, json_type_uint32},
+ 	//{ "TotalIntegrityFailures", PARAMETER_ATTR_READONLY, 0, json_type_uint32},
+ 	{ "ChannelsInUse", PARAMETER_ATTR_READONLY, 1025, json_type_string},
+ 	//{ "DeviceOperationMode", PARAMETER_ATTR_WRITE, 27, json_type_string},

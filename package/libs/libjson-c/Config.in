@@ -1,0 +1,22 @@
+# Choose libjson version.
+
+choice
+	prompt "libjson Version" if PACKAGE_libjson
+	default LIBJSON_VERSION_0_13_1 if PACKAGE_libjson
+	help
+	  Select the version of libjson you wish to use.
+
+	config LIBJSON_VERSION_0_13_1
+		depends on PACKAGE_libjson
+		bool "libjson 0.13.1"
+
+	config LIBJSON_VERSION_0_12
+		depends on PACKAGE_libjson
+		bool "libjson 0.12"
+endchoice
+
+config LIBJSON_VERSION
+	string
+	default "0.13.1"       if LIBJSON_VERSION_0_13_1
+	default "0.12"         if LIBJSON_VERSION_0_12
+

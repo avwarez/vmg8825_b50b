@@ -1,0 +1,12 @@
+Index: libzyutil-1.0/flash.c
+===================================================================
+--- libzyutil-1.0.orig/flash.c	2020-04-20 08:53:09.276573273 +0000
++++ libzyutil-1.0/flash.c	2020-04-20 08:59:03.299676104 +0000
+@@ -132,7 +132,6 @@
+ 			mtd[len-1] = '\0';
+ 			sprintf(mtddev, "/dev/%s", mtd);
+ 			ret = ZCFG_SUCCESS;
+-			printf("Find MTD Device %s with name %s.\n", mtddev, mtdname);
+ 			break;
+ 		}
+ 		fscanf(fp_template, "%s%s%s%s", mtd, size, erasesize, name);

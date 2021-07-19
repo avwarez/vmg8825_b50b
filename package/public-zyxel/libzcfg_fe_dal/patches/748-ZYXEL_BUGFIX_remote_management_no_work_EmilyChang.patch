@@ -1,0 +1,23 @@
+Index: libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt_srv.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/mgmt/zcfg_fe_dal_mgmt_srv.c	2020-02-14 15:07:59.572835048 +0800
++++ libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt_srv.c	2020-02-14 15:07:59.000000000 +0800
+@@ -125,7 +125,17 @@
+ 	int httpsport = 0;
+ 	int lifetime = 0;
+ 	int len = 0;
+-	len = json_object_array_length(Jobj);
++
++	if(json_object_get_type(Jobj) == json_type_object)
++		len = json_object_object_length(Jobj);
++	else if(json_object_get_type(Jobj) == json_type_array)
++		len = json_object_array_length(Jobj);
++	else
++	{
++		printf("wrong Jobj format!\n");
++		return;
++	}
++
+ 	int tmp_idx[len];
+ 	for(int i=0;i<len;i++){
+ 		 if(i == len-2)		

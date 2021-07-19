@@ -1,0 +1,64 @@
+Index: libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2019-08-06 19:44:39.106985362 +0800
++++ libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2019-08-06 19:45:53.369225849 +0800
+@@ -35,9 +35,10 @@
+ 	{"BoundInterfaceList", dalType_MultiRtWanWWan, 0, 256, NULL},
+ 	{"ConnectionRequestURL", dalType_string, 0, 0, NULL, NULL, dalcmd_Forbid},
+ 	{"CheckCert", dalType_boolean, 0, 0,NULL},
++	{"DataModelSpec", dalType_string, 0, 256, NULL, "TR-098|TR-181"},
+ 	{"Certificate", dalType_LocalCert, 0, 256, NULL},
+-#ifdef ZYXEL_TR69_SUPPLEMENTAL_ACS
+ 	{"X_ZYXEL_SerialNumber_Type", dalType_int, 0, 1, NULL},
++#ifdef ZYXEL_TR69_SUPPLEMENTAL_ACS
+ 	{"X_ZYXEL_Supplemental_EnableCWMP", dalType_boolean, 0, 0, NULL},
+ 	{"X_ZYXEL_Supplemental_URL", dalType_string, 0, 256, NULL},
+ 	{"X_ZYXEL_Supplemental_Username", dalType_string, 0, 256, NULL},
+@@ -52,7 +53,7 @@
+ 
+ void zcfgFeDalShowMgmt(struct json_object *Jarray){
+ 	struct json_object *Jobj;
+-	const char *mode = NULL;
++	const char *mode = NULL,*Spec = NULL;
+ 	char proto[32] = {0};
+ 	bool v4Enable, v6Enable;
+ 	const char *conUser, *conPass, *cert;
+@@ -76,6 +77,7 @@
+ 	conUser = json_object_get_string(json_object_object_get(Jobj, "ConnectionRequestUsername"));
+ 	conPass = json_object_get_string(json_object_object_get(Jobj, "ConnectionRequestPassword"));
+ 	cert = json_object_get_string(json_object_object_get(Jobj, "Certificate"));
++	Spec = json_object_get_string(json_object_object_get(Jobj, "DataModelSpec"));
+ 	
+ 	printf("TR-069 Client Information:\n");
+ 	printf("%-45s %s\n", "CWMP Active", json_object_get_string(json_object_object_get(Jobj, "EnableCWMP")));
+@@ -97,6 +99,7 @@
+ 	printf("%-45s %s\n", "Connection Request Password", (*conUser | *conPass)?json_object_get_string(json_object_object_get(Jobj, "ConnectionRequestPassword")):"");
+ 	printf("%-45s %s\n", "Connection Request URL", json_object_get_string(json_object_object_get(Jobj, "ConnectionRequestURL")));
+ 	printf("%-45s %s\n", "Local Certificate Used by TR-069 Client", (*cert == '0')?"":cert);
++	printf("%-45s %s\n", "Data Model Tyep", !strcmp(mode, "TR-098")?"":json_object_get_string(json_object_object_get(Jobj, "DataModelSpec")));
+ 	
+ 	
+ }
+@@ -169,6 +172,10 @@
+ 			str = json_object_get_string(json_object_object_get(mgmtJobj, "X_ZYXEL_Certificate"));
+ 			json_object_object_add(pramJobj, paraName, json_object_new_string(str));
+ 		}
++		else if(!strcmp(paraName, "DataModelSpec")) {
++			str = json_object_get_string(json_object_object_get(mgmtJobj, "X_ZYXEL_DataModelSpec"));
++			json_object_object_add(pramJobj, paraName, json_object_new_string(str));
++		}
+ 		else {
+ 			json_object_object_add(pramJobj, paraName, JSON_OBJ_COPY(json_object_object_get(mgmtJobj, paraName)));		
+ 		}
+@@ -298,6 +305,11 @@
+ 				paramModified = 1;	
+ 			}
+ 		}
++		else if(!strcmp(paraName, "DataModelSpec")) {
++			const char *certName = json_object_get_string(paramValue);
++			json_object_object_add(mgmtJobj, "X_ZYXEL_DataModelSpec", json_object_new_string(certName));
++			paramModified = 1;
++		}
+ 		else {
+ 			json_object_object_add(mgmtJobj, paraName, JSON_OBJ_COPY(paramValue));
+ 			paramModified = 1;			

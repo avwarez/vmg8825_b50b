@@ -1,0 +1,27 @@
+Index: libzcfg_fe_rdm_struct-1.0/zcfg_fe_rdm_struct.h
+===================================================================
+--- libzcfg_fe_rdm_struct-1.0.orig/zcfg_fe_rdm_struct.h	2019-11-06 13:35:53.300104307 +0800
++++ libzcfg_fe_rdm_struct-1.0/zcfg_fe_rdm_struct.h	2019-11-06 13:50:39.524894890 +0800
+@@ -17,6 +17,21 @@
+ zcfgRet_t zcfgFeObjStructBlockedDel(zcfg_offset_t oid, objIndex_t *objIid, char *feedbackMsg);
+ #endif
+ 
+-#define zcfgFeObjStructFree(obj) free(obj); obj = NULL
++#define zcfgFeObjStructFree(obj) \
++    {\
++        do \
++        { \
++            if ((obj) == NULL) \
++            { \
++                printf("Free NULL pointer. %s %d\n", __FILE__, __LINE__); \
++            } \
++            else \
++            { \
++                free((void *)(obj)); \
++                (obj) = NULL; \
++            } \
++        } \
++        while (0); \
++    }
+ 
+ #endif

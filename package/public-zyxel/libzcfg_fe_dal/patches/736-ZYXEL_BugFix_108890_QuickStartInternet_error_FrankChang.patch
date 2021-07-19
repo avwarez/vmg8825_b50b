@@ -1,0 +1,13 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 12:03:27.260417903 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-01-14 11:20:29.602262300 +0800
+@@ -999,7 +999,7 @@
+ 		}
+ #ifdef ZYXEL_WAN_MAC
+ 		if(!strcmp(Type, "ETH") || !strcmp(Type, "ATM") || !strcmp(Type, "PTM")|| !strcmp(Type, "SFP")){
+-			if(!strcmp(Mode, "IP_Routed"))
++			if(!strcmp(Mode, "IP_Routed") && (WanMacType != NULL))
+ 			{
+ 				json_object_object_add(ethLinkObj, "X_ZYXEL_WanMacType", json_object_new_string(WanMacType));
+ 				if (!strcmp(WanMacType, WAN_MAC_CLIENTIP)) {

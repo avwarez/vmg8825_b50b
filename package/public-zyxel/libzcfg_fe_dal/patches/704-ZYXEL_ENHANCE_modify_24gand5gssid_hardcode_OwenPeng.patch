@@ -1,0 +1,104 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2019-09-16 13:26:39.613464999 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2019-09-16 13:28:38.965110999 +0800
+@@ -768,11 +768,11 @@
+ 	6. Encryption
+ 	7. Group Key Update Timer.
+ */
+-	if (wifiIdx < 5){
+-		return (wifiIdx+4);
++	if (wifiIdx < (TOTAL_INTERFACE_24G + 1)){
++		return (wifiIdx + TOTAL_INTERFACE_24G);
+ 	}
+ 	else{
+-		return (wifiIdx-4);
++		return (wifiIdx - TOTAL_INTERFACE_24G);
+ 	}
+ }
+ #endif //WIFI_ONESSID_SECURITY_SYNC
+@@ -1645,7 +1645,6 @@
+ }
+ zcfgRet_t validateWlObj(struct json_object *Jobj, char *replyMsg){
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+-
+ 	// ap: make sure when "wlEnableGuest" is set to 1 then "wlGwMode" must be set too
+ 	if(json_object_object_get(Jobj, "wlEnableGuest") && json_object_get_boolean(json_object_object_get(Jobj, "wlEnableGuest")) && !json_object_object_get(Jobj, "wlGwMode")){
+ 		printf("\"wlEnableGuest\" and \"wlGwMode\" should be set in pair.\n");
+@@ -1940,10 +1939,16 @@
+ 	IID_INIT(wifiWPSIid);
+ 	wifiWPSIid.level = 1;
+ #ifdef ZYXEL_SUPPORT_8021X
+-	if(Index >= 1 && Index <= 4)
++	if(Index >= 1 && Index <= TOTAL_INTERFACE_24G)
+ 		wifiWPSIid.idx[0] = 1;
+-	else if(Index >= 5 && Index <= 8)
+-		wifiWPSIid.idx[0] = 5;
++#if defined(BUILD_SONIQ) || defined(ZYXEL_EASYMESH)
++	else if(Index >= (TOTAL_INTERFACE_24G + 1) && Index <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G - 2)) //-2 :exclude MultyPro & EasyMesh
++#else
++	else if(Index >= (TOTAL_INTERFACE_24G + 1) && Index <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G))
++#endif
++	{
++		wifiWPSIid.idx[0] = (TOTAL_INTERFACE_24G + 1);
++	}
+ #else
+ 	wifiWPSIid.idx[0] = Index;
+ #endif
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_cbt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_cbt.c	2019-09-16 13:26:38.288803000 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_cbt.c	2019-09-16 13:26:39.721518999 +0800
+@@ -486,7 +486,7 @@
+ 				}
+ 
+ 				cbtSecTmpIid.idx[0] = cbtGuestWifiNumber + 1;
+-				cbt5GSecTmpIid.idx[0] = cbtGuestWifiNumber + 5;
++				cbt5GSecTmpIid.idx[0] = cbtGuestWifiNumber + (TOTAL_INTERFACE_24G + 1);
+ 
+ 				for(iidIdx = 1; iidIdx < 6; iidIdx++){
+ 					cbtSecTmpIid.idx[iidIdx] = cbtSecIid.idx[iidIdx];
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wmm.c	2019-09-16 13:26:36.371844999 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wmm.c	2019-09-16 13:26:39.721518999 +0800
+@@ -72,9 +72,15 @@
+ 		json_object_object_add(paramJobj, "Index", json_object_new_int(count));
+ 		json_object_object_add(paramJobj, "WMMEnable", JSON_OBJ_COPY(json_object_object_get(obj,"WMMEnable")));
+ 		json_object_object_add(paramJobj, "UAPSDEnable", JSON_OBJ_COPY(json_object_object_get(obj,"UAPSDEnable")));
+-		if(iid.idx[0] <= 4){
++		if(iid.idx[0] <= TOTAL_INTERFACE_24G){
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", wirelessMode24G);
+-		}else if(iid.idx[0] >= 5 && iid.idx[0] <= 8){
++		}
++#if defined(BUILD_SONIQ) || defined(ZYXEL_EASYMESH)
++		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G - 2)) //-2 :exclude MultyPro & EasyMesh
++#else
++		else if(iid.idx[0] >= (TOTAL_INTERFACE_24G + 1) && iid.idx[0] <= (TOTAL_INTERFACE_24G + TOTAL_INTERFACE_5G))
++#endif
++		{
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", wirelessMode5G);
+ 		}else{
+ 			json_object_object_add(paramJobj, "X_ZYXEL_Wireless_Mode", json_object_new_string(""));
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wps.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_wps.c	2019-09-16 13:26:38.841078999 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_wps.c	2019-09-16 13:26:39.721518999 +0800
+@@ -154,7 +154,7 @@
+ 		// Band: 5GHz
+ 		IID_INIT(objIid);
+ 		objIid.level = 1;
+-		objIid.idx[0] = 5;
++		objIid.idx[0] = (TOTAL_INTERFACE_24G + 1);
+ 		if((ret = zcfgFeObjJsonGet(RDM_OID_WIFI_ACCESS_POINT_WPS, &objIid, &WifiApWpsJobj)) != ZCFG_SUCCESS) {
+ 			printf("%s : Get object fail\n",__FUNCTION__);
+ 			return ret;
+@@ -224,7 +224,7 @@
+ 	if(!strcmp(wpsBand,"2.4GHz"))
+ 		objIid.idx[0] = 1;	
+ 	else if(!strcmp(wpsBand,"5GHz"))
+-		objIid.idx[0] = 5;
++		objIid.idx[0] = (TOTAL_INTERFACE_24G + 1);
+ 	else{
+ 		printf("\"Band\" value should be \"2.4GHz\" or \"5GHz\".\n");
+ 		return ZCFG_INVALID_PARAM_VALUE;

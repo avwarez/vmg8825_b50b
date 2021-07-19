@@ -1,0 +1,11 @@
+diff -ruN a/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c b/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c
+--- a/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c	2020-01-21 17:52:10.000000000 +0800
++++ b/network/homeNetworking/zcfg_fe_dal_addnl_subnet.c	2020-01-30 10:49:49.671118272 +0800
+@@ -156,6 +156,7 @@
+ 		}
+ 	}else{
+ 		zcfgFeJsonObjFree(ipAliasObj);
++		ipv4AddrObj = NULL;
+ 		if(found){
+ 			ret = zcfgFeObjJsonDel(RDM_OID_IP_IFACE_V4_ADDR, &ipAliasIid, NULL);
+ 		}

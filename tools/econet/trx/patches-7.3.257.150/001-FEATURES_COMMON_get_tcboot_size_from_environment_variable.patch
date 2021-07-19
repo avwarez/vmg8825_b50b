@@ -1,0 +1,60 @@
+Index: econet-trx-7.3.257.150/tools/trx/trx.c
+===================================================================
+--- econet-trx-7.3.257.150.orig/tools/trx/trx.c	2019-03-29 16:41:08.000000000 +0800
++++ econet-trx-7.3.257.150/tools/trx/trx.c	2019-07-24 19:24:06.783332260 +0800
+@@ -81,6 +81,7 @@
+ /**********************************************************************/
+ /* from trxhdr.h */
+ 
++#if 0
+ #if defined(TCSUPPORT_BB_256KB)
+ #define TCBOOT_SIZE     	(0x40000) //256K
+ #define TCBOOT_CRC32_LOC	(TCBOOT_SIZE - 512 - 4)
+@@ -89,6 +90,16 @@
+ #else
+ #define TCBOOT_SIZE     0x10000 //64K
+ #endif
++#else
++//Zyxel customization
++#if defined(TCSUPPORT_BB_256KB)
++#define TCBOOT_SIZE     	(0x40000) //256K
++#define TCBOOT_CRC32_LOC	(TCBOOT_SIZE - 512 - 4)
++#else
++unsigned long int TCBOOT_SIZE;
++#endif
++#endif //#if 0
++
+ #define TRX_VERSION	    1
+ //#define TRX_MAX_LEN	0x5A0000
+ #define TRX_MAX_LEN     0x8000000 //128M
+@@ -255,6 +266,17 @@
+                     usage();
+                 }
+ 
++                {
++                    char *str;
++                    str = getenv("TCBOOT_SIZE");
++                    if (str) {
++                        TCBOOT_SIZE=strtoul(str, NULL, 0);
++                    } else {
++                        TCBOOT_SIZE=0x10000; //64K
++                    }
++                    //fprintf(stdout, "Max. tcboot size is 0x%04X\n", TCBOOT_SIZE);
++                }
++
+                 n = fread(buf, 1, TCBOOT_SIZE + 1, in);
+                 if (!feof(in)) {
+                     fprintf(stderr, "fread failure or file \"%s\" too large\n",optarg);
+Index: econet-trx-7.3.257.150/tools/trx/Makefile
+===================================================================
+--- econet-trx-7.3.257.150.orig/tools/trx/Makefile	2019-03-29 16:41:08.000000000 +0800
++++ econet-trx-7.3.257.150/tools/trx/Makefile	2019-07-24 19:23:44.215332260 +0800
+@@ -22,7 +22,7 @@
+ 
+ ifeq ($(TCSUPPORT_SECURE_BOOT), 1)
+ CFLAGS += -DTCSUPPORT_SECURE_BOOT
+-CFLAGS += -I$(GLOBAL_INC_DIR)
++CFLAGS += -I$(STAGING_DIR)/usr/include/global_inc
+ endif
+ 
+ ifeq ($(TCSUPPORT_SECURE_BOOT_V1), 1)

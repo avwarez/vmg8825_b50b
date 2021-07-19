@@ -1,0 +1,128 @@
+Index: libzcfg_fe_dal-1.0/Makefile
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/Makefile	2020-05-21 18:41:24.126427725 +0800
++++ libzcfg_fe_dal-1.0/Makefile	2020-05-21 18:41:24.330427730 +0800
+@@ -489,6 +489,10 @@
+ CFLAGS += -DZYXEL_ONECONNECT_PARENTCTL_OPTION
+ endif
+ 
++ifeq ($(CONFIG_ZYXEL_SUPPORT_LAN_AS_ETHWAN),y)
++CFLAGS += -DZYXEL_SUPPORT_LAN_AS_ETHWAN
++endif
++
+ LDFLAGS += $(LIB_PATH) $(LINK_LIB)
+ CFLAGS += $(INC_PATH) -std=gnu99
+ 
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2020-05-21 18:41:24.282427729 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2020-05-21 18:42:58.896982079 +0800
+@@ -5013,6 +5013,25 @@
+ 	
+ 	struct json_object *pramJobj = NULL;
+ 	struct json_object *ipIfObj = NULL;
++	
++	int hideEth = 0;
++
++#if defined(SAME_FW_FOR_TWO_BOARD)
++	/* Not support ETHWAN */
++	if (zyutil_cofw_modelNameGet() == MODEL_VMG1312_T20A)
++		hideEth += 1;
++#endif
++#if defined(ZYXEL_SUPPORT_LAN_AS_ETHWAN)
++	struct json_object *jarr = json_object_new_array();
++	if (ZCFG_SUCCESS == zcfgFeDalHandler("ethwanlan", "GET", NULL, jarr, NULL))
++	{
++		struct json_object *jobj = json_object_array_get_idx(jarr, 0);
++		if (jobj && !json_object_get_boolean(json_object_object_get(jobj, "Enable")))
++			hideEth += 1;
++	}
++	zcfgFeJsonObjFree(jarr);
++#endif
++
+ 	initGlobalObjects();
+ 
+ 	objIndex_t featureFlagIid;
+@@ -5036,19 +5055,15 @@
+         	json_object_object_add(pramJobj, "DSCPEnable", (ipIfaceDSCPMark >= 0) ? json_object_new_boolean(true) : json_object_new_boolean(false));
+         	json_object_object_add(pramJobj, "DSCP", json_object_new_int(ipIfaceDSCPMark));
+ 
+-#if defined(SAME_FW_FOR_TWO_BOARD)
+-            if (strcmp(CurrType, "ETH") == 0)
++
++            if (hideEth && !strcmp("ETH", json_object_get_string(json_object_object_get(pramJobj, "Type"))))
+             {
+-                /* Not support ETHWAN */
+-                if (zyutil_cofw_modelNameGet() == MODEL_VMG1312_T20A)
+-                {
+-                    zcfgFeJsonObjFree(pramJobj);
+-                    zcfgFeJsonObjFree(ipIfObj);
+-					freeAllObjects();
+-                    continue;
+-                }
++				zcfgFeJsonObjFree(pramJobj);
++				zcfgFeJsonObjFree(ipIfObj);
++				freeAllObjects();
++				continue;
+             }
+-#endif
++
+ 			if(strcmp(CurrMode, "IP_Bridged")){
+ 				getWanInfo(pramJobj, ipIfaceIid, ipIfObj);
+ 				getIpGatewayDnsInfo(pramJobj, ipIfaceIid, ipIfObj);
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_ethwanlan.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_ethwanlan.c	2020-05-21 18:41:22.706427686 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_ethwanlan.c	2020-05-21 18:41:24.330427730 +0800
+@@ -46,7 +46,12 @@
+ 		}
+ 		
+ 		name = json_object_get_string(json_object_object_get(obj, "Name"));
++#if defined(ECONET_PLATFORM)
++		sscanf(name,"eth0.%d",&intfId);
++#else
+ 		sscanf(name,"eth%d",&intfId);
++#endif
++
+ 		if(intfId > lastIntfId){
+ 			lastIntfId = intfId;
+ 
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-05-21 18:41:24.298427729 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-05-21 18:43:10.399106142 +0800
+@@ -1089,6 +1089,18 @@
+ 	char intfGrpWANList[512] = {0};
+ 	char *intf = NULL, *tmp_ptr = NULL;
+ 	const char *IpIfacePath = NULL, *natInterface = NULL, *igmpInterface = NULL, *mldInterface = NULL;
++	int hideEth = 0;
++#if defined(ZYXEL_SUPPORT_LAN_AS_ETHWAN)
++	struct json_object *jarr = json_object_new_array();
++	if (ZCFG_SUCCESS == zcfgFeDalHandler("ethwanlan", "GET", NULL, jarr, NULL))
++	{
++		struct json_object *jobj = json_object_array_get_idx(jarr, 0);
++		if (jobj && !json_object_get_boolean(json_object_object_get(jobj, "Enable")))
++			hideEth += 1;
++	}
++	json_object_put(jarr);
++#endif
++
+ 	zcfgFeWholeObjJsonGet("Device.IP.Interface.", &ipIfaceJarray);
+ 	zcfgFeWholeObjJsonGet("Device.PPP.Interface.", &pppIfaceJarray);
+ 	zcfgFeWholeObjJsonGet("Device.Ethernet.VLANTermination.", &vlanTermJarray);
+@@ -1440,6 +1452,15 @@
+ 			}
+ 		}
+ 		
++#if defined(ZYXEL_SUPPORT_LAN_AS_ETHWAN)
++		if (Jobj && hideEth && !strcmp("WAN", json_object_get_string(json_object_object_get(Jobj, "Type")))
++				&& !strcmp("ETH", json_object_get_string(json_object_object_get(Jobj, "LinkType"))))
++		{
++			json_object_put(Jobj);
++			Jobj = NULL;
++		}
++#endif
++		
+ 		if(Jobj != NULL)
+ 			json_object_array_add(*Jarray, Jobj);
+ 	}

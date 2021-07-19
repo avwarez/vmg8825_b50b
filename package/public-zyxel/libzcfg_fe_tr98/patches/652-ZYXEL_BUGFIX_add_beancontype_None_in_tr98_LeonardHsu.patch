@@ -1,0 +1,50 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-11-29 10:57:50.601943292 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-11-29 11:04:45.467499292 +0800
+@@ -67,7 +67,7 @@
+ #ifdef WIFISECURITY_AUTH_WITH_EAP
+ 
+ #define TR98_PARM_LAN_DEV_WLAN_CFG "{\
+-		\"BeaconType\": { \"Basic\": { }, \"WPA\": { }, \"11i\": { }, \"WPAand11i\": { }, \"WPA3\": { }, \"11iandWPA3\": { }, \"Emp\": { } },\
++		\"BeaconType\": { \"Basic\": { }, \"WPA\": { }, \"11i\": { }, \"WPAand11i\": { }, \"WPA3\": { }, \"11iandWPA3\": { }, \"None\": { }, \"Emp\": { } },\
+ 		\"DeviceOperationMode\": { \"InfrastructureAccessPoint\": { }, \"Emp\": { } },\
+ 		\"BasicEncryptionModes\": { \"None\": { }, \"WEPEncryption\": { } },\
+ 		\"BasicAuthenticationMode\": { \"None\": { }, \"EAPAuthentication\": { }, \"SharedAuthentication\": { } },\
+@@ -80,7 +80,7 @@
+ #else
+ 
+ #define TR98_PARM_LAN_DEV_WLAN_CFG "{\
+-		\"BeaconType\": { \"Basic\": { }, \"WPA\": { }, \"11i\": { }, \"WPAand11i\": { }, \"WPA3\": { }, \"11iandWPA3\": { } },\
++		\"BeaconType\": { \"Basic\": { }, \"WPA\": { }, \"11i\": { }, \"WPAand11i\": { }, \"WPA3\": { }, \"11iandWPA3\": { }, \"None\": { } },\
+ 		\"DeviceOperationMode\": { \"InfrastructureAccessPoint\": { }, \"Emp\": { } },\
+ 		\"BasicEncryptionModes\": { \"None\": { }, \"WEPEncryption\": { } },\
+ 		\"BasicAuthenticationMode\": { \"None\": { } },\
+@@ -5016,7 +5016,7 @@
+ 	return ZCFG_SUCCESS;
+ }
+ 
+-static zcfgRet_t wifiSecuritySet(char index, struct json_object *apSecJobj, struct json_object *tr98Jobj, struct json_object *beaconType, int wepKeyLen)
++static zcfgRet_t wifiSecuritySet(char index, struct json_object *apSecJobj, struct json_object *tr98Jobj, struct json_object *beaconType, int wepKeyLen, struct json_object *ssidJobj)
+ {
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	char type[12] = {0};
+@@ -5214,6 +5214,9 @@
+ 		}
+ 	}
+ #endif
++	else if(!strcmp(type, "None")) {
++		json_object_object_add(ssidJobj, "Enable", json_object_new_boolean(false));
++	}
+ 	else {
+ 		ret = ZCFG_INVALID_PARAM_VALUE;
+ 	}
+@@ -5830,7 +5833,7 @@
+ 			/*special case*/
+ 			if(!strcmp(paramList->name, "BeaconType")) {
+ 				int wepKeyLength = (wepKeyLen > wepKey64Len) ? wepKeyLen : wepKey64Len;
+-				if((ret = wifiSecuritySet(ssidIid.idx[0], apSecJobj, tr98Jobj, paramValue, wepKeyLength)) != ZCFG_SUCCESS) {
++				if((ret = wifiSecuritySet(ssidIid.idx[0], apSecJobj, tr98Jobj, paramValue, wepKeyLength, ssidJobj)) != ZCFG_SUCCESS) {
+ 					goto finish;
+ 				}
+ 				

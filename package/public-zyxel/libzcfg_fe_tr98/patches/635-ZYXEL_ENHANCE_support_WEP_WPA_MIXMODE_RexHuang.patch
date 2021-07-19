@@ -1,0 +1,125 @@
+Index: libzcfg_fe_tr98-1.0/lanDev.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/lanDev.c	2019-09-12 19:11:33.871992487 +0800
++++ libzcfg_fe_tr98-1.0/lanDev.c	2019-09-12 19:11:33.883992487 +0800
+@@ -5008,15 +5008,46 @@
+ 		if((basicAuthMode && !strcmp(basicAuthMode, "None")) &&
+ 			(basicEncryptModes && !strcmp(basicEncryptModes, "None")))
+ 			json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("None"));
++#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ 		else if(wepKeyLen == 5 || wepKeyLen == 10){
+ 			json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("WEP-64"));
+ 		}
+ 		else if(wepKeyLen == 0 || wepKeyLen == 13 || wepKeyLen == 26){
+ 			json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("WEP-128"));
+ 		}
++#endif
+ 	}
+-	else if(!strcmp(type, "11i")) {
++#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++	else if(!strcmp(type, "WPA")) {
++		tr98ParamValue = json_object_object_get(tr98Jobj, "WPAAuthenticationMode");
++		if(tr98ParamValue) {
++			if(!strcmp(json_object_get_string(tr98ParamValue), "EAPAuthentication")) {
++				json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("WPA-Enterprise"));
++			}
++			else if(!strcmp(json_object_get_string(tr98ParamValue), "PSKAuthentication")) {
++				json_object_object_add(apSecJobj, "ModeEnabled", json_object_new_string("WPA-Personal"));
++			}
++			else
++				return ZCFG_INVALID_PARAM_VALUE;
++		}
+ 
++		tr98ParamValue = json_object_object_get(tr98Jobj, "WPAEncryptionModes");
++		if(tr98ParamValue) {
++			if(!strcmp(json_object_get_string(tr98ParamValue), "TKIPandAESEncryption")) {
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkipaes"));
++			}
++			else if(!strcmp(json_object_get_string(tr98ParamValue), "TKIPEncryption")) {
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkip"));
++			}
++			else if(!strcmp(json_object_get_string(tr98ParamValue), "AESEncryption")) {
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
++		}
++			else
++				return ZCFG_INVALID_PARAM_VALUE;
++		}
++	}
++#endif
++	else if(!strcmp(type, "11i")) {
+ 		int apAuth = 0;
+ 
+ 		tr98ParmStr_1 = json_object_get_string(json_object_object_get(tr98Jobj, "IEEE11iAuthenticationMode"));
+@@ -5064,8 +5095,9 @@
+ 
+ 		if(!strcmp(tr98ParmStr_1, "AESEncryption"))
+ 			json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
+-
+ 	}
++
++#ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+ 	else if(!strcmp(type, "WPAand11i")) {
+ 		int apAuth = 0, apEncryp = 0;
+ 
+@@ -5103,22 +5135,43 @@
+ 		else if(!strcmp(json_object_get_string(json_object_object_get(apSecJobj, "X_ZYXEL_Encryption")), "tkipaes")){
+ 			apEncryp = TKIPAES;
+ 		}
++		else if(!strcmp(json_object_get_string(json_object_object_get(apSecJobj, "X_ZYXEL_Encryption")), "tkip"))
++			apEncryp = TKIP;
++
+ 		if(apEncryp == AES) {
+ 			if(!strcmp(tr98ParmStr_1, "TKIPandAESEncryption") || !strcmp(tr98ParmStr_2, "TKIPandAESEncryption")){
+ 				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkipaes"));
+ 			}
++			else if(!strcmp(tr98ParmStr_1, "TKIPEncryption") || !strcmp(tr98ParmStr_2, "TKIPEncryption"))
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkip"));
+ 		}else if(apEncryp == TKIPAES) {
+ 			if(!strcmp(tr98ParmStr_1, "AESEncryption") || !strcmp(tr98ParmStr_2, "AESEncryption"))
+ 				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
+-		}else {
++				else if(!strcmp(tr98ParmStr_1, "TKIPEncryption") || !strcmp(tr98ParmStr_2, "TKIPEncryption"))
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkip"));
++				}
++		else if(apEncryp == TKIP) {
++			if(!strcmp(tr98ParmStr_1, "AESEncryption") || !strcmp(tr98ParmStr_2, "AESEncryption"))
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
++			else if(!strcmp(tr98ParmStr_1, "TKIPandAESEncryption") || !strcmp(tr98ParmStr_2, "TKIPandAESEncryption"))
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkipaes"));
++		}
++
++		else {
+ 			if(!strcmp(tr98ParmStr_1, "AESEncryption")) 
+ 				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("aes"));
+ 			else if(!strcmp(tr98ParmStr_1, "TKIPandAESEncryption"))
+ 				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkipaes"));
++				else if(!strcmp(tr98ParmStr_1, "TKIPEncryption"))
++				json_object_object_add(apSecJobj, "X_ZYXEL_Encryption", json_object_new_string("tkip"));
++
+ 		}
+ 	}
+-	else 
++#endif
++	else {
+ 		ret = ZCFG_INVALID_PARAM_VALUE;
++	}
++
+ 	return ret;
+ }
+ 
+Index: libzcfg_fe_tr98-1.0/Makefile
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/Makefile	2019-09-12 19:11:33.855992487 +0800
++++ libzcfg_fe_tr98-1.0/Makefile	2019-09-12 19:12:23.630930167 +0800
+@@ -99,6 +99,11 @@
+ CFLAGS += -DZYXEL_TR69_DATA_USAGE
+ endif
+ 
++#Support WiFi Security Mode WEP/WPA/WPA-MIXED/WPA2-PSK
++ifeq ($(CONFIG_ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE),y)
++CFLAGS += -DZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
++endif
++
+ #CBT
+ ifeq ($(CONFIG_CBT_CUSTOMIZATION),y)
+ CFLAGS += -DCBT_CUSTOMIZATION

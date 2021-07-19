@@ -1,0 +1,14 @@
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.c	2020-01-06 15:06:47.604823015 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c	2020-01-06 15:07:31.764418214 +0800
+@@ -4437,7 +4437,8 @@
+ 		case json_type_uint16:
+ 		case json_type_uint32:
+ 		case json_type_ulong:
+-			setValue = json_object_new_int((uint32_t)atoi(value));
++			// setValue = json_object_new_int((uint32_t)atoi(value));
++			setValue = json_object_new_int(strtoul(value, NULL, 10));
+ 			break;
+ 		case json_type_base64:
+ 			{

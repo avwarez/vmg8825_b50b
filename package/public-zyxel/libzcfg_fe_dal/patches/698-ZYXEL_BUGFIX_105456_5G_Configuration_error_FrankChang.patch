@@ -1,0 +1,14 @@
+diff -ruN a/network/wireless/zcfg_fe_dal_wifi_general.c b/network/wireless/zcfg_fe_dal_wifi_general.c
+--- a/network/wireless/zcfg_fe_dal_wifi_general.c	2019-08-26 10:26:16.000000000 +0800
++++ b/network/wireless/zcfg_fe_dal_wifi_general.c	2019-08-27 10:37:05.977581800 +0800
+@@ -1745,8 +1745,8 @@
+ 			}
+ 		}
+ 		else if(!strcmp(curBand,"5GHz") && (strstr(wl_mode,"n") == NULL) && (strstr(wl_mode,"ac") != NULL)){
+-			if(!(bandwidth == 20 || bandwidth == 80)){
+-				printf("In %s %s mode only support \"bandwidth\" = %s.\n",curBand,wl_mode,"20 and 80");
++			if(!(bandwidth == 20 || bandwidth == 40 || bandwidth == 80)){
++				printf("In %s %s mode only support \"bandwidth\" = %s.\n",curBand,wl_mode,"20, 40 and 80");
+ 				return ZCFG_INVALID_PARAM_VALUE;
+ 			}
+ 		}

@@ -1,0 +1,899 @@
+Index: linux-4.1.51/include/linux/skbuff.h
+===================================================================
+--- linux-4.1.51.orig/include/linux/skbuff.h	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/include/linux/skbuff.h	2019-04-12 13:43:03.906258361 +0800
+@@ -982,6 +982,12 @@
+ 
+ #endif /* CONFIG_BCM_KF_NBUFF */
+ 
++#ifdef CONFIG_ZLD_SKB_ZLD_CB /* bala porting jessy*/
++#define ZLD_CB_SIZE 48
++	/* Note: Please use the macro, 'ZLD_CB_DATA', to access the data instead of use it directly. */
++	char zld_cb[ZLD_CB_SIZE];
++#endif /* CONFIG_ZLD_SKB_ZLD_CB */
++
+ #if defined(CONFIG_BCM_KF_NBUFF)
+ #if defined(CONFIG_BCM_KF_VLAN) && (defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE))
+ 	__u16			vlan_count;
+Index: linux-4.1.51/include/net/netfilter/nf_conntrack.h
+===================================================================
+--- linux-4.1.51.orig/include/net/netfilter/nf_conntrack.h	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/include/net/netfilter/nf_conntrack.h	2019-04-12 13:43:03.906258361 +0800
+@@ -170,6 +170,10 @@
+ 	u_int32_t mark;
+ #endif
+ 
++#if defined(CONFIG_SBG_SKB_MARK)//jessy
++	u_int32_t zextmark;
++#endif
++
+ #ifdef CONFIG_NF_CONNTRACK_SECMARK
+ 	u_int32_t secmark;
+ #endif
+Index: linux-4.1.51/include/zld/zld_cb_data.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-4.1.51/include/zld/zld_cb_data.h	2019-04-12 13:43:03.906258361 +0800
+@@ -0,0 +1,57 @@
++/* Copyright 2012-2035, ZyXEL Communications Corp. All rights reserved. */
++
++#ifndef _ZLD_CB_DATA_H
++#define _ZLD_CB_DATA_H
++
++#include "zld/zld_internal_spec.h"
++
++#ifdef CONFIG_ZLD_SKB_ZLD_CB
++#include <linux/skbuff.h>
++#include <linux/types.h>
++
++#ifdef ZLDCONFIG_SSL_INSPECTION
++#include <zld/zld_sslinsp_common.h>
++#endif
++
++/* Note: Please ensure that each element of this structure is naturally aligned as possible. */
++struct zld_cb_data_struct {
++#ifdef ZLDCONFIG_SSL_INSPECTION
++	union {
++		struct ssl_insp_skb_appdata *appdata;
++		struct ssl_insp_skb_hsdata *hsdata;
++	} sslinsp_skbdata;
++	uint32_t seq;
++	uint32_t end_seq;
++	uint32_t mod_ack_seq;	
++	uint8_t sslinsp_flag;
++	uint8_t sslinsp_ssl_content_type;
++	uint16_t reserved;
++#endif	/* ENDIF_ZLDCONFIG_SSL_INSPECTION */
++#ifdef ZLDCONFIG_IPSEC_QUICKSEC
++	uint32_t from_vpn_id;
++	uint32_t from_vpn_spi;
++#endif /* ZLDCONFIG_IPSEC_QUICKSEC */
++#ifdef ZLDCONFIG_RTCOMPL
++	uint32_t fasthookid;
++#endif
++	uint8_t l4_protocol;
++	uint8_t zldmark;
++#ifdef ZLDCONFIG_ZYSSO
++	uint16_t ssomark;
++#endif
++#ifdef ZLDCONFIG_ZYPKTORDER
++	int (*zypktorder_okfn)(struct sk_buff *);
++#endif
++#ifdef CONFIG_SBG_SKB_MARK
++	uint32_t zextmark;
++#endif /* CONFIG_SBG_SKB_MARK */
++};
++
++#define ZLD_CB_DATA(skb) ((struct zld_cb_data_struct *) ((skb)->zld_cb))
++#define ZLD_CB_DATA_SIZE (sizeof(struct zld_cb_data_struct))
++
++#else	/* !CONFIG_ZLD_SKB_ZLD_CB */
++/*#error "Please enable CONFIG_ZLD_SKB_ZLD_CB feature first!!!"*/
++#endif	/* CONFIG_ZLD_SKB_ZLD_CB */
++
++#endif  /* _ZLD_CB_DATA_H */
+Index: linux-4.1.51/include/zld/zld_internal_spec.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-4.1.51/include/zld/zld_internal_spec.h	2019-04-12 13:43:03.906258361 +0800
+@@ -0,0 +1,204 @@
++/******************************************************************************
++ *
++ *  Copyright (C) 2002-2009 ZyXEL Communications, Corp.
++ *  All Rights Reserved.
++ *
++ * ZyXEL Confidential; Need to Know only.
++ * Protected as an unpublished work.
++ *
++ * The computer program listings, specifications and documentation
++ * herein are the property of ZyXEL Communications, Corp. and shall
++ * not be reproduced, copied, disclosed, or used in whole or in part
++ * for any reason without the prior express written permission of
++ * ZyXEL Communications, Corp.
++ * 
++ * Description
++ * 	This file is created for defining the internal spec in RD's point of view
++ * 	The definition here might be related to zld-spec.h but trasparant to user
++ *
++ *****************************************************************************/
++#ifndef _ZLD_INTERNAL_SPEC_H
++#define _ZLD_INTERNAL_SPEC_H
++
++/*******************************************************************
++*	Kernel Routing Table ID
++*******************************************************************/
++
++/******************************************************************
++*     Netlink nlmsg type
++******************************************************************/
++#define NLMSG_BUILDIN_SERVICE	18
++#define UAMD_NLMSG_INIT_PID 0x100
++
++/*
++ *	ZLD Feature Customized Table ID Definitions
++ */
++/*The rtm_table field on rtnetlink rtmsg using by quagga is only 1 byte length, 
++  so ZLD_ROUTE_TABLE_STATIC_DYANIC can not set over 255 */
++#ifndef ZLDSYSPARM_POLICY_ROUTE_MAX_NUM
++#define ZLDSYSPARM_POLICY_ROUTE_MAX_NUM 0
++#endif
++#ifndef ZLDSYSPARM_VIRTUAL_SERVER_MAX_NUM
++#define ZLDSYSPARM_VIRTUAL_SERVER_MAX_NUM 0
++#endif
++
++#define ZLD_ROUTE_TABLE_IPNP                    250 
++#define ZLD_ROUTE_TABLE_STATIC_DYANIC			251   
++#define ZLD_ROUTE_TABLE_DEFAULT_WAN_TRUNK		252
++#define ZLD_ROUTE_TABLE_UPNP_NATPMP			380
++#define ZLD_ROUTE_TABLE_DIRECT_ROUTE			498
++#define ZLD_ROUTE_TABLE_VPN						499
++#define ZLD_ROUTE_TABLE_DYNAMIC_VPN				499
++#define ZLD_ROUTE_TABLE_VPN_CONCENTRATOR		499
++
++#define ZLD_ROUTE_TABLE_VIRTUAL_SERVER_HIGH_BEGIN	500
++#define ZLD_ROUTE_TABLE_VIRTUAL_SERVER_HIGH_END		(ZLD_ROUTE_TABLE_VIRTUAL_SERVER_HIGH_BEGIN + ZLDSYSPARM_VIRTUAL_SERVER_MAX_NUM - 1)
++
++#define ZLD_ROUTE_TABLE_POLICY_ROUTE_BEGIN			(ZLD_ROUTE_TABLE_VIRTUAL_SERVER_HIGH_END + 1) 
++#define ZLD_ROUTE_TABLE_POLICY_ROUTE_END			(ZLD_ROUTE_TABLE_POLICY_ROUTE_BEGIN + ZLDSYSPARM_POLICY_ROUTE_MAX_NUM - 1)
++
++/* For the chain that the lower priority than Policy Route. For example: Direct Route(Policy Route control Direct Route) */
++#define ZLD_ROUTE_TABLE_OFFSET1                     1000
++
++#define ZLD_ROUTE_TABLE_VPN_1TO1_MAP_BEGIN	(ZLD_ROUTE_TABLE_POLICY_ROUTE_END + ZLD_ROUTE_TABLE_OFFSET1 + 1)
++#define ZLD_ROUTE_TABLE_VPN_1TO1_MAP_END		(ZLD_ROUTE_TABLE_VPN_1TO1_MAP_BEGIN + ZLDSYSPARM_VPN_ONE_TO_ONE_MAPPING_MAX_NUM - 1)
++#define ZLD_ROUTE_TABLE_VIRTUAL_SERVER_LOW_BEGIN	(ZLD_ROUTE_TABLE_VPN_1TO1_MAP_END + 1)
++#define ZLD_ROUTE_TABLE_VIRTUAL_SERVER_LOW_END		(ZLD_ROUTE_TABLE_VIRTUAL_SERVER_LOW_BEGIN + ZLDSYSPARM_VIRTUAL_SERVER_MAX_NUM - 1)
++
++/* For PPTP bind outgoing interface in kernel mode */ 
++#define ZLD_ROUTE_TABLE_PPTP_BIND_IFACE			(ZLD_ROUTE_TABLE_VIRTUAL_SERVER_LOW_END + 1)
++/* 
++ *	All other routing table definition should be defined before this line 
++ *	You might need to update the Max Table ID with the greatest Table ID defined above
++ */
++
++#define ZLD_ROUTE_TABLE_RT_TABLE_MAX			ZLD_ROUTE_TABLE_PPTP_BIND_IFACE
++
++/*******************************************************************
++*	Kernel Routing Preference
++*******************************************************************/
++/*
++ *	Kernel Nature Routing Preference Definitions
++ */
++#define ZLD_ROUTE_PREF_LOCAL_TABLE				0
++
++/*
++ *	ZLD Feature Customized Table ID Definitions
++ */
++#ifdef ZLDCONFIG_IPNP
++#define ZLD_ROUTE_PREF_DIRECT_ROUTE		(ZLD_ROUTE_TABLE_DIRECT_ROUTE - 1)
++#else
++#define ZLD_ROUTE_PREF_DIRECT_ROUTE				ZLD_ROUTE_TABLE_DIRECT_ROUTE
++#endif
++#define ZLD_ROUTE_PREF_IPNP                    ZLD_ROUTE_TABLE_DIRECT_ROUTE 
++#define ZLD_ROUTE_PREF_DYNAMIC_VPN				ZLD_ROUTE_TABLE_DYNAMIC_VPN
++#define ZLD_ROUTE_PREF_VPN_CONCENTRATOR			ZLD_ROUTE_TABLE_VPN_CONCENTRATOR
++
++#define ZLD_ROUTE_PREF_POLICY_ROUTE_BEGIN		ZLD_ROUTE_TABLE_POLICY_ROUTE_BEGIN
++#define ZLD_ROUTE_PREF_POLICY_ROUTE_END			ZLD_ROUTE_TABLE_POLICY_ROUTE_END
++
++#define ZLD_ROUTE_PREF_DIRECT_ROUTE_LOW_PRIO	ZLD_ROUTE_PREF_POLICY_ROUTE_END + 1
++#define ZLD_ROUTE_PREF_IPNP_LOW_PRIO                 	ZLD_ROUTE_PREF_POLICY_ROUTE_END + 2
++
++#define ZLD_ROUTE_PREF_OFFSET1					ZLD_ROUTE_TABLE_OFFSET1
++
++#define ZLD_ROUTE_PREF_VIRTUAL_SERVER_HIGH_BEGIN	ZLD_ROUTE_TABLE_VIRTUAL_SERVER_HIGH_BEGIN
++#define ZLD_ROUTE_PREF_VIRTUAL_SERVER_HIGH_END		ZLD_ROUTE_TABLE_VIRTUAL_SERVER_HIGH_END
++#define ZLD_ROUTE_PREF_VIRTUAL_SERVER_LOW_BEGIN		ZLD_ROUTE_TABLE_VIRTUAL_SERVER_LOW_BEGIN
++#define ZLD_ROUTE_PREF_VIRTUAL_SERVER_LOW_END		ZLD_ROUTE_TABLE_VIRTUAL_SERVER_LOW_END
++#define ZLD_ROUTE_PREF_PPTP_BIND_IFACE			ZLD_ROUTE_TABLE_PPTP_BIND_IFACE
++
++/* Modify for "Static-Dynamic control OneOneNAT(Virtual Server)" */
++#define ZLD_ROUTE_PREF_DYNAMIC_VPN_LOW_PRIO		ZLD_ROUTE_PREF_AUTO_SITE_TO_SITE_VPN
++#define ZLD_ROUTE_PREF_STATIC_DYNAMIC_ROUTE		ZLD_ROUTE_PREF_VIRTUAL_SERVER_LOWER_BEGIN - 1
++#define ZLD_ROUTE_PREF_VIRTUAL_SERVER_LOWER_BEGIN	(ZLD_ROUTE_PREF_VIRTUAL_SERVER_LOWER_END - ZLDSYSPARM_VIRTUAL_SERVER_MAX_NUM + 1)
++#define ZLD_ROUTE_PREF_VIRTUAL_SERVER_LOWER_END		(ZLD_ROUTE_PREF_MAIN_TABLE -2)
++
++#ifndef ZLDCONFIG_INTRA_LINK_SUPPORT
++#define ZLD_ROUTE_PREF_AUTO_SITE_TO_SITE_VPN	ZLD_ROUTE_PREF_STATIC_DYNAMIC_ROUTE - 1
++#else
++#define ZLD_ROUTE_TABLE_INTRA_LINK			264
++#define ZLD_ROUTE_TABLE_INTRA_LINK_PPTP_SERVER		265
++#define ZLD_ROUTE_PREF_INTRA_LINK_PPTP_SERVER_ROUTE	(ZLD_ROUTE_PREF_STATIC_DYNAMIC_ROUTE - 1)
++#define ZLD_ROUTE_PREF_INTRA_LINK_ROUTE			(ZLD_ROUTE_PREF_INTRA_LINK_PPTP_SERVER_ROUTE - 1)
++#define ZLD_ROUTE_PREF_AUTO_SITE_TO_SITE_VPN		(ZLD_ROUTE_PREF_INTRA_LINK_ROUTE - 1)
++#endif //#ifndef ZLDCONFIG_INTRA_LINK_SUPPORT
++
++#define ZLD_ROUTE_PREF_DEFAULT_WAN_TRUNK		ZLD_ROUTE_PREF_MAIN_TABLE - 1
++
++/*
++ *	Kernel Nature Routing Preference Definitions
++ */
++#define ZLD_ROUTE_PREF_MAIN_TABLE				0x7FFE
++#define ZLD_ROUTE_PREF_DEFAULT_TABLE			0x7FFF
++/*******************************************************************
++*	ZyMARK
++*******************************************************************/
++/*
++ *	ZLD Feature used ZyMARK Range Definitions
++ */
++#define ZLD_ZYMARK_POLICY_ROUTE_BEGIN				0x00000001
++#define ZLD_ZYMARK_POLICY_ROUTE_END					(ZLD_ZYMARK_POLICY_ROUTE_BEGIN + ZLDSYSPARM_POLICY_ROUTE_MAX_NUM - 1)
++
++#define ZLD_ZYMARK_VPN_1TO1_MAP_BEGIN				(ZLD_ZYMARK_POLICY_ROUTE_END + 1)
++#define ZLD_ZYMARK_VPN_1TO1_MAP_END				(ZLD_ZYMARK_VPN_1TO1_MAP_BEGIN + ZLDSYSPARM_VPN_ONE_TO_ONE_MAPPING_MAX_NUM - 1)
++#define ZLD_ZYMARK_VIRTUAL_SERVER_BEGIN				(ZLD_ZYMARK_VPN_1TO1_MAP_END + 1)
++#define ZLD_ZYMARK_VIRTUAL_SERVER_END				(ZLD_ZYMARK_VIRTUAL_SERVER_BEGIN + ZLDSYSPARM_VIRTUAL_SERVER_MAX_NUM - 1)
++
++/*
++ *	Special ZyMARK Bit Definitions
++ */
++#define ZLD_ZYMARK_NO_MATCH_IPSEC_POLICY_MARK		0x00FFFFF4
++#define ZLD_ZYMARK_POLICY_ROUTE_UNMATCH_MARK		0x00FFFFFD
++#define ZLD_ZYMARK_VPN_DYNAMIC_RULE_RESERVE_MARK	0x00FFFFFE
++#define ZLD_ZYMARK_VPN_CONCENTRATOR_RESERVE_MARK	0x00FFFFFF
++#define ZLD_ZYMARK_UPNP_NATPMP_HIGH_PRIORITY_MARK	0x00700003
++#define ZLD_ZYMARK_SKIP_FORWARD_CHAIN_BIT			0x01000000
++
++/* ZLDCONFIG_SESSION_STATUS_UPDATE */
++#define ZLD_ZYMARK_IGNORE_CONFIRMED_MARK		0x01
++#define ZLD_ZYMARK_ARTIFICAL_MARK			0x02
++#define ZLD_ZYMARK_CONNECTION_LIMIT_MARK		0x04
++/* Mark packet from Zyreset */
++#define ZLD_ZYMARK_FROM_ZYRESET_MARK			0x08
++#define ZLD_ZYMARK_FROM_PPTP_MARK			0x10
++#define ZLD_ZYMARK_FROM_ZYPKTORDER_DROP_MARK		0x20
++#define ZLD_ZYMARK_IDP_ANOMALY_TEARDROP_MARK		0x40
++#define ZLD_ZYMARK_ENTER_QUICKSEC_MARK			0x80
++
++/*
++ *	Special ZyMARK Mask Definitions
++ */
++#define ZLD_ZYMARK_ZYMARK_HIBIT_MASK				0xFF000000
++#define ZLD_ZYMARK_POLICY_ROUTE_MASK				0x00FFFFFF
++
++
++/*******************************************************************
++*	session_mark
++*******************************************************************/
++
++/*******************************************************************
++*	IPTABLE table/chain/match/target name using by ZLD feature 
++*******************************************************************/
++
++/*******************************************************************
++*	IPTABLE Extension
++*******************************************************************/
++
++/* For NETMAP Target, Support Range Address Type */
++#define ZLD_IPTABLES_NETMAP_RANGE_SUPPORT		1
++
++/* User Level Data: Feature Name */
++#define ZLD_MAX_FEATURE_NAME_LENGTH			64
++/* User Level Data: User Rule Index */
++#define ZLD_IPTABLES_UINDEX_EXTERNAL_DEFAULT		-2
++#define ZLD_IPTABLES_UINDEX_INTERNAL_DEFAULT		-1
++/*******************************************************************
++*	ZLD Feature Internal
++*******************************************************************/
++
++/*******************************************************************
++*	ZLD Feature Name Definitions
++*******************************************************************/
++
++#endif /* _ZLD_INTERNAL_SPEC_H */
+Index: linux-4.1.51/net/ipv4/netfilter/nf_conntrack_l3proto_ipv4_compat.c
+===================================================================
+--- linux-4.1.51.orig/net/ipv4/netfilter/nf_conntrack_l3proto_ipv4_compat.c	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/net/ipv4/netfilter/nf_conntrack_l3proto_ipv4_compat.c	2019-04-12 13:43:03.906258361 +0800
+@@ -249,6 +249,11 @@
+ 
+ #ifdef CONFIG_NF_CONNTRACK_MARK
+ 	seq_printf(s, "mark=%u ", ct->mark);
++#ifdef CONFIG_ZYXEL_EXT_MARK
++    //20180621 Jessy Zyxel
++	if (seq_printf(s, "zextmark=%u ", ct->zextmark))
++		goto release;
++#endif
+ #endif
+ 
+ 	ct_show_secctx(s, ct);
+Index: linux-4.1.51/net/netfilter/Kconfig
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/Kconfig	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/net/netfilter/Kconfig	2019-04-12 13:43:03.906258361 +0800
+@@ -663,6 +663,18 @@
+ 	ctmark), similarly to the packet mark (nfmark). Using this
+ 	target and match, you can set and match on this mark.
+ 
++config NETFILTER_XT_CONNZEXTMARK
++	tristate 'ctmark target and match support'
++	depends on NF_CONNTRACK
++	depends on NETFILTER_ADVANCED
++	select NF_CONNTRACK_MARK
++	---help---
++	This option adds the "SBGCONNMARK" target and "sbgconnmark" match.
++
++	Netfilter allows you to store a mark value per connection (a.k.a.
++	ctmark), similarly to the packet mark (nfmark). Using this
++	target and match, you can set and match on this mark.
++	
+ config NETFILTER_XT_SET
+ 	tristate 'set target and match support'
+ 	depends on IP_SET
+@@ -1305,6 +1317,35 @@
+ 	(e.g. when running oldconfig). It selects
+ 	CONFIG_NETFILTER_XT_MARK (combined mark/MARK module).
+ 
++config ZLD_SKB_ZLD_CB
++    bool 'Enable ZLD_SKB_ZLD_CB on Kernel'
++    depends on NETFILTER_ADVANCED
++	---help---
++	  SBG private mark in skb
++
++	  To compile it, choose Y here.  If unsure, say N.
++
++config SBG_SKB_MARK
++	bool '"zextmark" match support'
++	depends on NETFILTER_ADVANCED
++	---help---
++	  SBG private mark in skb
++
++	  To compile it, choose Y here.  If unsure, say N.
++
++config NETFILTER_XT_MATCH_ZEXTMARK
++	tristate '"zextmark" match support'
++	depends on NETFILTER_ADVANCED
++	depends on SBG_SKB_MARK
++	---help---
++	  SBG private mark in skb
++
++	  To compile it as a module, choose M here.  If unsure, say N.
++
++config ZYXEL_EXT_MARK
++	bool "Support Extension Mark"
++	default n
++
+ config NETFILTER_XT_MATCH_MULTIPORT
+ 	tristate '"multiport" Multiple port match support'
+ 	depends on NETFILTER_ADVANCED
+Index: linux-4.1.51/net/netfilter/Makefile
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/Makefile	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/net/netfilter/Makefile	2019-04-12 13:43:03.906258361 +0800
+@@ -109,6 +109,10 @@
+ # combos
+ obj-$(CONFIG_NETFILTER_XT_MARK) += xt_mark.o
+ obj-$(CONFIG_NETFILTER_XT_CONNMARK) += xt_connmark.o
++#jessy
++ifeq ("$(CONFIG_ZYXEL_EXT_MARK)", "y")
++obj-$(CONFIG_NETFILTER_XT_CONNZEXTMARK) += xt_connzextmark.o
++endif
+ obj-$(CONFIG_NETFILTER_XT_SET) += xt_set.o
+ obj-$(CONFIG_NETFILTER_XT_NAT) += xt_nat.o
+ 
+@@ -192,6 +196,10 @@
+ ifdef BCM_KF # defined(CONFIG_BCM_KF_NETFILTER)
+ obj-$(CONFIG_NETFILTER_XT_MATCH_LAYER7) += xt_layer7.o
+ endif #BCM_KF # defined(CONFIG_BCM_KF_NETFILTER)
++#jessy
++ifeq ("$(CONFIG_ZYXEL_EXT_MARK)", "y")
++obj-$(CONFIG_NETFILTER_XT_MATCH_ZEXTMARK) += xt_zextmark.o
++endif
+ 
+ # ipset
+ obj-$(CONFIG_IP_SET) += ipset/
+Index: linux-4.1.51/net/netfilter/nf_conntrack_core.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/nf_conntrack_core.c	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/net/netfilter/nf_conntrack_core.c	2019-04-12 13:43:03.906258361 +0800
+@@ -1680,6 +1680,9 @@
+ 
+ #ifdef CONFIG_NF_CONNTRACK_MARK
+ 			ct->mark = exp->master->mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++		ct->zextmark = exp->master->zextmark; // 20180621 jessy zyxel
++#endif
+ #endif
+ #ifdef CONFIG_NF_CONNTRACK_SECMARK
+ 			ct->secmark = exp->master->secmark;
+Index: linux-4.1.51/net/netfilter/nf_conntrack_netlink.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/nf_conntrack_netlink.c	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/net/netfilter/nf_conntrack_netlink.c	2019-04-12 13:43:03.906258361 +0800
+@@ -319,6 +319,9 @@
+ static inline int
+ ctnetlink_dump_mark(struct sk_buff *skb, const struct nf_conn *ct)
+ {
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	nla_put_be32(skb, CTA_ZEXTMARK, htonl(ct->zextmark));// 20180621 jessy zyxel
++#endif
+ 	if (nla_put_be32(skb, CTA_MARK, htonl(ct->mark)))
+ 		goto nla_put_failure;
+ 	return 0;
+@@ -714,6 +717,9 @@
+ #endif
+ #ifdef CONFIG_NF_CONNTRACK_MARK
+ 	       + nla_total_size(sizeof(u_int32_t)) /* CTA_MARK */
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	       + nla_total_size(sizeof(u_int32_t)) /* CTA_ZEXTMARK 20180621 jessy zyxel*/
++#endif
+ #endif
+ #ifdef CONFIG_NF_CONNTRACK_ZONES
+ 	       + nla_total_size(sizeof(u_int16_t)) /* CTA_ZONE */
+@@ -835,7 +841,11 @@
+ 	}
+ 
+ #ifdef CONFIG_NF_CONNTRACK_MARK
+-	if ((events & (1 << IPCT_MARK) || ct->mark)
++#ifndef CONFIG_ZYXEL_EXT_MARK
++    if ((events & (1 << IPCT_MARK) || ct->mark)
++#else
++    if ((events & (1 << IPCT_MARK) || ct->mark || ct->zextmark) /* jessy 20180621 zyxel*/
++#endif
+ 	    && ctnetlink_dump_mark(skb, ct) < 0)
+ 		goto nla_put_failure;
+ #endif
+@@ -880,6 +890,12 @@
+ 		u_int32_t val;
+ 		u_int32_t mask;
+ 	} mark;
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	struct { // 20180621 jessy zyxel
++		u_int32_t val;
++		u_int32_t mask;
++	} zextmark;
++#endif
+ };
+ 
+ static struct ctnetlink_filter *
+@@ -911,6 +927,13 @@
+ #ifdef CONFIG_NF_CONNTRACK_MARK
+ 	if ((ct->mark & filter->mark.mask) == filter->mark.val)
+ 		return 1;
++
++#ifdef CONFIG_ZYXEL_EXT_MARK			// 20180621 jessy zyxel
++            if (filter && !((ct->zextmark & filter->zextmark.mask) ==
++					filter->zextmark.val)) {
++				return 1;
++			}
++#endif
+ #endif
+ 
+ 	return 0;
+@@ -1148,6 +1171,9 @@
+ 	[CTA_NAT_SEQ_ADJ_REPLY] = { .type = NLA_NESTED },
+ 	[CTA_ZONE]		= { .type = NLA_U16 },
+ 	[CTA_MARK_MASK]		= { .type = NLA_U32 },
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	[CTA_ZEXTMARK]		= { .type = NLA_U32 }, // 20180620 jessy zyxel
++#endif
+ 	[CTA_LABELS]		= { .type = NLA_BINARY,
+ 				    .len = NF_CT_LABELS_MAX_SIZE },
+ 	[CTA_LABELS_MASK]	= { .type = NLA_BINARY,
+@@ -1247,13 +1273,28 @@
+ 			.done = ctnetlink_done,
+ 		};
+ 
++#ifndef CONFIG_ZYXEL_EXT_MARK
+ 		if (cda[CTA_MARK] && cda[CTA_MARK_MASK]) {
++#else
++		if ((cda[CTA_MARK] && cda[CTA_MARK_MASK]) || cda[CTA_ZEXTMARK]) {  // 20180620 jessy zyxel
++#endif
+ 			struct ctnetlink_filter *filter;
+ 
+ 			filter = ctnetlink_alloc_filter(cda);
+ 			if (IS_ERR(filter))
+ 				return PTR_ERR(filter);
+ 
++#ifdef CONFIG_ZYXEL_EXT_MARK
++            if (cda[CTA_MARK] && cda[CTA_MARK_MASK])   // 20180621 jessy zyxel
++            {
++			    filter->mark.val = ntohl(nla_get_be32(cda[CTA_MARK]));
++			    filter->mark.mask =
++				    ntohl(nla_get_be32(cda[CTA_MARK_MASK]));	
++		    }
++			
++			if (cda[CTA_ZEXTMARK])    // 20180621 jessy zyxel
++			    filter->zextmark.val = ntohl(nla_get_be32(cda[CTA_ZEXTMARK]));
++#endif
+ 			c.data = filter;
+ 		}
+ 		return netlink_dump_start(ctnl, skb, nlh, &c);
+@@ -1753,6 +1794,10 @@
+ #if defined(CONFIG_NF_CONNTRACK_MARK)
+ 	if (cda[CTA_MARK])
+ 		ct->mark = ntohl(nla_get_be32(cda[CTA_MARK]));
++#ifdef CONFIG_ZYXEL_EXT_MARK
++    if (cda[CTA_ZEXTMARK]) // 20180621 jessy zyxel
++		ct->zextmark = ntohl(nla_get_be32(cda[CTA_ZEXTMARK]));
++#endif
+ #endif
+ 
+ 	if (cda[CTA_SEQ_ADJ_ORIG] || cda[CTA_SEQ_ADJ_REPLY]) {
+@@ -1893,6 +1938,10 @@
+ #if defined(CONFIG_NF_CONNTRACK_MARK)
+ 	if (cda[CTA_MARK])
+ 		ct->mark = ntohl(nla_get_be32(cda[CTA_MARK]));
++#ifdef CONFIG_ZYXEL_EXT_MARK
++    if (cda[CTA_ZEXTMARK])  // 20180621 jessy zyxel
++		ct->zextmark = ntohl(nla_get_be32(cda[CTA_ZEXTMARK]));
++#endif
+ #endif
+ 
+ 	/* setup master conntrack: this is a confirmed expectation */
+Index: linux-4.1.51/net/netfilter/nf_conntrack_standalone.c
+===================================================================
+--- linux-4.1.51.orig/net/netfilter/nf_conntrack_standalone.c	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/net/netfilter/nf_conntrack_standalone.c	2019-04-12 13:43:03.906258361 +0800
+@@ -305,6 +305,10 @@
+ 
+ #if defined(CONFIG_NF_CONNTRACK_MARK)
+ 	seq_printf(s, "mark=%u ", ct->mark);
++#ifdef CONFIG_ZYXEL_EXT_MARK
++	if (seq_printf(s, "zextmark=%u ", ct->zextmark)) // 20180621 jessy zyxel
++		goto release;
++#endif
+ #endif
+ 
+ 	ct_show_secctx(s, ct);
+Index: linux-4.1.51/net/netfilter/xt_connzextmark.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-4.1.51/net/netfilter/xt_connzextmark.c	2019-04-12 13:43:03.906258361 +0800
+@@ -0,0 +1,165 @@
++
++
++#include <linux/module.h>
++#include <linux/skbuff.h>
++#include <net/netfilter/nf_conntrack.h>
++#include <net/netfilter/nf_conntrack_ecache.h>
++#include <linux/netfilter/x_tables.h>
++#include <linux/netfilter/xt_connmark.h>
++
++MODULE_AUTHOR("Henrik Nordstrom <hno@marasystems.com>");
++MODULE_DESCRIPTION("Xtables: connection mark operations");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("ipt_CONNZEXTMARK");
++MODULE_ALIAS("ip6t_CONNZEXTMARK");
++MODULE_ALIAS("ipt_connzextmark");
++MODULE_ALIAS("ip6t_connzextmark");
++
++#include "zld/zld_cb_data.h"
++
++static unsigned int
++connmark_tg(struct sk_buff *skb, const struct xt_action_param *par)
++{
++	const struct xt_connmark_tginfo1 *info = par->targinfo;
++	enum ip_conntrack_info ctinfo;
++	struct nf_conn *ct;
++	u_int32_t newmark = 0; //20180622 jessy zyxel
++
++	ct = nf_ct_get(skb, &ctinfo);
++	if (ct == NULL)
++		return XT_CONTINUE;
++
++
++    printk("[%s %d]info->mode[0x%x],ct->zextmark (0x%x),newmark(0x%x)\n",
++            __FUNCTION__,__LINE__,
++            info->mode,ct->zextmark ,newmark);
++
++
++	switch (info->mode) {
++	case XT_CONNMARK_SET:
++		newmark = (ct->zextmark & ~info->ctmask) ^ info->ctmark;
++		if (ct->zextmark != newmark) {
++			ct->zextmark = newmark;
++			nf_conntrack_event_cache(IPCT_MARK, ct);
++		}
++		break;
++	case XT_CONNMARK_SAVE:
++		newmark = (ct->zextmark & ~info->ctmask) ^
++		          (ZLD_CB_DATA(skb)->zextmark & info->nfmask);
++		if (ct->zextmark != newmark) {
++			ct->zextmark = newmark;
++			nf_conntrack_event_cache(IPCT_MARK, ct);
++		}
++		break;
++	case XT_CONNMARK_RESTORE:
++		newmark = (ZLD_CB_DATA(skb)->zextmark & ~info->nfmask) ^
++		          (ct->zextmark & info->ctmask);
++		ZLD_CB_DATA(skb)->zextmark = newmark;
++		break;
++	}
++
++    printk("[%s %d]info->mode[0x%x],ct->zextmark (0x%x),newmark(0x%x)\n",
++            __FUNCTION__,__LINE__,
++            info->mode,ct->zextmark ,newmark);
++            
++	return XT_CONTINUE;
++}
++
++static int connmark_tg_check(const struct xt_tgchk_param *par)
++{
++	int ret;
++
++	ret = nf_ct_l3proto_try_module_get(par->family);
++	if (ret < 0)
++		pr_info("cannot load conntrack support for proto=%u\n",
++			par->family);
++	return ret;
++}
++
++static void connmark_tg_destroy(const struct xt_tgdtor_param *par)
++{
++	nf_ct_l3proto_module_put(par->family);
++}
++
++static bool
++connmark_mt(const struct sk_buff *skb, struct xt_action_param *par)
++{
++	const struct xt_connmark_mtinfo1 *info = par->matchinfo;
++	enum ip_conntrack_info ctinfo;
++	const struct nf_conn *ct;
++    
++    printk("[%s %d]Enter \n",
++            __FUNCTION__,__LINE__);
++            
++	ct = nf_ct_get(skb, &ctinfo);
++	if (ct == NULL)
++		return false;
++
++    printk("[%s %d]return (%d)\n",
++            __FUNCTION__,__LINE__,
++            (((ct->zextmark & info->mask) == info->mark) ^ info->invert));
++            
++	return ((ct->zextmark & info->mask) == info->mark) ^ info->invert;
++}
++
++static int connmark_mt_check(const struct xt_mtchk_param *par)
++{
++	int ret;
++
++	ret = nf_ct_l3proto_try_module_get(par->family);
++	if (ret < 0)
++		pr_info("cannot load conntrack support for proto=%u\n",
++			par->family);
++	return ret;
++}
++
++static void connmark_mt_destroy(const struct xt_mtdtor_param *par)
++{
++	nf_ct_l3proto_module_put(par->family);
++}
++
++static struct xt_target connmark_tg_reg __read_mostly = {
++	.name           = "CONNZEXTMARK",
++	.revision       = 1,
++	.family         = NFPROTO_UNSPEC,
++	.checkentry     = connmark_tg_check,
++	.target         = connmark_tg,
++	.targetsize     = sizeof(struct xt_connmark_tginfo1),
++	.destroy        = connmark_tg_destroy,
++	.me             = THIS_MODULE,
++};
++
++static struct xt_match connmark_mt_reg __read_mostly = {
++	.name           = "connzextmark",
++	.revision       = 1,
++	.family         = NFPROTO_UNSPEC,
++	.checkentry     = connmark_mt_check,
++	.match          = connmark_mt,
++	.matchsize      = sizeof(struct xt_connmark_mtinfo1),
++	.destroy        = connmark_mt_destroy,
++	.me             = THIS_MODULE,
++};
++
++static int __init connmark_mt_init(void)
++{
++	int ret;
++
++	ret = xt_register_target(&connmark_tg_reg);
++	if (ret < 0)
++		return ret;
++	ret = xt_register_match(&connmark_mt_reg);
++	if (ret < 0) {
++		xt_unregister_target(&connmark_tg_reg);
++		return ret;
++	}
++	return 0;
++}
++
++static void __exit connmark_mt_exit(void)
++{
++	xt_unregister_match(&connmark_mt_reg);
++	xt_unregister_target(&connmark_tg_reg);
++}
++
++module_init(connmark_mt_init);
++module_exit(connmark_mt_exit);
+Index: linux-4.1.51/net/netfilter/xt_zextmark.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-4.1.51/net/netfilter/xt_zextmark.c	2019-04-12 13:43:03.906258361 +0800
+@@ -0,0 +1,154 @@
++/*
++ *	xt_zextmark - Netfilter module to match NFMARK value
++ *
++ *	(C) 1999-2001 Marc Boucher <marc@mbsi.ca>
++ *	Copyright © CC Computer Consultants GmbH, 2007 - 2008
++ *	Jan Engelhardt <jengelh@medozas.de>
++ *
++ *	This program is free software; you can redistribute it and/or modify
++ *	it under the terms of the GNU General Public License version 2 as
++ *	published by the Free Software Foundation.
++ */
++
++#include <linux/module.h>
++#include <linux/skbuff.h>
++
++#include <linux/netfilter/xt_mark.h>
++#include <linux/netfilter/x_tables.h>
++
++#include "zld/zld_cb_data.h"
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("Marc Boucher <marc@mbsi.ca>");
++MODULE_DESCRIPTION("Xtables: packet zextmark operations");
++MODULE_ALIAS("ipt_zextmark");
++MODULE_ALIAS("ip6t_zextmark");
++MODULE_ALIAS("ipt_ZEXTMARK");
++MODULE_ALIAS("ip6t_ZEXTMARK");
++
++#if 1 /* ZyXEL QoS, John (porting from MSTC) */
++#include "skb_defines.h"
++#endif
++
++#if 1 /* ZyXEL QoS, John */
++static unsigned int
++mark_tg(struct sk_buff *skb, const struct xt_action_param *par)
++{
++	const struct xt_mark_tginfo2 *markinfo = par->targinfo;
++	int mark = 0;
++
++    printk("[%s %d]markinfo->mode(0x%x) ZLD_CB_DATA(skb)->zextmark(0x%x)\n",
++            __FUNCTION__,__LINE__,
++            markinfo->mode,ZLD_CB_DATA(skb)->zextmark);
++
++	switch (markinfo->mode) {
++		case XT_MARK_SET:
++			mark = markinfo->mark;
++			break;
++
++		case XT_MARK_AND:
++			mark = ZLD_CB_DATA(skb)->zextmark & markinfo->mark;
++			break;
++
++		case XT_MARK_OR:
++			mark = ZLD_CB_DATA(skb)->zextmark | markinfo->mark;
++			break;
++
++		case XT_MARK_VTAG_SET:
++			mark = ZLD_CB_DATA(skb)->zextmark;
++			skb->vtag = (unsigned short)(markinfo->mark);
++			break;
++
++		default:
++			break;
++        }
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG_FEATURE)
++	skb->ipt_check |= IPT_TARGET_MARK;
++	skb->ipt_log.u32[BLOG_ORIGINAL_MARK_INDEX] = ZLD_CB_DATA(skb)->zextmark;
++	skb->ipt_log.u32[BLOG_TARGET_MARK_INDEX] = mark;
++	if (skb->ipt_check & IPT_TARGET_CHECK)
++		return XT_CONTINUE;
++#endif
++    
++	ZLD_CB_DATA(skb)->zextmark = mark;
++    printk("[%s %d]markinfo->mode(0x%x) ZLD_CB_DATA(skb)->zextmark(0x%x)\n",
++            __FUNCTION__,__LINE__,
++            markinfo->mode,ZLD_CB_DATA(skb)->zextmark);
++	return XT_CONTINUE;
++}
++
++#else
++
++static unsigned int
++mark_tg(struct sk_buff *skb, const struct xt_action_param *par)
++{
++	const struct xt_mark_tginfo2 *info = par->targinfo;
++
++#if defined(CONFIG_BCM_KF_BLOG) && defined(CONFIG_BLOG_FEATURE)
++	skb->ipt_check |= IPT_TARGET_MARK;
++	skb->ipt_log.u32[BLOG_ORIGINAL_MARK_INDEX] = ZLD_CB_DATA(skb)->zextmark;
++	skb->ipt_log.u32[BLOG_TARGET_MARK_INDEX] = (ZLD_CB_DATA(skb)->zextmark & ~info->mask) ^
++	   info->mark;
++	if ( skb->ipt_check & IPT_TARGET_CHECK )
++		return XT_CONTINUE;
++#endif
++
++	ZLD_CB_DATA(skb)->zextmark = (ZLD_CB_DATA(skb)->zextmark & ~info->mask) ^ info->mark;
++	return XT_CONTINUE;
++}
++#endif
++
++static bool
++mark_mt(const struct sk_buff *skb, struct xt_action_param *par)
++{
++	const struct xt_mark_mtinfo1 *info = par->matchinfo;
++
++    printk("[%s %d]return (%d)\n",
++            __FUNCTION__,__LINE__,
++            ((ZLD_CB_DATA(skb)->zextmark & info->mask) == info->mark) ^ info->invert);
++            
++	return ((ZLD_CB_DATA(skb)->zextmark & info->mask) == info->mark) ^ info->invert;
++}
++
++static struct xt_target mark_tg_reg __read_mostly = {
++	.name           = "ZEXTMARK",
++	.revision       = 2,
++	.family         = NFPROTO_UNSPEC,
++	.target         = mark_tg,
++	.targetsize     = sizeof(struct xt_mark_tginfo2),
++	.me             = THIS_MODULE,
++};
++
++static struct xt_match mark_mt_reg __read_mostly = {
++	.name           = "zextmark",
++	.revision       = 1,
++	.family         = NFPROTO_UNSPEC,
++	.match          = mark_mt,
++	.matchsize      = sizeof(struct xt_mark_mtinfo1),
++	.me             = THIS_MODULE,
++};
++
++static int __init mark_mt_init(void)
++{
++	int ret;
++
++	ret = xt_register_target(&mark_tg_reg);
++	if (ret < 0)
++		return ret;
++	ret = xt_register_match(&mark_mt_reg);
++	if (ret < 0) {
++		xt_unregister_target(&mark_tg_reg);
++		return ret;
++	}
++	return 0;
++}
++
++static void __exit mark_mt_exit(void)
++{
++	xt_unregister_match(&mark_mt_reg);
++	xt_unregister_target(&mark_tg_reg);
++}
++
++module_init(mark_mt_init);
++module_exit(mark_mt_exit);
+Index: linux-4.1.51/include/uapi/linux/netfilter/nfnetlink_conntrack.h
+===================================================================
+--- linux-4.1.51.orig/include/uapi/linux/netfilter/nfnetlink_conntrack.h	2019-04-12 13:22:22.000000000 +0800
++++ linux-4.1.51/include/uapi/linux/netfilter/nfnetlink_conntrack.h	2019-04-12 13:59:13.928552352 +0800
+@@ -51,6 +51,7 @@
+ 	CTA_SECCTX,
+ 	CTA_TIMESTAMP,
+ 	CTA_MARK_MASK,
++	CTA_ZEXTMARK,  // zyxel jessy 20180621
+ 	CTA_LABELS,
+ 	CTA_LABELS_MASK,
+ #if defined(CONFIG_BCM_KF_DPI) && defined(CONFIG_BCM_DPI_MODULE)

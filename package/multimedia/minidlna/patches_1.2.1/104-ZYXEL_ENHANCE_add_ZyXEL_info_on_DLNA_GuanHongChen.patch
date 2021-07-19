@@ -1,0 +1,43 @@
+Index: minidlna-1.2.1/configure
+===================================================================
+--- minidlna-1.2.1.orig/configure	2020-04-10 15:24:59.143302000 +0800
++++ minidlna-1.2.1/configure	2020-04-10 15:27:24.635726488 +0800
+@@ -7843,32 +7843,32 @@
+ # Default string definitions
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define OS_URL "http://sourceforge.net/projects/minidlna/"
++#define OS_URL "http://www.zyxel.com"
+ _ACEOF
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define ROOTDEV_MANUFACTURER "Justin Maggard"
++#define ROOTDEV_MANUFACTURER "ZyXEL Corporation."
+ _ACEOF
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define ROOTDEV_MANUFACTURERURL "http://www.netgear.com/"
++#define ROOTDEV_MANUFACTURERURL "http://www.zyxel.com"
+ _ACEOF
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define ROOTDEV_MODELNAME "Windows Media Connect compatible (MiniDLNA)"
++#define ROOTDEV_MODELNAME "Windows Media Connect compatible"
+ _ACEOF
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define ROOTDEV_MODELDESCRIPTION "MiniDLNA on " OS_NAME
++#define ROOTDEV_MODELDESCRIPTION "ZyXEL Digital Media Server Ver 2.1.2"
+ _ACEOF
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define ROOTDEV_MODELURL OS_URL
++#define ROOTDEV_MODELURL "http://www.zyxel.com"
+ _ACEOF
+ 
+ 

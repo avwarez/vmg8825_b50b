@@ -1,0 +1,173 @@
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98_handle.h	2020-04-10 20:40:29.994085142 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98_handle.h	2020-04-10 20:40:30.002085142 +0800
+@@ -268,6 +268,8 @@
+ #define TR98_SEC		              "InternetGatewayDevice.X_ZYXEL_EXT.Security"
+ #define TR98_SEC_CERT		          "InternetGatewayDevice.X_ZYXEL_EXT.Security.Certificate.i"
+ #define TR98_GUI_CUSTOMIZATION		  "InternetGatewayDevice.X_ZYXEL_EXT.GUI_Customization"
++#define TR98_DSL                      "InternetGatewayDevice.X_ZYXEL_EXT.DSL"
++
+ 
+ 
+ #ifdef ONECONNECT
+@@ -710,6 +712,7 @@
+ //{TR98_SEC_CERT,  		        ATTR_INDEX_CREA,para_SecCert, 		    zyExtSecCertObjGet,				zyExtSecCertObjSet,  		zyExtSecCertObjAdd, zyExtSecCertObjDel, zyExtSecCertObjNotify, zyExtSecCertObjAttrGet, zyExtSecCertObjAttrSet},
+ {TR98_SEC_CERT,  		        ATTR_INDEX_CREA,para_SecCert, 		    zyExtSecCertObjGet,				zyExtSecCertObjSet,  		zyExtSecCertObjAdd, zyExtSecCertObjDel, NULL, NULL, NULL},
+ {TR98_GUI_CUSTOMIZATION,		0,				para_GUI_Customization, zyExtCustomizationObjGet,	 	zyExtCustomizationObjSet,	NULL,	NULL,	NULL,	NULL,	NULL},
++{TR98_DSL,                      0,              para_DSL,				zyExtDSLGet,					zyExtDSLSet,				NULL,	NULL,	NULL,	NULL,	NULL},
+ #ifdef ONECONNECT
+ {TR98_ONECONNECT,	0, 				para_OneConnect,		zyExtOneConnectObjGet,		 zyExtOneConnectObjSet,		   NULL,             NULL,            NULL},
+ {TR98_ONECONNECT_SPEEDTESTINFO,	0, 				para_SpeedTestInfo,		zyExtSpeedTestInfoObjGet,		 zyExtSpeedTestInfoObjSet,		   NULL,             NULL,            NULL},
+Index: libzcfg_fe_tr98-1.0/zyExt.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt.h	2020-04-10 20:40:29.830085147 +0800
++++ libzcfg_fe_tr98-1.0/zyExt.h	2020-04-10 20:40:30.002085142 +0800
+@@ -64,6 +64,8 @@
+ extern tr98Parameter_t para_Feature_Flag[];
+ extern tr98Parameter_t para_GUI_Customization[];
+ 
++extern tr98Parameter_t para_DSL[];
++
+ #ifdef BUILD_SONIQ
+ extern tr98Parameter_t para_Qsteer[];
+ #endif
+@@ -360,6 +362,9 @@
+ extern zcfgRet_t zyExtCustomizationObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
+ extern zcfgRet_t zyExtCustomizationObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
+ 
++extern zcfgRet_t zyExtDSLGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
++extern zcfgRet_t zyExtDSLSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault);
++
+ #ifdef ZYXEL_EASYMESH
+ extern zcfgRet_t zyExtEasyMeshObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag);
+ extern zcfgRet_t zyExtEasyMeshObjSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj);
+Index: libzcfg_fe_tr98-1.0/zyExt.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt.c	2020-04-10 20:40:29.946085144 +0800
++++ libzcfg_fe_tr98-1.0/zyExt.c	2020-04-10 20:40:30.002085142 +0800
+@@ -8026,6 +8026,94 @@
+ 	return ZCFG_SUCCESS;
+ }
+ 
++// InternetGatewayDevice.X_ZYXEL_EXT.DSL
++zcfgRet_t zyExtDSLGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)
++{
++	zcfgRet_t rst;
++	objIndex_t objIid;
++	struct json_object *dslObj = NULL;
++	struct json_object *paramValue = NULL;
++	tr98Parameter_t *parmList = NULL;
++	IID_INIT(objIid);
++	if((rst = feObjJsonGet(RDM_OID_DSL, &objIid, &dslObj, updateFlag)) != ZCFG_SUCCESS){
++
++		return rst;
++	}
++
++	*tr98Jobj = json_object_new_object();
++	parmList = tr98Obj[handler].parameter;
++	while(parmList->name != NULL){
++		paramValue = json_object_object_get(dslObj, parmList->name);
++		if(paramValue){
++			json_object_object_add(*tr98Jobj, parmList->name, JSON_OBJ_COPY(paramValue));
++			parmList++;
++			continue;
++		}
++
++		parmList++;
++	}
++
++	json_object_put(dslObj);
++	return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zyExtDSLSet(char *tr98FullPathName, int handler, struct json_object *tr98Jobj, struct json_object *multiJobj, char *paramfault)
++{
++	zcfgRet_t rst;
++	objIndex_t objIid;
++	struct json_object *dslObj = NULL, *tmpObj;
++	struct json_object *paramValue = NULL;
++	tr98Parameter_t *parmList = NULL;
++
++	printf("%s : Enter\n", __FUNCTION__);
++
++	IID_INIT(objIid);
++	//sscanf(tr98FullPathName, " ");
++
++	if((rst = zcfgFeObjJsonGet(RDM_OID_DSL, &objIid, &dslObj)) != ZCFG_SUCCESS)
++		return rst;
++
++	if(multiJobj){
++		tmpObj = dslObj;
++		dslObj = NULL;
++		dslObj = zcfgFeJsonMultiObjAppend(RDM_OID_DSL, &objIid, multiJobj, tmpObj);
++		json_object_put(tmpObj);
++	}
++
++	parmList = tr98Obj[handler].parameter;
++	while(parmList->name != NULL) {
++		/*Write new parameter value from tr98 object to tr181 objects*/
++		if(!strcmp(parmList->name, "X_ZYXEL_ModemLabID")) {
++			sprintf(paramfault, "%s.%s", tr98FullPathName, parmList->name);
++			paramValue = json_object_object_get(tr98Jobj, parmList->name);
++			if(paramValue != NULL && json_object_get_string(paramValue)) {
++				json_object_object_add(dslObj, parmList->name, JSON_OBJ_COPY(paramValue));
++
++			}
++		}else{
++
++			printf("Can't find parameter %s in TR181\n", parmList->name);
++		}
++
++		parmList++;
++	}
++
++	if(multiJobj){
++		//json_object_put(tmpObj);
++	}
++	else{
++		if((rst = zcfgFeObjJsonSet(RDM_OID_DSL, &objIid, dslObj, NULL)) != ZCFG_SUCCESS ) {
++			json_object_put(dslObj);
++			return rst;
++		}
++		json_object_put(dslObj);
++	}
++
++	return ZCFG_SUCCESS;
++
++
++}
++
+ #ifdef ZYXEL_EASYMESH
+ /* InternetGatewayDevice.X_ZYXEL_EXT.EasyMesh */
+ zcfgRet_t zyExtEasyMeshObjGet(char *tr98FullPathName, int handler, struct json_object **tr98Jobj, bool updateFlag)
+Index: libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zcfg_fe_tr98.c	2020-04-10 20:40:29.994085142 +0800
++++ libzcfg_fe_tr98-1.0/zcfg_fe_tr98.c	2020-04-10 20:40:30.002085142 +0800
+@@ -382,6 +382,7 @@
+ {e_TR98_SEC		          		, &tr98Obj[e_TR98_SEC		              -e_TR98_START]},
+ {e_TR98_SEC_CERT		        , &tr98Obj[e_TR98_SEC_CERT		   		  -e_TR98_START]},
+ {e_TR98_GUI_CUSTOMIZATION		, &tr98Obj[e_TR98_GUI_CUSTOMIZATION		  -e_TR98_START]},
++{e_TR98_DSL						, &tr98Obj[e_TR98_DSL					  -e_TR98_START]},
+ #ifdef ONECONNECT
+ {e_TR98_ONECONNECT		       , &tr98Obj[e_TR98_ONECONNECT	     -e_TR98_START]},
+ {e_TR98_ONECONNECT_SPEEDTESTINFO	, &tr98Obj[e_TR98_ONECONNECT_SPEEDTESTINFO            -e_TR98_START]},
+Index: libzcfg_fe_tr98-1.0/zyExt_parameter.h
+===================================================================
+--- libzcfg_fe_tr98-1.0.orig/zyExt_parameter.h	2020-04-10 20:40:29.954085143 +0800
++++ libzcfg_fe_tr98-1.0/zyExt_parameter.h	2020-04-10 20:40:30.002085142 +0800
+@@ -466,6 +466,13 @@
+ };
+ #endif //#ifdef ZYXEL_ONESSID
+ 
++
++tr98Parameter_t para_DSL[] =
++{
++	{ "X_ZYXEL_ModemLabID", PARAMETER_ATTR_WRITE, 13, json_type_string},
++	{ NULL, 0, 0, 0}
++};
++
+ #ifdef BUILD_SONIQ
+ tr98Parameter_t para_Qsteer[] = {
+ 	{ "Enable", PARAMETER_ATTR_WRITE, 0, json_type_boolean},

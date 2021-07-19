@@ -1,0 +1,22 @@
+Index: libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2020-05-06 16:08:31.559506698 +0800
++++ libzcfg_fe_dal-1.0/maintenance/mgmt/zcfg_fe_dal_mgmt.c	2020-05-06 16:32:15.283491557 +0800
+@@ -21,7 +21,7 @@
+ 	{"ConnectionRequestPassword", dalType_string, 0, 256, NULL},	
+ 	{"PeriodicInformEnable", dalType_boolean, 0, 0, NULL},	
+ 	{"PeriodicInformInterval", dalType_int, 30, 2147483647, NULL},
+-	{"PeriodicInformTime", dalType_string, 0, 256, dalcmd_Forbid},
++	{"PeriodicInformTime", dalType_string, 0, 256, NULL, NULL, dalcmd_Forbid},
+ 	{"X_ZYXEL_ActiveNotifyUpdateInterval", dalType_int, 0, 0, NULL, NULL, dalcmd_Forbid},
+ 	{"DebugLevelEnable", dalType_int, 0, 0, NULL},
+ 	{"DebugLevelDisable", dalType_int, 0, 0, NULL},
+@@ -33,7 +33,7 @@
+ 	{"DisplaySOAP", dalType_boolean, 0, 0, NULL},
+ 	{"EnableAuthentication", dalType_boolean, 0, 0, NULL, NULL},	
+ 	{"BoundInterfaceMode", dalType_string, 0, 256, NULL, "Any_WAN|Multi_WAN", hidden_extender_dalcmd_param},
+-	{"BoundInterfaceList", dalType_MultiRtWanWWan, 0, 256, NULL, hidden_extender_dalcmd_param},
++	{"BoundInterfaceList", dalType_MultiRtWanWWan, 0, 256, NULL, NULL, hidden_extender_dalcmd_param},
+ 	{"ConnectionRequestURL", dalType_string, 0, 0, NULL, NULL, dalcmd_Forbid},
+ 	{"CheckCert", dalType_boolean, 0, 0,NULL},
+ 	{"DataModelSpec", dalType_string, 0, 256, NULL, "TR-098|TR-181"},

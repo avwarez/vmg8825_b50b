@@ -1,0 +1,106 @@
+Index: libzyutil-1.0/flash.c
+===================================================================
+--- libzyutil-1.0.orig/flash.c	2020-01-16 10:12:29.110274762 +0000
++++ libzyutil-1.0/flash.c	2020-01-16 10:17:33.266271861 +0000
+@@ -78,15 +78,17 @@
+ zcfgRet_t zyUtilMtdDevGetByName(char *mtdname, char *mtddev)
+ {
+ 	zcfgRet_t ret = ZCFG_NOT_FOUND;
+-	FILE *fptr = NULL;
+ 	char mtd[8], size[12], erasesize[12], name[16], tmpname[16];
+ 	int len = 0;
+ #if 1 //I-Chia 20191112
+ 	char tmp_cat[32] = {0};
+ 	char template[32] = {0};
++	int  fd_template;
++	FILE * fp_template;
++
+ 	strcpy(template, mtd_FILE_X);
+ 
+-	if (mkstemp(template) < 0 )
++	if ((fd_template = mkstemp(template)) < 0 )
+ 	{
+ 		printf("%s: Can't create MRD file!\n",__FUNCTION__);
+ 	}
+@@ -95,7 +97,8 @@
+ #if 1 //#ifdef ZYXEL_WWAN
+ 	FILE *fp = NULL;
+ 
+-	if(!strcmp(mtdname, WWAN_PARTITION_NAME)){
++	if(!strcmp(mtdname, WWAN_PARTITION_NAME))
++	{
+ #if 1 //I-Chia 20191112
+ 		fp = popen(tmp_cat, "r");
+ #else
+@@ -104,43 +107,39 @@
+ 		if(fp != NULL)
+ 			pclose(fp);
+ 	}
+-	else 
+-#endif
+-#if 1 //I-Chia 20191112
+-	system(tmp_cat);
+-    if((fptr = fopen(template, "r")) == NULL) {
+-#else
+-	system("cat /proc/mtd > /tmp/mtd");
+-    if((fptr = fopen("/tmp/mtd", "r")) == NULL) {
++	else
++	{
++		system(tmp_cat);
++	}
+ #endif
+-        printf("Can't open file\n");
+-    }
+-	else {
+-		sprintf(tmpname, "\"%s\"", mtdname);
+-
+-		fscanf(fptr, "%s%s%s%s", mtd, size, erasesize, name);
+-		while(!feof(fptr)) {
+-			if(strstr(mtd, "dev") != NULL) { //skip first line
+-				fscanf(fptr, "%s%s%s%s", mtd, size, erasesize, name);
+-				continue;
+-			}
+-
+-			if(!strcmp(name, tmpname)) {
+-				// Delete ':'
+-				len = strlen(mtd);
+-				mtd[len-1] = '\0';
+-				sprintf(mtddev, "/dev/%s", mtd);
+-				ret = ZCFG_SUCCESS;
+-				printf("Find MTD Device %s with name %s.\n", mtddev, mtdname);
+-				break;
+-			}
+ 
+-			fscanf(fptr, "%s%s%s%s", mtd, size, erasesize, name);
+-        }
++	fp_template = fdopen(fd_template, "r");
++	sprintf(tmpname, "\"%s\"", mtdname);
+ 
+-        fclose(fptr);
++	fscanf(fp_template, "%s%s%s%s", mtd, size, erasesize, name);
++	while(!feof(fp_template))
++	{
++		if(strstr(mtd, "dev") != NULL)
++		{ //skip first line
++			fscanf(fp_template, "%s%s%s%s", mtd, size, erasesize, name);
++			continue;
++		}
++
++		if(!strcmp(name, tmpname))
++		{
++			// Delete ':'
++			len = strlen(mtd);
++			mtd[len-1] = '\0';
++			sprintf(mtddev, "/dev/%s", mtd);
++			ret = ZCFG_SUCCESS;
++			printf("Find MTD Device %s with name %s.\n", mtddev, mtdname);
++			break;
++		}
++		fscanf(fp_template, "%s%s%s%s", mtd, size, erasesize, name);
+ 	}
+ 
++		fclose(fp_template);
++
+ #if 1 // I-Chia 20191112
+ 	remove(template);
+ #else

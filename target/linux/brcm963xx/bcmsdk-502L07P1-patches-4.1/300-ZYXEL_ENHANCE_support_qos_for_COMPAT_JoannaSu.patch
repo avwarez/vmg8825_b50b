@@ -1,0 +1,94 @@
+Index: linux-4.1.52/include/uapi/linux/netfilter/xt_policer.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter/xt_policer.h	2018-11-14 23:26:57.639418469 +0800
++++ linux-4.1.52/include/uapi/linux/netfilter/xt_policer.h	2018-11-15 08:51:12.954784876 +0800
+@@ -5,7 +5,8 @@
+ #define KILO_SCALE 1000
+ 
+ struct xt_policerinfo {
+-#if 1//__MSTC__, Jones For compilation
++//#if 1//__MSTC__, Jones For compilation
++#ifndef CONFIG_COMPAT /* <Zyxel> <JoannaSu>, <20181115>, <support CONFIG_COMPAT> */
+     int policerMode;
+ 
+     /* For srTCM and trTCM, rate means cRate and burst means cbsBurst.
+Index: linux-4.1.52/net/netfilter/xt_policer.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/xt_policer.c	2018-11-14 23:26:57.643420469 +0800
++++ linux-4.1.52/net/netfilter/xt_policer.c	2018-11-15 08:54:31.450458344 +0800
+@@ -47,7 +47,8 @@
+ static bool ipt_policer_match(const struct sk_buff *skb, struct xt_action_param *par)
+ #endif //__MSTC__, richard, QoS
+ {
+-#if 1//__MSTC__, Jones For compilation
++//#if 1//__MSTC__, Jones For compilation
++#ifndef CONFIG_COMPAT /* <Zyxel> <JoannaSu>, <20181115>, <support CONFIG_COMPAT> */
+ 	struct xt_policerinfo *r = (struct xt_policerinfo *)par->matchinfo;
+ 	unsigned long now = jiffies;
+ 	unsigned long timePassed = 0;
+@@ -190,7 +191,8 @@
+ }
+ 
+ 
+-#if 1//__MSTC__, Jones For compilation
++//#if 1//__MSTC__, Jones For compilation
++#ifndef CONFIG_COMPAT /* <Zyxel> <JoannaSu>, <20181115>, <support CONFIG_COMPAT> */
+ /* Precision saver. */
+ /* As a policer rule added, this function will be executed */
+ static int
+@@ -249,7 +251,12 @@
+                        void *matchinfo,
+                        unsigned int hook_mask)
+ #else
++#if 1 /* <Zyxel> <JoannaSu>, <20181115>, <support CONFIG_COMPAT> */
++static int
++#else
+ static bool
++#endif
++
+ ipt_policer_checkentry(const struct xt_mtchk_param *par)
+ #endif //__MSTC__, richard, QoS
+ {
+@@ -275,7 +282,7 @@
+ }
+ #endif
+ 
+-////#if 0 /* We do not know what this is for. Comment it temporarily. ZyXEL Birken, 20100107. */
++#if 0 /* We do not know what this is for. Comment it temporarily. ZyXEL Birken, 20100107. */
+ #ifdef CONFIG_COMPAT
+ struct compat_xt_rateinfo {
+ 	u_int32_t avg;
+@@ -312,7 +319,8 @@
+ 		.burst            = m->burst,
+ 		.prev             = m->prev,
+ 		.credit           = m->credit,
+-#if 1//__MSTC__, Jones For compilation
++//#if 1//__MSTC__, Jones For compilation
++#ifndef CONFIG_COMPAT /* <Zyxel> <JoannaSu>, <20181115>, <support CONFIG_COMPAT> */
+ 		.credit_cap     = m->creditCap,
+ #else
+ 		.credit_cap     = m->credit_cap,
+@@ -323,7 +331,7 @@
+ 	return copy_to_user(dst, &cm, sizeof(cm)) ? -EFAULT : 0;
+ }
+ #endif /* CONFIG_COMPAT */
+-////#endif
++#endif
+ 
+ #if 0 //__MSTC__, richard, QoS
+ static struct xt_match xt_policer_match[] __read_mostly = {
+@@ -340,11 +348,14 @@
+         .checkentry        = ipt_policer_checkentry,
+         .match             = ipt_policer_match,
+         .matchsize         = sizeof(struct xt_policerinfo),
++
++#if 0 /* <Zyxel> <JoannaSu>, <20181115>, <We do not know what this is for. Comment it temporarily> */
+ #ifdef CONFIG_COMPAT
+         .compatsize        = sizeof(struct compat_xt_rateinfo),
+         .compat_from_user  = compat_from_user,
+         .compat_to_user    = compat_to_user,
+ #endif
++#endif
+         .me                = THIS_MODULE,
+ #if 0 //__MSTC__, richard, QoS
+     },

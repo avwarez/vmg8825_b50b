@@ -1,0 +1,17 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-03-18 14:14:32.908039982 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-03-18 14:15:33.896814552 +0800
+@@ -516,7 +516,11 @@
+ 	if(wifiOneSsidObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ONE_SSID, &wifiOneSsidIid, wifiOneSsidObj, NULL);
+ #endif
+ 	if(wifiApObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT, &wifiApIid, wifiApObj, NULL);
+-	if(wifiSecObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT_SEC, &wifiSecIid, wifiSecObj, NULL);
++#ifdef ABVG_CUSTOMIZATION
++	if(wifiSecObj) zcfgFeObjJsonSet(RDM_OID_WIFI_ACCESS_POINT_SEC, &wifiSecIid, wifiSecObj, NULL);
++#else
++	if(wifiSecObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_ACCESS_POINT_SEC, &wifiSecIid, wifiSecObj, NULL);	
++#endif
+ 	if(wifiRadioObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_RADIO, &wifiRadioIid, wifiRadioObj, NULL);
+ 	if(wifiSchedObj) zcfgFeObjJsonSetWithoutApply(RDM_OID_WLAN_SCHEDULER, &wifiSchedIid, wifiSchedObj, NULL);
+ 	if(wifiSsidObj)zcfgFeObjJsonBlockedSet(RDM_OID_WIFI_SSID, &wifiSsidIid, wifiSsidObj, NULL);

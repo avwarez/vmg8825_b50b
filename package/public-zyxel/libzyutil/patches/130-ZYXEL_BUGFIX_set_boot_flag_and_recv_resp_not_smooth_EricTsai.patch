@@ -1,0 +1,15 @@
+Index: libzyutil-1.0/ECONET/libzyutil_wrapper.c
+===================================================================
+--- libzyutil-1.0.orig/ECONET/libzyutil_wrapper.c	2020-07-14 14:33:14.781927093 +0800
++++ libzyutil-1.0/ECONET/libzyutil_wrapper.c	2020-07-14 14:19:21.842899100 +0800
+@@ -584,8 +585,8 @@
+ 	sprintf(sysCmd,FLASH_WRITE_CMD,BOOT_FLAG_FILE,(long unsigned int)BOOT_FLAG_SIZE,(long unsigned int)BOOT_FLAG_OFFSET,RESERVEAREA_NAME);
+ 	//system(sysCmd);
+ 	//printf("%s:sysCmd = %s\n", __FUNCTION__, sysCmd);
+-
+-	zyUtilReqSendWithResponse(ZCFG_MSG_FAKEROOT_COMMAND_REPLY, ZCFG_EID_SYS_CMD, ZCFG_EID_ESMD_GROUND, strlen(sysCmd), sysCmd, (char**)&sysCmd_reply);
++	zcfgEid_t id = zcfgMsgQueryCurrentEid();
++	zyUtilReqSendWithResponse(ZCFG_MSG_FAKEROOT_COMMAND_REPLY, id, ZCFG_EID_ESMD_GROUND, strlen(sysCmd), sysCmd, (char**)&sysCmd_reply);
+ 
+     //if((sysCmd_reply == NULL) && strcmp(sysCmd_reply, "1") != 0){
+     if(!sysCmd_reply || (sysCmd_reply && strcmp(sysCmd_reply, "1") != 0)){

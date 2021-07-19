@@ -1,0 +1,26 @@
+Index: linux-4.1.52/include/uapi/linux/netfilter/xt_AUTOMAP.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter/xt_AUTOMAP.h	2019-06-14 14:49:25.242043556 +0800
++++ linux-4.1.52/include/uapi/linux/netfilter/xt_AUTOMAP.h	2019-06-14 17:26:31.891330900 +0800
+@@ -52,7 +52,7 @@
+ unsigned short vlan8021pToDSCP[8]= {0x00,0x00,0x00,0x08,0x10,0x18,0x28,0x38};
+ unsigned short dscpPrecedenceTo8021p[8] = {0,3,4,5,6,6,7,7};
+ 
+-unsigned short vlan8021pToPriorityQueue[8] = {2,0,1,3,4,5,6,7};
++unsigned short vlan8021pToPriorityQueue[8] = {1,0,2,3,4,5,6,7};
+ unsigned short dscpPrecedenceToPriorityQueue[8] = {2,3,4,5,6,6,7,7};
+ 
+ /* target info */
+Index: linux-4.1.52/include/uapi/linux/netfilter_bridge/ebt_AUTOMAP.h
+===================================================================
+--- linux-4.1.52.orig/include/uapi/linux/netfilter_bridge/ebt_AUTOMAP.h	2019-06-14 14:49:25.242043556 +0800
++++ linux-4.1.52/include/uapi/linux/netfilter_bridge/ebt_AUTOMAP.h	2019-06-14 17:26:59.550390100 +0800
+@@ -37,7 +37,7 @@
+ 		
+ 
+ /* accoding to tr181 8021p to DSCP mapping table(upstream), higher value higher priority*/
+-unsigned short vlan8021pToPriorityQueue[8] = {2,0,1,3,4,5,6,7};
++unsigned short vlan8021pToPriorityQueue[8] = {1,0,2,3,4,5,6,7};
+ unsigned short dscpPrecedenceToPriorityQueue[8] = {2,3,4,5,6,6,7,7};
+ 
+ 

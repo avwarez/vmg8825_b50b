@@ -1,0 +1,67 @@
+Index: linux-4.1.52/Makefile
+===================================================================
+--- linux-4.1.52.orig/Makefile	2018-01-17 11:46:03.510867639 +0800
++++ linux-4.1.52/Makefile	2018-01-17 11:46:03.990867639 +0800
+@@ -15,7 +15,7 @@
+ # o Look for make include files relative to root of kernel src
+ MAKEFLAGS += -rR --include-dir=$(CURDIR)
+ 
+-BRCMDRIVERS_DIR_RELATIVE = ../../bcmdrivers
++BRCMDRIVERS_DIR_RELATIVE = $(BCM_BUILD_DIR)/bcmdrivers
+ # Avoid funny character set dependencies
+ unexport LC_ALL
+ LC_COLLATE=C
+@@ -299,6 +299,14 @@
+ 
+ HOSTCC       = gcc
+ HOSTCXX      = g++
++
++# ENV variable 'BCM_BUILD_DIR' will pass from OpenWRT build system
++# Needs some ENV variables/Compilation flags which defined in BRCM SDK
++ifndef BCM_BUILD_DIR
++$(error "You should define 'BCM_BUILD_DIR'")
++endif
++include $(BCM_BUILD_DIR)/make.common
++
+ ifdef BCM_KF # defined(CONFIG_BCM_KF_MISC_MAKEFILE)
+ BCM_FATAL_CC_WARNING_FLAGS := -Werror -Wfatal-errors -Wno-date-time -Wno-declaration-after-statement -Wno-switch-bool
+ 
+Index: linux-4.1.52/init/main.c
+===================================================================
+--- linux-4.1.52.orig/init/main.c	2018-01-17 11:46:03.430867639 +0800
++++ linux-4.1.52/init/main.c	2018-01-17 11:46:03.990867639 +0800
+@@ -959,7 +959,8 @@
+ 		panic("Requested init %s failed (error %d).",
+ 		      execute_command, ret);
+ 	}
+-	if (!try_to_run_init_process("/sbin/init") ||
++	if (!try_to_run_init_process("/etc/preinit") ||
++	    !try_to_run_init_process("/sbin/init") ||
+ 	    !try_to_run_init_process("/etc/init") ||
+ 	    !try_to_run_init_process("/bin/init") ||
+ 	    !try_to_run_init_process("/bin/sh"))
+Index: linux-4.1.52/net/core/Makefile
+===================================================================
+--- linux-4.1.52.orig/net/core/Makefile	2018-01-17 11:46:03.530867639 +0800
++++ linux-4.1.52/net/core/Makefile	2018-01-17 20:37:44.632545937 +0800
+@@ -5,6 +5,7 @@
+ ifdef BCM_KF # defined(CONFIG_BCM_KF_BLOG)
+ EXTRA_CFLAGS	+= -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD)
+ EXTRA_CFLAGS	+= -I$(INC_BRCMSHARED_PUB_PATH)/bcm963xx
++EXTRA_CFLAGS	+= -I$(BCM_BUILD_DIR)
+ endif # BCM_KF
+ 
+ obj-y := sock.o request_sock.o skbuff.o datagram.o stream.o scm.o \
+Index: linux-4.1.52/net/core/blog.c
+===================================================================
+--- linux-4.1.52.orig/net/core/blog.c	2018-01-17 11:46:03.526867639 +0800
++++ linux-4.1.52/net/core/blog.c	2018-01-17 20:37:51.747447940 +0800
+@@ -74,7 +74,7 @@
+ #include <net/dsfield.h>
+ #include <linux/netfilter/xt_dscp.h>
+ #if defined(CONFIG_BCM_KF_MAP) || defined(CONFIG_BCM_MAP_MODULE)
+-#include "../../../bcmdrivers/opensource/char/map/impl1/ivi_map.h"
++#include "bcmdrivers/opensource/char/map/impl1/ivi_map.h"
+ #endif
+ #include <blog_ioctl.h>
+ 

@@ -1,0 +1,39 @@
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2020-03-05 01:00:41.920387563 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2020-03-05 01:06:42.239371830 +0800
+@@ -212,6 +212,13 @@
+ 	//int schIdx, schIndex;
+ 	int startHour = 0, startMin = 0, stopHour = 0, stopMin = 0;
+ 	const char *TR181Path;
++	struct json_object *tmpValue = NULL;
++
++	if(NULL == tr181Jobj || ( (NULL != tr181Jobj) && ( false == json_object_object_get_ex(tr181Jobj, "Enable", tmpValue)) ) )
++	{
++		printf("%s: empty object\n",__FUNCTION__);
++		return ZCFG_SUCCESS;
++	}
+ 
+ 	ServicePolicy = Jgets(tr181Jobj, "ServicePolicy");
+ 	Type = Jgeti(tr181Jobj, "Type");
+@@ -299,9 +306,20 @@
+ 		Days == "";
+ #endif		
+ 	if(strlen(timeRangeList)>0)
++	{
+ 		timeRangeList[strlen(timeRangeList)-1]= '\0';
+ 	
+ 	json_object_object_add(pramJobj, "TimeRangeList", json_object_new_string(timeRangeList));
++	}
++	else
++	{
++		printf("%s: empty Schedule list\n",__FUNCTION__);
++		if(schJarray)
++		{
++			json_object_put(schJarray);
++		}
++		return ZCFG_SUCCESS;
++	}
+ #ifndef ZYXEL_HOME_CYBER_SECURITY	
+ 	json_object_object_add(pramJobj, "Days", json_object_new_string(Days));
+ #endif

@@ -1,0 +1,54 @@
+Index: clinkc/include/cybergarage/http/chttp.h
+===================================================================
+--- clinkc.orig/include/cybergarage/http/chttp.h	2019-10-23 09:26:16.256451969 +0800
++++ clinkc/include/cybergarage/http/chttp.h	2019-10-23 09:31:27.053446265 +0800
+@@ -153,7 +153,22 @@
+ #define CG_HTTP_CSP "Content-Security-Policy"
+ #define CG_HTTP_CSP_SELF "frame-ancestors \'self\'"
+ #define CG_HTTP_CSP_NONE "frame-ancestors \'none\'"
+-
++//Is a marker used by the server to indicate that the MIME types advertised in the Content-Type headers should not be changed and be followed.
++#define CG_HTTP_X_CTO "X-Content-Type-Options"
++#define CG_HTTP_X_CTO_NOSNIFF "nosniff"
++//Provide protections for users of older web browsers that don't yet support CSP.
++#define CG_HTTP_XSS_PROTECTION "X-XSS-Protection"
++#define CG_HTTP_XSS_PROTECTION_0 "0"
++#define CG_HTTP_XSS_PROTECTION_1 "1"
++#define CG_HTTP_XSS_PROTECTION_1_BLOCK "1; mode=block"
++/*
++* Enables XSS filtering. 
++* If a cross-site scripting attack is detected, 
++* the browser will sanitize the page and report the violation.
++* This uses the functionality of the CSP report-uri directive to send a report.
++* ('1;report=https://www.example.com')
++*/
++//#define CG_HTTP_XSS_PROTECTION_1_REPORTING_URI "1; report=<reporting-uri>"
+ 
+ 
+ /**** SOAP Extention ****/
+Index: clinkc/src/cybergarage/http/chttp_request.c
+===================================================================
+--- clinkc.orig/src/cybergarage/http/chttp_request.c	2019-10-23 09:26:16.276441969 +0800
++++ clinkc/src/cybergarage/http/chttp_request.c	2019-10-23 09:37:03.418175165 +0800
+@@ -953,6 +953,10 @@
+ 	//prevent ClickJacking attack
+ 	cg_http_response_setheadervalue(httpRes, CG_HTTP_XFRAME, CG_HTTP_XFRAME_SAMEORIGIN);
+ 	cg_http_response_setheadervalue(httpRes, CG_HTTP_CSP, CG_HTTP_CSP_SELF);
++	//is a marker used by the server to indicate that the MIME types advertised in the Content-Type headers should not be changed and be followed.
++	cg_http_response_setheadervalue(httpRes, CG_HTTP_X_CTO, CG_HTTP_X_CTO_NOSNIFF);
++	//provide protections for users of older web browsers that don't yet support CSP.
++	cg_http_response_setheadervalue(httpRes, CG_HTTP_XSS_PROTECTION, CG_HTTP_XSS_PROTECTION_1_BLOCK);
+ 
+ 	version = cg_http_response_getversion(httpRes);
+ 	statusCode = cg_http_response_getstatuscode(httpRes);	
+@@ -1015,6 +1019,10 @@
+ 		//prevent ClickJacking attack
+ 		cg_http_response_setheadervalue(httpRes, CG_HTTP_XFRAME, CG_HTTP_XFRAME_SAMEORIGIN);
+ 		cg_http_response_setheadervalue(httpRes, CG_HTTP_CSP, CG_HTTP_CSP_SELF);
++		//is a marker used by the server to indicate that the MIME types advertised in the Content-Type headers should not be changed and be followed.
++		cg_http_response_setheadervalue(httpRes, CG_HTTP_X_CTO, CG_HTTP_X_CTO_NOSNIFF);
++		//provide protections for users of older web browsers that don't yet support CSP.
++		cg_http_response_setheadervalue(httpRes, CG_HTTP_XSS_PROTECTION, CG_HTTP_XSS_PROTECTION_1_BLOCK);
+ 
+ 		version = cg_http_response_getversion(httpRes);
+ 		statusCode = cg_http_response_getstatuscode(httpRes);	

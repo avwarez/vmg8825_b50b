@@ -1,0 +1,26 @@
+Index: busybox-1_20_1/networking/arping.c
+===================================================================
+--- busybox-1_20_1.orig/networking/arping.c	2012-05-28 08:48:55.000000000 +0800
++++ busybox-1_20_1/networking/arping.c	2020-03-11 11:01:35.928069180 +0800
+@@ -410,15 +410,17 @@
+ 		socklen_t alen = sizeof(from);
+ 		int cc;
+ 
++		sigemptyset(&sset);
++		sigaddset(&sset, SIGALRM);
++		sigaddset(&sset, SIGINT);
++		sigprocmask(SIG_UNBLOCK, &sset, &osset);
++		
+ 		cc = recvfrom(sock_fd, packet, 4096, 0, (struct sockaddr *) &from, &alen);
+ 		if (cc < 0) {
+ 			bb_perror_msg("recvfrom");
+ 			continue;
+ 		}
+-		sigemptyset(&sset);
+-		sigaddset(&sset, SIGALRM);
+-		sigaddset(&sset, SIGINT);
+-		sigprocmask(SIG_BLOCK, &sset, &osset);
++		sigprocmask(SIG_BLOCK, &sset, NULL);
+ 		recv_pack(packet, cc, &from);
+ 		sigprocmask(SIG_SETMASK, &osset, NULL);
+ 	}

@@ -1,0 +1,135 @@
+Index: json-c-0.13.1/json_object.h
+===================================================================
+--- json-c-0.13.1.orig/json_object.h	2019-08-13 17:12:19.000000000 +0800
++++ json-c-0.13.1/json_object.h	2019-08-13 17:17:02.208521650 +0800
+@@ -173,6 +173,10 @@
+  */
+ typedef struct json_object json_object;
+ 
++#ifndef boolean
++typedef int boolean;
++#endif
++
+ /**
+  * Type of custom user delete functions.  See json_object_set_serializer.
+  */
+@@ -490,9 +494,13 @@
+  * @param key the object field name
+  * @returns the json_object associated with the given field name
+  */
++#if 0 // open function for zcfg use
++THIS_FUNCTION_IS_DEPRECATED(extern struct json_object* json_object_object_get(struct json_object* obj,
++                         const char *key));
++#else
+ JSON_EXPORT struct json_object* json_object_object_get(const struct json_object* obj,
+ 						  const char *key);
+-
++#endif
+ /** Get the json_object associated with a given object field.
+  *
+  * This returns true if the key is found, false in all other cases (including
+Index: json-c-0.13.1/bits.h
+===================================================================
+--- json-c-0.13.1.orig/bits.h	2017-12-06 07:48:26.000000000 +0800
++++ json-c-0.13.1/bits.h	2019-08-13 17:14:11.460475923 +0800
+@@ -31,6 +31,10 @@
+ /**
+  * @deprecated
+  */
++#if 0 //for zcfg
++#define is_error(ptr) ((unsigned long)ptr > (unsigned long)-4000L)
++#else
+ #define is_error(ptr) (ptr == NULL)
++#endif
+ 
+ #endif
+Index: json-c-0.13.1/json_tokener.c
+===================================================================
+--- json-c-0.13.1.orig/json_tokener.c	2017-12-05 22:16:50.000000000 +0800
++++ json-c-0.13.1/json_tokener.c	2019-08-13 17:12:43.354091999 +0800
+@@ -67,7 +67,7 @@
+ static const char json_false_str[] = "false";
+ static const int json_false_str_len = sizeof(json_false_str) - 1;
+ 
+-static const char* json_tokener_errors[] = {
++const char* json_tokener_errors[] = {
+   "success",
+   "continue",
+   "nesting too deep",
+@@ -164,6 +164,10 @@
+     enum json_tokener_error jerr_ignored;
+     struct json_object* obj;
+     obj = json_tokener_parse_verbose(str, &jerr_ignored);
++#if 0 //for zcfg	
++	if(jerr_ignored != json_tokener_success)
++		obj = (struct json_object*)error_ptr(-jerr_ignored);
++#endif
+     return obj;
+ }
+ 
+Index: json-c-0.13.1/json_tokener.h
+===================================================================
+--- json-c-0.13.1.orig/json_tokener.h	2017-12-06 13:18:13.000000000 +0800
++++ json-c-0.13.1/json_tokener.h	2019-08-13 17:12:43.358093999 +0800
+@@ -23,6 +23,8 @@
+ extern "C" {
+ #endif
+ 
++extern const char* json_tokener_errors[];
++
+ enum json_tokener_error {
+   json_tokener_success,
+   json_tokener_continue,
+Index: json-c-0.13.1/json_util.c
+===================================================================
+--- json-c-0.13.1.orig/json_util.c	2019-08-13 17:12:19.000000000 +0800
++++ json-c-0.13.1/json_util.c	2019-08-13 17:19:43.796092131 +0800
+@@ -90,7 +90,11 @@
+ 
+   if(!(pb = printbuf_new())) {
+     _json_c_set_last_err("json_object_from_file: printbuf_new failed\n");
++#if 0 //for zcfg
++    return (struct json_object*)error_ptr(-1);
++#else
+     return NULL;
++#endif
+   }
+   while((ret = read(fd, buf, JSON_FILE_BUF_SIZE)) > 0) {
+     printbuf_memappend(pb, buf, ret);
+@@ -98,7 +102,11 @@
+   if(ret < 0) {
+     _json_c_set_last_err("json_object_from_fd: error reading fd %d: %s\n", fd, strerror(errno));
+     printbuf_free(pb);
++#if 0 //for zcfg
++	return (struct json_object*)error_ptr(-1);
++#else
+     return NULL;
++#endif
+   }
+   obj = json_tokener_parse(pb->buf);
+   printbuf_free(pb);
+@@ -113,7 +121,11 @@
+   if((fd = open(filename, O_RDONLY)) < 0) {
+     _json_c_set_last_err("json_object_from_file: error opening file %s: %s\n",
+ 	     filename, strerror(errno));
++#if 0 //for zcfg
++    return (struct json_object*)error_ptr(-1);
++#else
+     return NULL;
++#endif
+   }
+   obj = json_object_from_fd(fd);
+   close(fd);
+Index: json-c-0.13.1/Makefile.am
+===================================================================
+--- json-c-0.13.1.orig/Makefile.am	2018-03-06 12:13:22.000000000 +0800
++++ json-c-0.13.1/Makefile.am	2019-08-13 17:20:15.778847353 +0800
+@@ -44,7 +44,7 @@
+ 	random_seed.h \
+ 	strerror_override.h
+ 
+-libjson_c_la_LDFLAGS = -version-info 4:0:0 -no-undefined @JSON_BSYMBOLIC_LDFLAGS@
++libjson_c_la_LDFLAGS = -version-info 4:0:0 -no-undefined @JSON_BSYMBOLIC_LDFLAGS@ -lm 
+ 
+ libjson_c_la_SOURCES = \
+ 	arraylist.c \

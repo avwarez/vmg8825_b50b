@@ -1,0 +1,180 @@
+Index: libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_acl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/firewall/zcfg_fe_dal_firewall_acl.c	2019-11-18 13:30:30.244155623 +0800
++++ libzcfg_fe_dal-1.0/security/firewall/zcfg_fe_dal_firewall_acl.c	2019-11-18 13:32:29.073651014 +0800
+@@ -26,6 +26,7 @@
+ 	{"Protocol", 			dalType_string,  0, 	0,		NULL,	"ALL|TCP|UDP|TCPUDP|ICMP|ICMPv6", dal_Add},
+ 	{"ProtocolExclude", 	dalType_int, 	 0, 	0, 		NULL,	NULL, 							dalcmd_Forbid},
+ 	{"IPVersion", 			dalType_string,	 0, 	0, 		NULL,	"IPv4|IPv6", 					dal_Add},
++	{"MACAddress",    dalType_MacAddrHyphen,	0,	0,	NULL,	"AnyMACAddress",	   		dalcmd_Forbid},
+ 	/*src des ip*/
+ 	{"SourceIP", 			dalType_v4v6Addr,  0, 	0, 		NULL,	"AnyIP", 						dalcmd_Forbid},
+ 	{"SourceMask", 			dalType_string,  0, 	0, 		NULL,	NULL, 							dalcmd_Forbid},
+@@ -52,6 +53,8 @@
+ 	{"LimitRate", 			dalType_int, 	 0, 	512, 		NULL,	NULL, 						0},
+ 	{"LimitRateUnit",		dalType_string,  0, 	0, 		NULL,	"minute|second", 				0},
+ 	{"X_ZYXEL_ScheduleRule",dalType_int, 	 0, 	0, 		NULL,	NULL, 							dalcmd_Forbid},
++	{"IPv6header", 			dalType_string,  0, 	0, 		NULL,	NULL, 							0},
++	{"IPv6headertypes",     dalType_string,  0, 	0, 		NULL,	NULL, 							0},
+ 	{"ICMPv6Type", 			dalType_ICMPv6,  0, 	0, 		NULL,	NULL, 							0},
+ 	{"ICMPType", 			dalType_int, 	-1, 	143, 	NULL,	NULL, 							dalcmd_Forbid},//for GUI only
+ 	{"ICMPTypeCode",		dalType_int, 	-1, 	4, 		NULL,	NULL, 							dalcmd_Forbid},//for GUI only
+@@ -114,7 +117,7 @@
+ 	const char *DestIP = NULL;
+ 	const char *SourceMask = NULL;
+ 	const char *DestMask = NULL;
+-	
++	const char *MACAddress = NULL;
+ 	struct json_object *obj = NULL;
+ 	if(json_object_get_type(Jarray) != json_type_array){
+ 		printf("wrong Jobj format!\n");
+@@ -133,6 +136,7 @@
+ 		SourceMask = json_object_get_string(json_object_object_get(obj, "SourceMask"));
+ 		DestIP = json_object_get_string(json_object_object_get(obj, "DestIP"));
+ 		DestMask = json_object_get_string(json_object_object_get(obj, "DestMask"));
++		MACAddress = json_object_get_string(json_object_object_get(obj, "MACAddress"));
+ 		tmp[0] = '\0';
+ 			printf("%-6s %-6s %-6s %-13s ",
+ 			json_object_get_string(json_object_object_get(obj, "Index")),
+@@ -231,6 +235,7 @@
+ 	char buf[32] = {0};
+ 	char ip[64] = {0};
+ 	char mask[8] = {0};
++	char MACAddress[18] = {0};
+ 	int startPort, endPort, ServiceIndex;
+ 	objIndex_t protocolIid = {0};
+ 	IID_INIT(protocolIid);
+@@ -322,6 +327,17 @@
+ 				}
+ 				json_object_object_del(aclObj, "SourceIPPrefix");
+ 			}
++			if((paramObj = json_object_object_get(Jobj, "MACAddress")) != NULL){
++				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "MACAddress")), "AnyMACAddress")){
++					json_object_object_add(aclObj, "MACAddress", json_object_new_string(""));				
++				}
++				else{
++					charVal = json_object_get_string(paramObj);
++					sscanf(charVal, "%s", MACAddress);
++					str_replace(MACAddress, "-",":");
++					json_object_object_add(aclObj, "MACAddress", json_object_new_string(MACAddress));		
++				}
++			}
+ 			//else
+ 			//	json_object_object_add(aclObj, "SourceMask", json_object_new_string("32"));
+ 			
+@@ -390,6 +406,14 @@
+ 				json_object_object_add(aclObj, "X_ZYXEL_Direction", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "Direction");
+ 			}
++			if((paramObj = json_object_object_get(Jobj, "IPv6header")) != NULL){
++				json_object_object_add(aclObj, "X_ZYXEL_IPv6header", JSON_OBJ_COPY(paramObj));
++				json_object_object_del(aclObj, "IPv6header");
++			}
++			if((paramObj = json_object_object_get(Jobj, "IPv6headertypes")) != NULL){
++				json_object_object_add(aclObj, "X_ZYXEL_IPv6headertypes", JSON_OBJ_COPY(paramObj));
++				json_object_object_del(aclObj, "IPv6headertypes");
++			}
+ 			if((paramObj = json_object_object_get(Jobj, "ICMPType")) != NULL){
+ 				json_object_object_add(aclObj, "X_ZYXEL_ICMPType", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "ICMPType");
+@@ -398,6 +422,10 @@
+ 				json_object_object_add(aclObj, "X_ZYXEL_ICMPTypeCode", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "ICMPTypeCode");
+ 			}
++			if((paramObj = json_object_object_get(Jobj, "MACAddress")) != NULL){
++				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "MACAddress")), "AnyMACAddress"))
++				json_object_object_add(aclObj, "MACAddress", json_object_new_string(""));
++			}
+ 			if((paramObj = json_object_object_get(Jobj, "SourceIP")) != NULL){
+ 				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "SourceIP")), "AnyIP"))
+ 				json_object_object_add(aclObj, "SourceIP", json_object_new_string(""));
+@@ -449,6 +477,7 @@
+ 	char buf[32] = {0};
+ 	char ip[64] = {0};
+ 	char mask[8] = {0};
++	char MACAddress[18] = {0};
+ 	int startPort, endPort, ServiceIndex;
+ 	objIndex_t protocolIid = {0};
+ 	IID_INIT(protocolIid);
+@@ -535,6 +564,17 @@
+ 				}
+ 				json_object_object_del(aclObj, "SourceIPPrefix");
+ 			}
++			if((paramObj = json_object_object_get(Jobj, "MACAddress")) != NULL){
++				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "MACAddress")), "AnyMACAddress")){
++					json_object_object_add(aclObj, "MACAddress", json_object_new_string(""));				
++				}
++				else{
++					charVal = json_object_get_string(paramObj);
++					sscanf(charVal, "%s", MACAddress);
++					str_replace(MACAddress, "-",":");
++					json_object_object_add(aclObj, "MACAddress", json_object_new_string(MACAddress));		
++				}
++			}
+ 			if((paramObj = json_object_object_get(Jobj, "DestIPPrefix")) != NULL){
+ 				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "DestIPPrefix")), "AnyIP")){
+ 					json_object_object_add(aclObj, "DestIP", json_object_new_string(""));
+@@ -589,6 +629,14 @@
+ 				json_object_object_add(aclObj, "X_ZYXEL_Direction", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "Direction");
+ 			}
++			if((paramObj = json_object_object_get(Jobj, "IPv6header")) != NULL){
++				json_object_object_add(aclObj, "X_ZYXEL_IPv6header", JSON_OBJ_COPY(paramObj));
++				json_object_object_del(aclObj, "IPv6header");
++			}
++			if((paramObj = json_object_object_get(Jobj, "IPv6headertypes")) != NULL){
++				json_object_object_add(aclObj, "X_ZYXEL_IPv6headertypes", JSON_OBJ_COPY(paramObj));
++				json_object_object_del(aclObj, "IPv6headertypes");
++			}
+ 			if((paramObj = json_object_object_get(Jobj, "ICMPType")) != NULL){
+ 				json_object_object_add(aclObj, "X_ZYXEL_ICMPType", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "ICMPType");
+@@ -597,6 +645,10 @@
+ 				json_object_object_add(aclObj, "X_ZYXEL_ICMPTypeCode", JSON_OBJ_COPY(paramObj));
+ 				json_object_object_del(aclObj, "ICMPTypeCode");
+ 			}
++			if((paramObj = json_object_object_get(Jobj, "MACAddress")) != NULL){
++				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "MACAddress")), "AnyMACAddress"))
++				json_object_object_add(aclObj, "MACAddress", json_object_new_string(""));
++			}
+ 			if((paramObj = json_object_object_get(Jobj, "SourceIP")) != NULL){
+ 				if(!strcmp(json_object_get_string(json_object_object_get(Jobj, "SourceIP")), "AnyIP"))
+ 				json_object_object_add(aclObj, "SourceIP", json_object_new_string(""));
+@@ -678,6 +730,7 @@
+ 	char buf[64] = {0};
+ 	const char *SourceMask = 0;
+ 	const char *DestMask = 0;
++	const char *MACAddress = NULL;
+ 	int ServiceIndex = 0;
+ 	int count = 1;
+ 	objIndex_t FiremallACLIid = {0};
+@@ -731,6 +784,15 @@
+ 		
+ 		SourceIP = json_object_get_string(json_object_object_get(FiremallACLJobj, "SourceIP"));
+ 		DestIP = json_object_get_string(json_object_object_get(FiremallACLJobj, "DestIP"));
++		MACAddress = json_object_get_string(json_object_object_get(FiremallACLJobj, "MACAddress"));
++		str_replace(MACAddress, "-",":"); 
++		if(!strcmp(MACAddress,"")){
++			json_object_object_add(paramJobj, "MACAddress", json_object_new_string("AnyMACAddress"));
++		}
++		else{
++			json_object_object_add(paramJobj, "MACAddress", json_object_new_string(MACAddress));
++		}
++		
+ 		if(!strcmp(SourceIP,"")){
+ 			json_object_object_add(paramJobj, "SourceIP", json_object_new_string("Any"));
+ 		}
+@@ -747,6 +809,8 @@
+ 			json_object_object_add(paramJobj, "DestIP", json_object_new_string(DestIP));
+ 		}
+ 		json_object_object_add(paramJobj, "DestMask", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "DestMask")));
++		json_object_object_add(paramJobj, "IPv6header", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "X_ZYXEL_IPv6header")));
++		json_object_object_add(paramJobj, "IPv6headertypes", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "X_ZYXEL_IPv6headertypes")));
+ 		json_object_object_add(paramJobj, "ICMPType", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "X_ZYXEL_ICMPType")));
+ 		json_object_object_add(paramJobj, "ICMPTypeCode", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "X_ZYXEL_ICMPTypeCode")));
+ 		json_object_object_add(paramJobj, "Target", JSON_OBJ_COPY(json_object_object_get(FiremallACLJobj, "Target")));
+@@ -791,3 +855,4 @@
+ }
+ 
+ 
++

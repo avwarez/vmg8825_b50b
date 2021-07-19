@@ -1,0 +1,201 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c	2020-03-27 10:52:27.099279204 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_operatingmodes.c	2020-03-27 13:18:58.283091613 +0800
+@@ -12,7 +12,8 @@
+ {
+     //WiFi REPEATER
+     {"Mode",                dalType_string,    0,  0,  NULL,        "repeater|ap",                                              0},
+-    //WiFi SSID
++    {"ssidRef",             dalType_string,    0,  0,  NULL,        "WiFi.SSID.11",                                             0},
++   //WiFi SSID
+     {"SSID",                dalType_string,     0,  0,  NULL,       NULL,                                                       0},
+     //WiFi Access Point Sec
+ #ifdef ZYXEL_WIFI_SUPPORT_WEP_WPA_MIXMODE
+@@ -114,62 +115,69 @@
+     char *wpaMode = json_object_get_string(json_object_object_get(Jobj, "wpaMode"));
+     char *ssidRef = json_object_get_string(json_object_object_get(Jobj, "ssidRef"));
+     int  secMode = json_object_get_int(json_object_object_get(Jobj, "secMode"));
+-    IID_INIT(epIid);
+-    while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_END_POINT, &epIid, &epObj) == ZCFG_SUCCESS) {
+-        SSIDReference = json_object_get_string(json_object_object_get(epObj,"SSIDReference"));
+-        if(!strcmp(ssidRef, SSIDReference)) {
+-            IID_INIT(ssidIid);
+-            ssidIid.level = 1;
+-            sscanf(SSIDReference, "WiFi.SSID.%hhd", &ssidIid.idx[0]);
+-            if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &ssidIid, &ssidObj) == ZCFG_SUCCESS) {
+-                json_object_object_add(ssidObj, "SSID", json_object_new_string(SSID));
+-                zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_SSID, &ssidIid, ssidObj, NULL);
+-                zcfgFeJsonObjFree(ssidObj);
+-            }
+-            IID_INIT(epProfIid);
+-            epProfIid.level = 2;
+-            sscanf(json_object_get_string(json_object_object_get(epObj,"ProfileReference")), "WiFi.EndPoint.%hhu.Profile.%hhu", &epProfIid.idx[0], &epProfIid.idx[1]);
+-            if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_END_POINT_PROFILE, &epProfIid, &epProfObj) == ZCFG_SUCCESS) {
+-                json_object_object_add(epProfObj, "SSID", json_object_new_string(SSID));
+-                zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_END_POINT_PROFILE, &epProfIid, epProfObj, NULL);
+-                zcfgFeJsonObjFree(epProfObj);
+-            }
+-             if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_END_POINT_PROFILE_SEC, &epProfIid, &epProfSecObj) == ZCFG_SUCCESS) {
+-                json_object_object_add(epProfSecObj,"KeyPassphrase", json_object_new_string(psk_value));
+-                if(secMode){
+-                    if(secMode == POS_NONE){
+-                        json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("None"));
+-                    }else if(secMode == POS_MORESECURE){
+-                        if(wpaMode){
+-                            if(!strcmp(wpaMode,"wpa2psk")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal"));
+-                            }else if(!strcmp(wpaMode,"wpapsk")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA-Personal"));
+-                            }else if(!strcmp(wpaMode,"wpawpa2psk")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA-WPA2-Personal"));
+-                            }else if(!strcmp(wpaMode,"wpa")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA-Enterprise"));
+-                            }else if(!strcmp(wpaMode,"wpa2")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA2-Enterprise"));
+-                            }else if(!strcmp(wpaMode,"wpa3sae")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal"));
+-                            }else if(!strcmp(wpaMode,"wpa2pskwpa3sae")){
+-                                json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal-Transition"));
++    char *Mode = json_object_get_string(json_object_object_get(Jobj, "Mode"));
++
++    if(ssidRef) {
++        IID_INIT(epIid);
++        while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_END_POINT, &epIid, &epObj) == ZCFG_SUCCESS) {
++            SSIDReference = json_object_get_string(json_object_object_get(epObj,"SSIDReference"));
++            if(!strcmp(ssidRef, SSIDReference)) {
++                if(SSID){
++                    IID_INIT(ssidIid);
++                    ssidIid.level = 1;
++                    sscanf(SSIDReference, "WiFi.SSID.%hhd", &ssidIid.idx[0]);
++                    if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_SSID, &ssidIid, &ssidObj) == ZCFG_SUCCESS) {
++                        json_object_object_add(ssidObj, "SSID", json_object_new_string(SSID));
++                        zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_SSID, &ssidIid, ssidObj, NULL);
++                        zcfgFeJsonObjFree(ssidObj);
++                    }
++                    IID_INIT(epProfIid);
++                    epProfIid.level = 2;
++                    sscanf(json_object_get_string(json_object_object_get(epObj,"ProfileReference")), "WiFi.EndPoint.%hhu.Profile.%hhu", &epProfIid.idx[0], &epProfIid.idx[1]);
++                    if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_END_POINT_PROFILE, &epProfIid, &epProfObj) == ZCFG_SUCCESS) {
++                        json_object_object_add(epProfObj, "SSID", json_object_new_string(SSID));
++                        zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_END_POINT_PROFILE, &epProfIid, epProfObj, NULL);
++                        zcfgFeJsonObjFree(epProfObj);
++                    }
++                }
++                if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_END_POINT_PROFILE_SEC, &epProfIid, &epProfSecObj) == ZCFG_SUCCESS) {
++                    if(psk_value) json_object_object_add(epProfSecObj,"KeyPassphrase", json_object_new_string(psk_value));
++                    if(secMode){
++                        if(secMode == POS_NONE){
++                            json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("None"));
++                        }else if(secMode == POS_MORESECURE){
++                            if(wpaMode){
++                                if(!strcmp(wpaMode,"wpa2psk")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA2-Personal"));
++                                }else if(!strcmp(wpaMode,"wpapsk")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA-Personal"));
++                                }else if(!strcmp(wpaMode,"wpawpa2psk")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA-WPA2-Personal"));
++                                }else if(!strcmp(wpaMode,"wpa")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA-Enterprise"));
++                                }else if(!strcmp(wpaMode,"wpa2")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA2-Enterprise"));
++                                }else if(!strcmp(wpaMode,"wpa3sae")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal"));
++                                }else if(!strcmp(wpaMode,"wpa2pskwpa3sae")){
++                                    json_object_object_add(epProfSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal-Transition"));
++                                }
+                             }
+                         }
+                     }
++                    zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_END_POINT_PROFILE_SEC, &epProfIid, epProfSecObj, NULL);
++                    zcfgFeJsonObjFree(epProfSecObj);
+                 }
+-                zcfgFeObjJsonSetWithoutApply(RDM_OID_WIFI_END_POINT_PROFILE_SEC, &epProfIid, epProfSecObj, NULL);
+-                zcfgFeJsonObjFree(epProfSecObj);
++                zcfgFeJsonObjFree(epObj);
++                break;
+             }
+             zcfgFeJsonObjFree(epObj);
+-            break;
+         }
+-         zcfgFeJsonObjFree(epObj);
+     }
+ 
+     IID_INIT(repIid);
+     if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_REPEATER, &repIid, &repObj) == ZCFG_SUCCESS){
++        if(Mode) json_object_object_add(repObj,"Mode", json_object_new_string(Mode));
+         zcfgFeObjJsonBlockedSet(RDM_OID_REPEATER, &repIid, repObj, NULL);
+         zcfgFeJsonObjFree(repObj);
+     }
+@@ -177,6 +185,48 @@
+     return ret;
+ }
+ 
++void zcfgFeDalShowOperatingModes(struct json_object *Jarray)
++{
++    int i = 0, len;
++    struct json_object *obj;
++    const char *OperMode = NULL;
++
++    if(json_object_get_type(Jarray) != json_type_array){
++        printf("wrong Jobj format!\n");
++        return;
++    }
++
++    obj = json_object_array_get_idx(Jarray, 0);
++    if(obj != NULL){
++        OperMode = json_object_get_string(json_object_object_get(obj, "Mode"));
++        printf("Operation Mode: %s\n", OperMode);
++    }
++
++    if(!strcmp(OperMode, "ap")) {
++        return;
++    }
++
++    printf("-----------------------------------------------------------------------------------\n");
++    printf("%-7s %-10s %-20s %-10s %-35s %-20s %-20s\n", "idx", "Enable", "ssidRef", "Band", "SSID", "SecurityMode", "PskValue");
++
++    len = json_object_array_length(Jarray);
++    for(i=1; i<len; i++){
++        obj = json_object_array_get_idx(Jarray, i);
++        if(obj != NULL){
++            printf("%-7d %-10s %-20s %-10s %-35s %-20s %-20s\n",
++                i,
++                json_object_get_string(json_object_object_get(obj, "Enable")),
++                json_object_get_string(json_object_object_get(obj, "SSIDReference")),
++                json_object_get_string(json_object_object_get(obj, "OperatingFrequencyBand")),
++                json_object_get_string(json_object_object_get(obj, "SSID")),
++                json_object_get_string(json_object_object_get(obj, "ModeEnabled")),
++                json_object_get_string(json_object_object_get(obj, "PskDisplay")));
++        }
++    }
++
++    return;
++}
++
+ zcfgRet_t zcfgFeDalOperatingModes(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
+ {
+     zcfgRet_t ret = ZCFG_SUCCESS;
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-03-27 10:52:27.063279204 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-03-27 10:58:58.499270852 +0800
+@@ -394,6 +394,9 @@
+ extern void zcfgFeDalShowIPSecVPN(struct json_object *Jarray);
+ #endif
+ 
++#ifdef ZYXEL_OPAL_EXTENDER
++extern void zcfgFeDalShowOperatingModes(struct json_object *Jarray);
++#endif
+ 
+ dal_handler_t dalHandler[] = {
+ {"wan",				WAN_param,			zcfgFeDalWan,			zcfgFeDalShowWan,			"get|add|edit|delete",	"Broadband"},
+@@ -535,7 +538,7 @@
+ {"ZYDUACT", ZYEE_DU_param, zcfgFeDalDUAction,  NULL,       "edit",             ""},
+ #endif
+ #ifdef ZYXEL_OPAL_EXTENDER
+-{"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes,  NULL,       "edit|get",             "Wireless"},
++{"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes, 	zcfgFeDalShowOperatingModes, 		"edit|get", 			"Wireless"},
+ #endif
+ {NULL,				NULL,				NULL, 					NULL,						NULL,				 NULL}
+ };

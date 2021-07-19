@@ -1,0 +1,31 @@
+Index: linux-4.1.52/drivers/mtd/nand/bcm63xx_spinand.c
+===================================================================
+--- linux-4.1.52.orig/drivers/mtd/nand/bcm63xx_spinand.c	2019-11-19 07:36:18.409919587 +0000
++++ linux-4.1.52/drivers/mtd/nand/bcm63xx_spinand.c	2019-11-19 09:51:14.735485716 +0000
+@@ -563,6 +563,26 @@
+         .chip_subpage_shift = 2, // 2^ shift amount based on number of subpages (4)
+         .chip_clock_speed = 104000000,
+     },
++    { // 2Gb
++        .chip_name = "Toshiba TC58CVG1SJ",
++        .chip_device_id = {TOSHIBAPART, ID_TC58CVG1SJ, 0, 0},
++        .chip_page_size = 2048,
++        .chip_page_shift = 11,
++        .chip_block_size = 64 * 2048, // 64 pages per block x chip_page_size
++        .chip_block_shift = 17,       // block size of 0x20000 (128KB)
++        .chip_spare_size = 128,
++        .chip_ecc_offset = 0x800,     // location of ECC bytes
++        .chip_num_blocks = 2048,      // 2048 blocks total
++        .chip_num_planes = 1,
++        .chip_die_sel = 0,
++        .chip_total_size = 64 * 2048 * 2048, // chip_block_size x chip_num_blocks
++        .ecclayout = &spinand_oob_toshiba_micron_ab,
++        .chip_ecc = 8, // ECC bits
++        .chip_ecc_corr = 6, // threshold to fix correctable bits (6/8)
++        .chip_ecc_enh = 1, // enhanced bad bit detection by chip, must do this for Toshiba because ECC is not visible when enabled
++        .chip_subpage_shift = 2, // 2^ shift amount based on number of subpages (4)
++        .chip_clock_speed = 133000000,   //133M
++    },
+     { // 1Gb
+         .chip_name = "Etron EM73C044SNB",
+         .chip_device_id = {ETRONPART, ID_EM73C044SNB, 0, 0},

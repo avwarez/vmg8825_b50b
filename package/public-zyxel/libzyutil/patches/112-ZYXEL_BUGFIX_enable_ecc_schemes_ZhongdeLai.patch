@@ -1,0 +1,17 @@
+Index: libzyutil-1.0/flash.c
+===================================================================
+--- libzyutil-1.0.orig/flash.c	2019-10-02 14:38:40.323603278 +0800
++++ libzyutil-1.0/flash.c	2019-10-02 14:40:20.711117004 +0800
+@@ -626,12 +626,6 @@
+ 		return -1;
+ 	}
+ 
+-	/* No ecc*/
+-	if(ioctl(devFd, MTDFILEMODE, (void *) MTD_FILE_MODE_RAW) != 0) {
+-		perror("MTDFILEMODE");
+-		goto closeall;
+-	}
+-
+ 	/* Initialize start/end addresses and block size */
+ 	// partition size
+ 	if(buf_size > mtd.size)

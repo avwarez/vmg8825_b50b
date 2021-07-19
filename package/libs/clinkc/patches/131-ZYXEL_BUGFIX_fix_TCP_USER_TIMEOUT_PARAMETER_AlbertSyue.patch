@@ -1,0 +1,54 @@
+Index: clinkc/src/cybergarage/http/chttp_server.c
+===================================================================
+--- clinkc.orig/src/cybergarage/http/chttp_server.c	2020-04-08 11:10:09.474804204 +0800
++++ clinkc/src/cybergarage/http/chttp_server.c	2020-04-08 11:10:09.486804204 +0800
+@@ -35,6 +35,7 @@
+ #include <errno.h>
+ #include <linux/tcp.h>
+ #include <netinet/in.h>
++#include <linux/version.h>
+ 
+ #if defined(HAVE_UNAME) || defined(TARGET_OS_MAC) || defined(TARGET_OS_IPHONE)
+ #include <sys/utsname.h>
+@@ -586,14 +587,14 @@
+ #else
+ 		clientSock = cg_socket_stream_new();
+ #endif
+-
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
+ 		if(cg_socket_isserver(clientSock)){
+ 			unsigned int timeout = 10000; // 10s
+ 			if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout, sizeof(timeout))){
+ 				printf("set TCP_USER_TIMEOUT error\n");
+ 			}
+ 		}
+-
++#endif
+ 		if (cg_socket_accept(serverSock, clientSock) == FALSE) {
+ 			cg_socket_delete(clientSock);
+ 			continue;
+Index: clinkc/src/cybergarage/net/csocket.c
+===================================================================
+--- clinkc.orig/src/cybergarage/net/csocket.c	2020-04-08 11:10:09.474804204 +0800
++++ clinkc/src/cybergarage/net/csocket.c	2020-04-08 11:12:53.552716002 +0800
+@@ -888,17 +888,17 @@
+ 			printf("enable SO_KEEPALIVE error\n");
+ 		}
+ 
+-		int keep_idle = 30; // default 2 hours, currently set 30 seconds.
++		int keep_idle = 5; // default 2 hours, currently set 5 seconds.
+ 		if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_KEEPIDLE, &keep_idle, sizeof(keep_idle))){
+ 		    printf("set TCP_KEEPIDLE error\n");
+ 		}
+ 
+-		int keep_interval = 30; // default 75 second, currently set 30 seconds.
++		int keep_interval = 5; // default 75 second, currently set 5 seconds.
+ 		if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_KEEPINTVL, &keep_interval, sizeof(keep_interval))){
+ 		    printf("set TCP_KEEPINTVL error\n");
+ 		}
+ 
+-		int keep_count = 3; // default 9 times, currently set 3 times.
++		int keep_count = 2; // default 9 times, currently set 2 times.
+ 		if(-1 == setsockopt(clientSock->id, IPPROTO_TCP, TCP_KEEPCNT, &keep_count, sizeof(keep_count))){
+ 		    printf("set TCP_KEEPCNT error\n");
+ 		}

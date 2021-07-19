@@ -1,0 +1,631 @@
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2019-09-26 16:55:08.086113231 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2019-09-26 19:38:13.359918100 +0800
+@@ -12,6 +12,8 @@
+ #include "zcfg_msg.h"
+ #include "zyutil.h"
+ 
++#include "zcfg_fe_dal_common.h"
++
+ #define CWMP_SOAP_MSG_DEBUG (1 << 1)
+ #define isEmptyIns(obj) json_object_get_boolean(json_object_object_get(obj, "emptyIns"))
+ 
+@@ -23,6 +25,7 @@
+ 	{"BrowsingProtection",	    dalType_boolean,	0,	0,	NULL},
+ 	{"TrackingProtection",	    dalType_boolean,	0,	0,	NULL},
+ 	{"IOTtection",	    dalType_boolean,	0,	0,	NULL},
++	{"Profile",	    dalType_string,	0,	0,	NULL},
+ #endif
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ 	{"X_ZYXEL_FirstSeen",			dalType_int,		0,	0,	NULL},
+@@ -35,6 +38,7 @@
+ 	{"PhysAddress",						dalType_string,		0,	0,	NULL},
+ 	{"AddressSource",					dalType_string,		0,	0,	NULL},
+ 	{"X_ZYXEL_ConnectionType",			dalType_string,		0,	0,	NULL},
++	{"DeviceSource",					dalType_string,		0,	0,	NULL},
+ 	{NULL,		0,	0,	0,	NULL}
+ };
+ 
+@@ -1162,7 +1166,125 @@
+ 	}
+ }
+ 
++void
++zcfgFeDalLanHostsGetInit(struct json_object *obj,  struct json_object **dhcp4PoolIid, struct json_object **dhcp4StaticAddrIid )
++{
++	Jadds(obj, "SupportedFrequencyBands", "");
++	Jadds(obj, "WiFiname", "");
++	Jadds(obj, "DeviceSource", "HOSTS_HOST");
++	Jadds(obj, "DeviceIcon", "");
++	Jaddb(obj, "Internet_Blocking_Enable", false);
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	Jaddb(obj, "BrowsingProtection", false);
++	Jaddb(obj, "TrackingProtection", false);
++	Jaddb(obj, "IOTProtection", false);
++	Jadds(obj, "Profile", "");
++#endif
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	Jaddi(obj, "X_ZYXEL_FirstSeen", 0);
++	Jaddi(obj, "X_ZYXEL_LastSeen", 0);
++	Jadds(obj, "SourceVendorClassID", "");
++#endif
++	replaceParam(obj, "DeviceName", obj, "HostName");
++	Jadds(obj, "curHostName", "");
++	
++	if(!strcmp("", Jgets(obj,"DeviceName")))
++		Jadds(obj, "DeviceName", "Unknown");
++
++	if(!strcmp("", Jgets(obj,"HostName")))
++		Jadds(obj, "HostName", "Unknown");
++
++	//DHCPv4 static address info
++	Jaddb(obj, "dhcp4PoolExist", false);
++	genIid(dhcp4PoolIid, 0, 0, 0, 0, 0, 0);
++	json_object_object_add(obj, "dhcp4PoolIid", *dhcp4PoolIid);
++	Jaddb(obj, "dhcp4StaticAddrExist", false);
++	genIid(dhcp4StaticAddrIid, 0, 0, 0, 0, 0, 0);
++	json_object_object_add(obj, "dhcp4StaticAddrIid", *dhcp4StaticAddrIid);
++	Jaddb(obj, "dhcp4StaticAddrEnable", false);
++	Jadds(obj, "dhcp4StaticAddr", "");
++	Jaddi(obj, "dhcp4StaticAddrNum", 0);
++	Jaddb(obj, "dhcp4StaticAddrUsedByOtherHost", false);
+ 
++} /* zcfgFeDalLanHostsGetInit */
++
++
++void
++zcfgFeDalLanHostHostInit(struct json_object *obj )
++{
++	Jadds(obj, "Alias", "");
++	Jadds(obj, "PhysAddress", "");
++	Jadds(obj, "IPAddress", "");
++	Jadds(obj, "IPAddress6", "");
++	Jadds(obj, "IPLinkLocalAddress6", "N\/A");
++	Jadds(obj, "AddressSource", "Static");
++	Jadds(obj, "DHCPClient", "");
++	Jaddi(obj, "LeaseTimeRemaining", 0);
++	Jadds(obj, "AssociatedDevice", "");
++	Jadds(obj, "Layer1Interface", "");
++	Jadds(obj, "Layer3Interface", "");
++	Jadds(obj, "VendorClassID", "");
++	Jadds(obj, "ClientID", "");
++	Jadds(obj, "UserClassID", "");
++	Jadds(obj, "HostName", "");
++	Jaddb(obj, "Active", false);
++	Jaddb(obj, "X_ZYXEL_DeleteLease", false);
++	Jadds(obj, "X_ZYXEL_ConnectionType", "");
++	Jadds(obj, "X_ZYXEL_ConnectedAP", "");
++	Jadds(obj, "X_ZYXEL_HostType", "");
++	Jadds(obj, "X_ZYXEL_CapabilityType", "");
++	Jaddi(obj, "X_ZYXEL_PhyRate", 0);
++	Jaddb(obj, "X_ZYXEL_WiFiStatus", false);
++	Jaddi(obj, "X_ZYXEL_SignalStrength", 0);
++	Jaddi(obj, "X_ZYXEL_SNR", 0);
++	Jaddi(obj, "X_ZYXEL_RSSI", 0);
++	Jadds(obj, "X_ZYXEL_SoftwareVersion", "");
++	Jaddi(obj, "X_ZYXEL_LastUpdate", 0);
++	Jadds(obj, "X_ZYXEL_Address6Source", "");
++	Jadds(obj, "X_ZYXEL_DHCP6Client", "");
++	Jaddi(obj, "X_ZYXEL_BytesSent", 0);
++	Jaddi(obj, "X_ZYXEL_BytesReceived", 0);
++	Jadds(obj, "X_ZYXEL_OperatingStandard", "");
++	Jaddi(obj, "X_ZYXEL_LastDataDownlinkRate", 0);
++	Jaddi(obj, "X_ZYXEL_LastDataUplinkRate", 0);
++	Jaddi(obj, "IPv4AddressNumberOfEntries", 0);
++	Jaddi(obj, "IPv6AddressNumberOfEntries", 0);
++	Jadds(obj, "ClientDuid", "");
++	Jadds(obj, "ExpireTime", "");
++} /* zcfgFeDalLanHostHostInit */
++
++void
++zcfgFeDalLanHostsUpdatIcon(struct json_object *obj)
++{
++	const char *currIcon;
++
++	currIcon = json_object_get_string(json_object_object_get(obj, "DeviceIcon"));
++	if(!strcmp(currIcon, "iPC") || !strcmp(currIcon, "")){
++		json_object_object_add(obj, "icon", json_object_new_string("ipc"));
++	}else if(!strcmp(currIcon, "iGame")){
++		json_object_object_add(obj, "icon", json_object_new_string("igame"));
++	}else if(!strcmp(currIcon, "iPrinter")){
++		json_object_object_add(obj, "icon", json_object_new_string("iprinter"));
++	}else if(!strcmp(currIcon, "iStb")){
++		json_object_object_add(obj, "icon", json_object_new_string("istb"));
++	}else if(!strcmp(currIcon, "iCamera")){
++		json_object_object_add(obj, "icon", json_object_new_string("icamera"));
++	}else if(!strcmp(currIcon, "iServer")){
++		json_object_object_add(obj, "icon", json_object_new_string("iserver"));
++	}else if(!strcmp(currIcon, "iTelephone")){
++		json_object_object_add(obj, "icon", json_object_new_string("itelephone"));
++	}else if(!strcmp(currIcon, "iRouter")){
++		json_object_object_add(obj, "icon", json_object_new_string("irouter"));
++	}else if(!strcmp(currIcon, "iOthers")){
++		json_object_object_add(obj, "icon", json_object_new_string("iothers"));
++	}else if(!strcmp(currIcon, "iStereo")){
++		json_object_object_add(obj, "icon", json_object_new_string("istereo"));
++	}else if(!strcmp(currIcon, "iMobile")){
++		json_object_object_add(obj, "icon", json_object_new_string("imobile"));
++	}else if(!strcmp(currIcon, "iTV")){
++		json_object_object_add(obj, "icon", json_object_new_string("itv"));
++	}
++} /* zcfgFeDalLanHostsUpdatIcon */
+ /*
+ *	All parameters of RDM_OID_HOSTS and the following parameters
+ *	DeviceIcon
+@@ -1192,10 +1314,9 @@
+ 	struct json_object *radioJobj, *radioJarray;
+ 	objIndex_t iid;
+ 	struct json_object *stbJobj = NULL;
+-	int i, j, len, len2;
++	int i, j, len, len2, JarrayLen;
+ 	const char *MacAddress, *IPAddress, *PhysAddress, *Layer1Interface, *Layer3Interface, *LowerLayers, *SupportedFrequencyBands, *Interface, *Yiaddr, *currIcon = NULL;
+ 	char X_ZYXEL_ConnectionType[64] = {0};
+-	
+ 
+ 	zcfgFeWholeObjJsonGet("Device.X_ZYXEL_Change_Icon_Name.", &iconJarray);
+ 	zcfgFeWholeObjJsonGet("Device.X_ZYXEL_STB_VENDOR_ID.", &stbJobj);
+@@ -1209,6 +1330,12 @@
+ 	if(zcfgFeObjJsonGet(RDM_OID_HOSTS, &iid, &obj) == ZCFG_SUCCESS){
+ 		zcfgFeJsonObjFree(obj);
+ 	}
++	/* Get all in LAN HOSTS HOST (there are all connected ?)
++	   Find all in Change_Icon
++	   if in LAN_HOSTS_HOST then update parameter.
++	   if not in LAN HOSTS_HOST then add parameter.
++	*/
++
+ 	IID_INIT(iid);
+ 	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_HOSTS_HOST, &iid, &obj) == ZCFG_SUCCESS){
+ 		PhysAddress = Jgets(obj, "PhysAddress");
+@@ -1223,41 +1350,12 @@
+ 			continue;	
+ 		if( (strlen(PhysAddress) < 2) || (validateIPv4(IPAddress) == false) )//It's not legal or empty.
+ 			continue;
+-		Jadds(obj, "SupportedFrequencyBands", "");
+-		Jadds(obj, "WiFiname", "");
+-		Jadds(obj, "DeviceIcon", "");
+-		Jaddb(obj, "Internet_Blocking_Enable", false);
+-#ifdef ZYXEL_HOME_CYBER_SECURITY		
+-		Jaddb(obj, "BrowsingProtection", false);
+-		Jaddb(obj, "TrackingProtection", false);
+-		Jaddb(obj, "IOTProtection", false);
+-#endif
+-#ifdef ZYXEL_HOME_CYBER_SECURITY
+-		Jaddi(obj, "X_ZYXEL_FirstSeen", 0);
+-		Jaddi(obj, "X_ZYXEL_LastSeen", 0);
+-		Jadds(obj, "SourceVendorClassID", "");		
+-#endif		
+-		replaceParam(obj, "DeviceName", obj, "HostName");
+-		Jadds(obj, "curHostName", "");
+-		
+-		if(!strcmp("", Jgets(obj,"DeviceName")))
+-			Jadds(obj, "DeviceName", "Unknown");
+ 
+-		if(!strcmp("", Jgets(obj,"HostName")))
+-			Jadds(obj, "HostName", "Unknown");
+-		
+-		//DHCPv4 static address info
+-		Jaddb(obj, "dhcp4PoolExist", false);
+-		genIid(&dhcp4PoolIid, 0, 0, 0, 0, 0, 0);
+-		json_object_object_add(obj, "dhcp4PoolIid", dhcp4PoolIid);
+-		Jaddb(obj, "dhcp4StaticAddrExist", false);
+-		genIid(&dhcp4StaticAddrIid, 0, 0, 0, 0, 0, 0);
+-		json_object_object_add(obj, "dhcp4StaticAddrIid", dhcp4StaticAddrIid);
+-		Jaddb(obj, "dhcp4StaticAddrEnable", false);
+-		Jadds(obj, "dhcp4StaticAddr", "");
+-		Jaddi(obj, "dhcp4StaticAddrNum", 0);
+-		Jaddb(obj, "dhcp4StaticAddrUsedByOtherHost", false);
+-		
++		/* init the default value (original)*/
++		zcfgFeDalLanHostsGetInit(obj,  &dhcp4PoolIid, &dhcp4StaticAddrIid );
++		/* init the icon variable (original) */
++		zcfgFeDalLanHostsUpdatIcon(obj);
++
+ 		len = json_object_array_length(dhcp4PoolJarray);
+ 		for(i=0;i<len;i++){
+ 			dhcp4PoolJobj = json_object_array_get_idx(dhcp4PoolJarray, i);
+@@ -1302,60 +1400,7 @@
+ 				break;
+ 			}
+ 		}
+-		
+-		//ICON info
+-		len = json_object_array_length(iconJarray);
+-		for(i=0;i<len;i++){
+-			iconJobj = json_object_array_get_idx(iconJarray, i);
+-			if(iconJobj == NULL)
+-				break;
+-			MacAddress = Jgets(iconJobj, "MacAddress");
+-			if(MacAddress == NULL)
+-				continue;
+-			if(isSameMac(PhysAddress, MacAddress)){
+-				replaceParam(obj, "DeviceIcon", iconJobj, "DeviceIcon");
+-				replaceParam(obj, "Internet_Blocking_Enable", iconJobj, "Internet_Blocking_Enable");
+-#ifdef ZYXEL_HOME_CYBER_SECURITY
+-				replaceParam(obj, "BrowsingProtection", iconJobj, "BrowsingProtection");
+-				replaceParam(obj, "TrackingProtection", iconJobj, "TrackingProtection");	
+-				replaceParam(obj, "IOTProtection", iconJobj, "IOTProtection");
+-#endif
+-#ifdef ZYXEL_HOME_CYBER_SECURITY
+-				replaceParam(obj, "X_ZYXEL_FirstSeen", iconJobj, "X_ZYXEL_FirstSeen");
+-				replaceParam(obj, "X_ZYXEL_LastSeen", iconJobj, "X_ZYXEL_LastSeen");
+-				replaceParam(obj, "SourceVendorClassID", iconJobj, "SourceVendorClassID");
+-#endif
+-				if(strcmp("", Jgets(iconJobj, "HostName")))
+-					replaceParam(obj, "curHostName", iconJobj, "HostName");
+-			}
+-		}
+-		currIcon = json_object_get_string(json_object_object_get(obj, "DeviceIcon"));
+-		if(!strcmp(currIcon, "iPC") || !strcmp(currIcon, "")){
+-			json_object_object_add(obj, "icon", json_object_new_string("ipc"));
+-		}else if(!strcmp(currIcon, "iGame")){
+-			json_object_object_add(obj, "icon", json_object_new_string("igame"));
+-		}else if(!strcmp(currIcon, "iPrinter")){
+-			json_object_object_add(obj, "icon", json_object_new_string("iprinter"));
+-		}else if(!strcmp(currIcon, "iStb")){
+-			json_object_object_add(obj, "icon", json_object_new_string("istb"));
+-		}else if(!strcmp(currIcon, "iCamera")){
+-			json_object_object_add(obj, "icon", json_object_new_string("icamera"));
+-		}else if(!strcmp(currIcon, "iServer")){
+-			json_object_object_add(obj, "icon", json_object_new_string("iserver"));
+-		}else if(!strcmp(currIcon, "iTelephone")){
+-			json_object_object_add(obj, "icon", json_object_new_string("itelephone"));
+-		}else if(!strcmp(currIcon, "iRouter")){
+-			json_object_object_add(obj, "icon", json_object_new_string("irouter"));
+-		}else if(!strcmp(currIcon, "iOthers")){
+-			json_object_object_add(obj, "icon", json_object_new_string("iothers"));
+-		}else if(!strcmp(currIcon, "iStereo")){
+-			json_object_object_add(obj, "icon", json_object_new_string("istereo"));
+-		}else if(!strcmp(currIcon, "iMobile")){
+-			json_object_object_add(obj, "icon", json_object_new_string("imobile"));
+-		}else if(!strcmp(currIcon, "iTV")){
+-			json_object_object_add(obj, "icon", json_object_new_string("itv"));
+-		}
+-		
++
+ #if (defined(CBT_CUSTOMIZATION) || defined (ELISA_NETWORKMAP_CUSTOMIZATION) || defined(ZYXEL_WEB_NETWORK_MAP_NEW_STYLE))
+ 		Layer1Interface = Jgets(obj, "Layer1Interface");
+ 		if(strstr(Layer1Interface, "SSID")){
+@@ -1395,6 +1440,80 @@
+ #endif
+ 		json_object_array_add(Jarray, obj);
+ 	}
++
++
++	JarrayLen = json_object_array_length(Jarray);
++			//ICON info
++	len = json_object_array_length(iconJarray);
++	for(i=0;i<len;i++){
++		iconJobj = json_object_array_get_idx(iconJarray, i);
++		if(iconJobj == NULL)
++			continue;
++		MacAddress = Jgets(iconJobj, "MacAddress");
++		if(MacAddress == NULL)
++			continue;
++		/* update change icon into lan hosts host */
++		for ( j = 0 ; j < JarrayLen; j ++ ) {
++			obj = json_object_array_get_idx(Jarray, j);
++			PhysAddress = Jgets(obj, "PhysAddress");
++			if(isSameMac(PhysAddress, MacAddress)){
++				Jadds(obj, "DeviceSource", "CHANGE_ICON");
++				replaceParam(obj, "DeviceIcon", iconJobj, "DeviceIcon");
++				replaceParam(obj, "Internet_Blocking_Enable", iconJobj, "Internet_Blocking_Enable");
++	#ifdef ZYXEL_HOME_CYBER_SECURITY
++				replaceParam(obj, "BrowsingProtection", iconJobj, "BrowsingProtection");
++				replaceParam(obj, "TrackingProtection", iconJobj, "TrackingProtection");	
++				replaceParam(obj, "IOTProtection", iconJobj, "IOTProtection");
++				replaceParam(obj, "Profile", iconJobj, "Profile");
++	#endif
++	#ifdef ZYXEL_HOME_CYBER_SECURITY
++				replaceParam(obj, "X_ZYXEL_FirstSeen", iconJobj, "X_ZYXEL_FirstSeen");
++				replaceParam(obj, "X_ZYXEL_LastSeen", iconJobj, "X_ZYXEL_LastSeen");
++				replaceParam(obj, "SourceVendorClassID", iconJobj, "SourceVendorClassID");
++	#endif
++				if(strcmp("", Jgets(iconJobj, "HostName")))
++					replaceParam(obj, "curHostName", iconJobj, "HostName");
++
++				/* update the DeviceIcon */
++				zcfgFeDalLanHostsUpdatIcon(obj);
++				break;
++			}
++		}
++		/* not found in lanhost then we add it. ( off line ? */
++		if ( j == JarrayLen ) {
++			obj = json_object_new_object();
++			if ( obj ) {
++				/* fill original RDM_OID_HOSTS_HOST */
++				zcfgFeDalLanHostHostInit(obj );
++				/* init the default value (original)*/
++				zcfgFeDalLanHostsGetInit(obj,  &dhcp4PoolIid, &dhcp4StaticAddrIid );
++				
++				replaceParam(obj, "PhysAddress", iconJobj, "MacAddress");
++				Jadds(obj, "DeviceSource", "CHANGE_ICON");
++				replaceParam(obj, "DeviceIcon", iconJobj, "DeviceIcon");
++				replaceParam(obj, "Internet_Blocking_Enable", iconJobj, "Internet_Blocking_Enable");
++	#ifdef ZYXEL_HOME_CYBER_SECURITY
++				replaceParam(obj, "BrowsingProtection", iconJobj, "BrowsingProtection");
++				replaceParam(obj, "TrackingProtection", iconJobj, "TrackingProtection");
++				replaceParam(obj, "IOTProtection", iconJobj, "IOTProtection");
++				replaceParam(obj, "Profile", iconJobj, "Profile");
++	#endif
++	#ifdef ZYXEL_HOME_CYBER_SECURITY
++				replaceParam(obj, "X_ZYXEL_FirstSeen", iconJobj, "X_ZYXEL_FirstSeen");
++				replaceParam(obj, "X_ZYXEL_LastSeen", iconJobj, "X_ZYXEL_LastSeen");
++				replaceParam(obj, "SourceVendorClassID", iconJobj, "SourceVendorClassID");
++	#endif
++				if(strcmp("", Jgets(iconJobj, "HostName")))
++					replaceParam(obj, "curHostName", iconJobj, "HostName");
++
++				/* update the DeviceIcon */
++				zcfgFeDalLanHostsUpdatIcon(obj);
++				/* Add the obj into Jarray */
++				json_object_array_add(Jarray, obj);
++			}
++		}
++	}
++
+ 	zcfgFeJsonObjFree(iconJarray);
+ 	zcfgFeJsonObjFree(stbJobj);
+ 	zcfgFeJsonObjFree(dhcp4PoolJarray);
+@@ -1410,7 +1529,7 @@
+ 	zcfgRet_t ret = ZCFG_SUCCESS;
+ 	struct json_object *obj = NULL;
+ 	objIndex_t Iid = {0};
+-	const char *macAddr = NULL, *curmacAddr = NULL, *GUIicon = NULL, *hostName = NULL, *SourceVendorClassID = NULL;
++	const char *macAddr = NULL, *curmacAddr = NULL, *GUIicon = NULL, *hostName = NULL, *SourceVendorClassID = NULL, *Profile = NULL;
+ 	char icon[16] = {0};
+ 	bool changeIconRuleExist = false, Internet_Blocking_Enable = false,BrowsingProtection = false,TrackingProtection = false, IOTProtection = false;
+ 	unsigned int X_ZYXEL_FirstSeen =0, X_ZYXEL_LastSeen = 0;
+@@ -1423,12 +1542,14 @@
+ 	BrowsingProtection = json_object_get_boolean(json_object_object_get(Jobj,"BrowsingProtection"));
+ 	TrackingProtection = json_object_get_boolean(json_object_object_get(Jobj,"TrackingProtection"));
+ 	IOTProtection = json_object_get_boolean(json_object_object_get(Jobj,"IOTProtection"));
++	Profile = json_object_get_string(json_object_object_get(Jobj,"Profile"));
+ #endif
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ 	X_ZYXEL_FirstSeen = json_object_get_int(json_object_object_get(Jobj,"X_ZYXEL_FirstSeen"));
+ 	X_ZYXEL_LastSeen = json_object_get_int(json_object_object_get(Jobj,"X_ZYXEL_LastSeen"));
+ 	SourceVendorClassID = json_object_get_string(json_object_object_get(Jobj,"SourceVendorClassID"));	
+ #endif
++
+ 	if(!strcmp(GUIicon, "ipc")){
+ 		strcat(icon, "iPC");
+ 	}else if(!strcmp(GUIicon, "igame")){
+@@ -1454,7 +1575,8 @@
+ 	}else if(!strcmp(GUIicon, "itv")){
+ 		strcat(icon, "iTV");
+ 	}
+-	while(zcfgFeObjJsonGetNext(RDM_OID_CHANGE_ICON_NAME, &Iid, &obj) == ZCFG_SUCCESS){
++	IID_INIT(Iid);
++	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_CHANGE_ICON_NAME, &Iid, &obj) == ZCFG_SUCCESS){
+ 		curmacAddr = json_object_get_string(json_object_object_get(obj,"MacAddress"));
+ 		if(isSameMac(macAddr, curmacAddr)){
+ 			changeIconRuleExist = true;
+@@ -1480,6 +1602,9 @@
+ 			if(json_object_object_get(Jobj, "IOTProtection")){
+ 				json_object_object_add(obj, "IOTProtection", json_object_new_boolean(IOTProtection));
+ 			}
++			if(json_object_object_get(Jobj, "Profile")){
++				json_object_object_add(obj, "Profile", json_object_new_string(Profile));
++			}
+ #endif
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ 			if(json_object_object_get(Jobj, "X_ZYXEL_FirstSeen")){
+@@ -1502,7 +1627,8 @@
+ 	if(!changeIconRuleExist){
+ 		ret = zcfgFeObjJsonAdd(RDM_OID_CHANGE_ICON_NAME, &Iid, NULL);
+ 		if(ret == ZCFG_SUCCESS){
+-			ret = zcfgFeObjJsonGet(RDM_OID_CHANGE_ICON_NAME, &Iid, &obj);
++			ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_CHANGE_ICON_NAME, &Iid, &obj);
++
+ 			if(json_object_object_get(Jobj, "DeviceIcon")){
+ 				json_object_object_add(obj, "DeviceIcon", json_object_new_string(icon));
+ 			}
+@@ -1525,6 +1651,9 @@
+ 			if(json_object_object_get(Jobj, "IOTProtection")){
+ 				json_object_object_add(obj, "IOTProtection", json_object_new_boolean(IOTProtection));
+ 			}
++			if(json_object_object_get(Jobj, "Profile")){
++				json_object_object_add(obj, "Profile", json_object_new_string(Profile));
++			}
+ #endif
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ 			if(json_object_object_get(Jobj, "X_ZYXEL_FirstSeen")){
+@@ -1535,9 +1664,10 @@
+ 			}	
+ 			if(json_object_object_get(Jobj, "SourceVendorClassID")){
+ 				json_object_object_add(obj, "SourceVendorClassID", json_object_new_string(SourceVendorClassID));
+-			}				
+-#endif			
+-			zcfgFeObjJsonSet(RDM_OID_CHANGE_ICON_NAME, &Iid, obj, NULL);
++			}
++#endif
++
++			zcfgFeObjJsonBlockedSet(RDM_OID_CHANGE_ICON_NAME, &Iid, obj, NULL);
+ 			zcfgFeJsonObjFree(obj);
+ 		}
+ 	}
+@@ -1546,6 +1676,110 @@
+ }
+ 
+ 
++zcfgRet_t zcfgFeDalNetworkMAPPost(struct json_object *Jobj,  struct json_object *Jarray, char *replyMsg){
++	zcfgRet_t ret = ZCFG_SUCCESS;
++	struct json_object *obj = NULL, *inputObj = NULL;
++	objIndex_t Iid;
++	char path[64];
++
++	IID_INIT(Iid);
++	ret = zcfgFeObjJsonAdd(RDM_OID_CHANGE_ICON_NAME, &Iid, NULL);
++	if(ret == ZCFG_SUCCESS){
++		ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_CHANGE_ICON_NAME, &Iid, &obj);
++		if(( inputObj = json_object_object_get(Jobj, "DeviceIcon")) != NULL){
++			json_object_object_add(obj, "DeviceIcon", json_object_new_string(json_object_get_string(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "HostName")) != NULL){
++			json_object_object_add(obj, "HostName", json_object_new_string(json_object_get_string(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "MacAddress")) != NULL){
++			json_object_object_add(obj, "MacAddress", json_object_new_string(json_object_get_string(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "Internet_Blocking_Enable")) != NULL){
++			json_object_object_add(obj, "Internet_Blocking_Enable", json_object_new_boolean(json_object_get_boolean(inputObj)));
++		}
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++		if(( inputObj = json_object_object_get(Jobj, "BrowsingProtection")) != NULL){
++			json_object_object_add(obj, "BrowsingProtection", json_object_new_boolean(json_object_get_boolean(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "TrackingProtection")) != NULL){
++			json_object_object_add(obj, "TrackingProtection", json_object_new_boolean(json_object_get_boolean(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "IOTProtection")) != NULL){
++			json_object_object_add(obj, "IOTProtection", json_object_new_boolean(json_object_get_boolean(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "Profile")) != NULL){
++			json_object_object_add(obj, "Profile", json_object_new_string(json_object_get_string(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "X_ZYXEL_FirstSeen")) != NULL){
++			json_object_object_add(obj, "X_ZYXEL_FirstSeen", json_object_new_int(json_object_get_int(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "X_ZYXEL_LastSeen")) != NULL){
++			json_object_object_add(obj, "X_ZYXEL_LastSeen", json_object_new_int(json_object_get_int(inputObj)));
++		}
++		if(( inputObj = json_object_object_get(Jobj, "SourceVendorClassID")) != NULL){
++			json_object_object_add(obj, "SourceVendorClassID", json_object_new_string(json_object_get_string(inputObj)));
++		}
++#endif
++
++		zcfgFeObjJsonBlockedSet(RDM_OID_CHANGE_ICON_NAME, &Iid, obj, NULL);
++		zcfgFeJsonObjFree(obj);
++	}
++	if(Jarray != NULL){
++		sprintf(path, "X_ZYXEL_Change_Icon_Name.%d",Iid.idx[0]);
++		obj = json_object_new_object();
++		Jadds(obj, "path", path);
++		json_object_array_add(Jarray, obj);
++	}
++
++	return ret;
++}
++
++
++zcfgRet_t zcfgFeDalNetworkMAPDelete(struct json_object *Jobj, char *replyMsg){
++	zcfgRet_t ret = ZCFG_DELETE_REJECT;
++	struct json_object *obj = NULL;
++	struct json_object *macObj = NULL;
++	objIndex_t Iid = {0};
++	const char *macAddr = NULL, *curmacAddr = NULL;
++	
++	macObj= json_object_object_get(Jobj,"MacAddress");
++	if ( macObj =! NULL ) {
++		macAddr = Jgets(Jobj,"MacAddress");
++
++		/* Remove Change ICON and HOSTS_HOST */
++		IID_INIT(Iid);
++		while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_CHANGE_ICON_NAME, &Iid, &obj) == ZCFG_SUCCESS){
++			curmacAddr = Jgets(obj,"MacAddress");
++			if(isSameMac(macAddr, curmacAddr)){
++				ret = zcfgFeObjJsonDel(RDM_OID_CHANGE_ICON_NAME, &Iid, NULL);
++				zcfgFeJsonObjFree(obj);
++				break;
++			}
++			zcfgFeJsonObjFree(obj);
++		}
++		
++		IID_INIT(Iid);
++		while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_HOSTS_HOST, &Iid, &obj) == ZCFG_SUCCESS){
++			curmacAddr = Jgets(obj, "PhysAddress");
++			if(isSameMac(macAddr, curmacAddr)){
++				ret = zcfgFeObjJsonDel(RDM_OID_HOSTS_HOST, &Iid, NULL);
++				zcfgFeJsonObjFree(obj);
++				break;
++			}
++			zcfgFeJsonObjFree(obj);
++		}
++	}
++
++	if(ret == ZCFG_DELETE_REJECT){
++//		json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.SchedulerRule.delete_pcp_sch_err_msg"));
++//		printf("%s %s %d \n",json_object_to_json_string(Jobj),__func__,__LINE__);
++		return ret; 
++	}
++	return ret;
++} /* zcfgFeDalNetworkMAPDelete */
++
++
+ /*
+ [{
+   "lanhosts":[{},...],
+@@ -1718,6 +1952,12 @@
+ 	else if(!strcmp(method, "PUT")){
+ 		ret = zcfgFeDalNetworkMAPEdit(Jobj, NULL);
+ 	}
++	else if(!strcmp(method, "POST")){
++		ret = zcfgFeDalNetworkMAPPost(Jobj, Jarray, replyMsg);
++	}
++	else if(!strcmp(method, "DELETE")){
++		ret = zcfgFeDalNetworkMAPDelete(Jobj, NULL);
++	}
+ 
+ 	return ret;
+ }
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2019-09-26 16:55:08.018113231 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2019-09-26 16:55:08.346113229 +0800
+@@ -462,7 +462,7 @@
+ {"login_privilege", LOGIN_PRIVILEGE_param,	zcfgFeDalLoginPrivilege,NULL, 					"edit|get",				""},//root_only
+ {"QUICKSTART", 		QUICK_START_param,	zcfgFeDalQuickStart,	NULL,						"edit",				""},//root_only
+ {"user_account",	USER_ACCOUNT_param, zcfgFeDalUserAccount,	zcfgFeDalShowUserAccount,	"get|add|edit|delete",	"User_Account"}, //temporarily root_only //User_Account
+-{"lanhosts",		NETWORK_MAP_param, zcfgFeDalNetworkMAP,	zcfgFeDalShowNetworkMAP,		"get",				"Status"},
++{"lanhosts",		NETWORK_MAP_param, zcfgFeDalNetworkMAP,	zcfgFeDalShowNetworkMAP,		"get|add|edit|delete",				"Status"},
+ {"status",			NETWORK_MAP_param, zcfgFeDalStatus, 		NULL,						"",					""}, //temporarily GUI only
+ {"cardpage_status", NETWORK_MAP_param, zcfgFeDalCardPageStatus, NULL,						"", 				""}, //temporarily cardpage only
+ {"LanPortInfo", 	NETWORK_MAP_param, zcfgFeDalLanPortInfo, 	NULL,						"", 				""},
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-09-26 16:55:08.302113229 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-09-26 16:55:08.346113229 +0800
+@@ -35,7 +35,11 @@
+ 	{"ServicePolicy",		dalType_string,	0,	0,	NULL, "Block|Allow"},
+ 	//{"Type",		dalType_int,	0,	0,	NULL},
+ 	{"UrlPolicy",			dalType_string,	0,	0,	NULL, "Block|Allow"},
++#ifdef ZYXEL_HOME_CYBER_SECURITY
++	{"MACAddressList",		dalType_MacAddrList,	1,	20,	NULL, "All", dal_Add},
++#else
+ 	{"MACAddressList",		dalType_MacAddrList,	1,	5,	NULL, "All", dal_Add},
++#endif
+ 	{"ScheduleRuleList",	dalType_string,	0,	64,	NULL, NULL, dalcmd_Forbid},
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+ 	{"Days",				dalType_string,	0,	0,	NULL, NULL, dal_Add},
+@@ -943,7 +947,7 @@
+ 	if(strlen(ScheduleRuleList)>0)
+ 		json_object_object_add(pcpObj, "ScheduleRuleList", json_object_new_string(ScheduleRuleList));
+ 	
+-	if((ret = zcfgFeObjJsonSet(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, pcpObj, NULL)) != ZCFG_SUCCESS){
++	if((ret = zcfgFeObjJsonBlockedSet(RDM_OID_PAREN_CTL_PROF, &pcpObjIid, pcpObj, NULL)) != ZCFG_SUCCESS){
+ 		printf("ret=%d\n", ret);
+ 		json_object_object_add(Jobj, "__multi_lang_replyMsg", json_object_new_string("zylang.Parental_Control.error.set_pcp_err"));
+ 		return ret;
+@@ -1153,7 +1157,8 @@
+ 		IID_INIT(objIid);
+ 		if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_PAREN_CTL, &objIid, &obj) == ZCFG_SUCCESS){
+ 			pramJobj = json_object_new_object();
+-			replaceParam(pramJobj, "PrentalCtlEnable", obj, "Enable");
++			json_object_object_add(pramJobj,"PrentalCtlEnable",json_object_new_boolean(json_object_get_boolean(json_object_object_get(obj,"Enable"))));
++			//replaceParam(pramJobj, "PrentalCtlEnable", obj, "Enable");
+ 			json_object_array_add(Jarray, pramJobj);
+ 			zcfgFeJsonObjFree(obj);
+ 		}
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.h	2019-09-26 16:55:07.598113235 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.h	2019-09-26 16:55:08.346113229 +0800
+@@ -10,4 +10,6 @@
+ zcfgRet_t getLoginUserInfo(struct json_object *Jobj, char *userName, char *level);
+ bool isSameSubNet( char *lanIp, char *lansubnetMask, char *staticIP);
+ 
++extern bool validateMacAddr1(const char *macAddr, const char *delim);
++
+ #endif

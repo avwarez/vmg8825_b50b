@@ -1,0 +1,99 @@
+Index: ppp-2.4.3/pppd/main.c
+===================================================================
+--- ppp-2.4.3.orig/pppd/main.c	2020-03-20 20:18:06.102467793 +0800
++++ ppp-2.4.3/pppd/main.c	2020-03-20 20:04:50.136803000 +0800
+@@ -174,12 +174,15 @@
+ int fd_ppp = -1;		/* fd for talking PPP */
+ int phase;			/* where the link is at */
+ int kill_link;
+-int asked_to_quit;
++int asked_to_quit = 0;
++int asked_to_stop = 0;
+ int open_ccp_flag;
+ int listen_time;
+ int got_sigusr2;
+-int got_sigterm;
+-int got_sighup;
++int got_sigterm = 0;
++int got_sighup = 0;
++
++int has_sigstop = 0;
+ 
+ static sigset_t signals_handled;
+ static int waiting;
+@@ -253,6 +256,7 @@
+ static struct timeval *timeleft __P((struct timeval *));
+ static void kill_my_pg __P((int));
+ static void hup __P((int));
++static void stop __P((int));
+ static void term __P((int));
+ static void chld __P((int));
+ #ifdef ZyXEL_PPP_LCP_ECHO  /* __ZyXEL__, Albert, 20150520, Supports PPPoE Connection Delay and LCP Echo  */
+@@ -662,7 +666,8 @@
+ 	script_unsetenv("BYTES_RCVD");
+ 
+ 	lcp_open(0);		/* Start protocol */
+-	start_link(0);
++    if(!asked_to_stop)
++		start_link(0);
+ 	while (phase != PHASE_DEAD) {
+ 	    handle_events();
+ #if 1 // ZYXEL_RECEIVE_PADT
+@@ -815,6 +820,13 @@
+ 	status = EXIT_USER_REQUEST;
+ 	got_sigterm = 0;
+     }
++    if (has_sigstop) {
++    	info("SIGQUIT %d", has_sigstop);
++    	kill_link = 1;
++    	asked_to_stop = 1;
++    	status = EXIT_USER_REQUEST;
++    	has_sigstop = 0;
++    }
+     if (got_sigchld) {
+ 	got_sigchld = 0;
+ 	reap_kids();	/* Don't leave dead kids lying around */
+@@ -840,6 +852,7 @@
+      */
+     sigemptyset(&signals_handled);
+     sigaddset(&signals_handled, SIGHUP);
++    sigaddset(&signals_handled, SIGQUIT);
+     sigaddset(&signals_handled, SIGINT);
+     sigaddset(&signals_handled, SIGTERM);
+     sigaddset(&signals_handled, SIGCHLD);
+@@ -854,6 +867,7 @@
+     sa.sa_mask = signals_handled;
+     sa.sa_flags = 0;
+     SIGNAL(SIGHUP, hup);		/* Hangup */
++    SIGNAL(SIGQUIT, stop);		/* Stop */
+     SIGNAL(SIGINT, term);		/* Interrupt */
+     SIGNAL(SIGTERM, term);		/* Terminate */
+     SIGNAL(SIGCHLD, chld);
+@@ -874,7 +888,7 @@
+     SIGNAL(SIGFPE, bad_signal);
+     SIGNAL(SIGILL, bad_signal);
+     SIGNAL(SIGPIPE, bad_signal);
+-    SIGNAL(SIGQUIT, bad_signal);
++    //SIGNAL(SIGQUIT, bad_signal);
+     SIGNAL(SIGSEGV, bad_signal);
+ #ifdef SIGBUS
+     SIGNAL(SIGBUS, bad_signal);
+@@ -1594,6 +1608,18 @@
+ 	siglongjmp(sigjmp, 1);
+ }
+ 
++static void
++stop(sig)
++	int sig;
++{
++	has_sigstop = sig;
++	if(conn_running)
++		kill_my_pg(sig);
++	notify(sigreceived, sig);
++	if(waiting)
++		siglongjmp(sigjmp, 1);
++}
++
+ 
+ /*
+  * term - Catch SIGTERM signal and SIGINT signal (^C/del).

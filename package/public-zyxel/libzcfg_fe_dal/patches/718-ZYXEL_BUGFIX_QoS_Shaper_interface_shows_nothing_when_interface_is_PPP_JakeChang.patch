@@ -1,0 +1,12 @@
+Index: libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosShaper.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/qos/zcfg_fe_QosShaper.c	2019-11-14 15:35:16.877476879 +0800
++++ libzcfg_fe_dal-1.0/network/qos/zcfg_fe_QosShaper.c	2019-11-14 15:35:36.229520940 +0800
+@@ -282,7 +282,6 @@
+                         {
+                             if (!strcmp(Interface, json_object_get_string(tmpObj)))
+                             {
+-                                zcfgFeJsonObjFree(wanobj);
+                                 break;
+                             }
+                         }

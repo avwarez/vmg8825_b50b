@@ -1,0 +1,320 @@
+Index: libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/js/zcfg_fe_dal_networkmap.c	2020-04-28 09:59:03.346295744 +0800
++++ libzcfg_fe_dal-1.0/js/zcfg_fe_dal_networkmap.c	2020-04-28 10:07:44.129035200 +0800
+@@ -11,6 +11,7 @@
+ #include "zcfg_rdm_obj.h"
+ #include "zcfg_msg.h"
+ #include "zyutil.h"
++#include "zos_api.h"
+ 
+ #include "zcfg_fe_dal_common.h"
+ 
+@@ -1855,7 +1856,7 @@
+ 		IID_INIT(Iid);
+ 		while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_HOSTS_HOST, &Iid, &obj) == ZCFG_SUCCESS){
+ 			curmacAddr = Jgets(obj, "PhysAddress");
+-			if(isSameMac(macAddr, curmacAddr)){
++			if(isSameMac(macAddr, curmacAddr)){ 
+ 				ret = zcfgFeObjJsonDel(RDM_OID_HOSTS_HOST, &Iid, NULL);
+ 				zcfgFeJsonObjFree(obj);
+ 				break;
+@@ -2202,5 +2203,256 @@
+ 	return ret;
+ }
+ 
++#ifdef ZYXEL_OPAL_EXTENDER
++zcfgRet_t zcfgFeDalExtenderConnStatusGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
++{
++    zcfgRet_t              ret = ZCFG_SUCCESS;
++    objIndex_t             repIid = {0};
++    objIndex_t             radioIid = {0};
++    objIndex_t             routerIid = {0};
++    objIndex_t             v4FwdIid = {0};
++    objIndex_t             v6FwdIid = {0};
++    objIndex_t             IpDiagIPPingIid = {0};
++    connetedStep_t         connStep = CONNECTED_STEP_EXTENDER;
++    struct json_object    *diagIPPingJobj = NULL;
++    struct json_object    *repObj = NULL;
++    struct json_object    *radioObj = NULL;
++    struct json_object    *v4FwdObj = NULL;
++    struct json_object    *v6FwdObj = NULL;
++    struct json_object    *apObject = NULL;
++    struct json_object    *curAPInfo = NULL;
++    struct json_object    *status = NULL;
++    const char            *Mode = NULL;
++    const char            *DiagnosticsState = NULL;
++    const char            *GatewayIPAddress = NULL;
++    const char            *NextHop = NULL;
++    zcfgMsg_t             *sendMsgHdr = NULL;
++    char                  *tmp = NULL;
++    char                  *sendBuf = NULL;
++    char                  *recvBuf = NULL;
++    FILE                  *fp = NULL;
++    char                   extMode[16] = {0};
++    char                   iface[16] = {0};
++    char                   cmd[64] = {0};
++    char                   buf[128] = {0};
++    char                   protocol[8] = {0};
++
++    IID_INIT(repIid);
++    if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_REPEATER, &repIid, &repObj)) == ZCFG_SUCCESS)
++    {
++        Mode = json_object_get_string(json_object_object_get(repObj, "Mode"));
++    }
++    if (Mode == NULL || ret != ZCFG_SUCCESS)
++    {
++        Jaddi(Jobj, "connStep", connStep);
++        Jadds(Jobj, "Mode", "");
++        Jadds(Jobj, "protocol", "");
++        return ret;
++    }
++    strncpy(extMode, Mode, sizeof(extMode));
++    zcfgFeJsonObjFree(repObj);
++    if(strcmp(extMode,"repeater") == 0) /* repeater mode */
++    {
++        IID_INIT(radioIid);
++        radioIid.level = 1;
++        radioIid.idx[0] = 2; //5G
++        if(zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WIFI_RADIO, &radioIid, &radioObj) == ZCFG_SUCCESS)
++        {
++            tmp = json_object_get_string(json_object_object_get(radioObj, "X_ZYXEL_IfName"));
++
++            if(strcmp(tmp, ""))
++            {
++                strncpy(iface, tmp, sizeof(iface));
++            }
++            else
++            {
++                ret = ZCFG_INVALID_ARGUMENTS;
++            }
++            zcfgFeJsonObjFree(radioObj);
++        }
++        //send message to zywifid to get current status
++        apObject = json_object_new_array();
++        json_object_array_add(apObject, json_object_new_string("CurStationStatus"));
++
++        tmp = json_object_to_json_string(apObject);
++        if ((sendBuf = calloc(1, (sizeof(zcfgMsg_t)+ strlen(tmp) +1))))
++        {
++            sendMsgHdr = (zcfgMsg_t *)sendBuf;
++            sendMsgHdr->type = ZCFG_MSG_WIFI_ST_UPDATE;
++            sendMsgHdr->srcEid = ZCFG_EID_DALCMD;
++            sendMsgHdr->dstEid = ZCFG_EID_WIFID;
++            strcpy(sendMsgHdr->reserve, iface);
++            sendMsgHdr->length = strlen(tmp)+1;
++            strcpy(sendBuf+sizeof(zcfgMsg_t), tmp);
++
++            if(zcfgMsgSendAndGetReply(sendMsgHdr, (zcfgMsg_t **)&recvBuf, 30000) == ZCFG_SUCCESS)
++            {
++                if(((zcfgMsg_t *)recvBuf)->statCode == ZCFG_SUCCESS && ((zcfgMsg_t *)recvBuf)->length > 0 &&
++                    (curAPInfo = json_tokener_parse(recvBuf+sizeof(zcfgMsg_t))) > 0)
++                {
++                    if((status = json_object_object_get(curAPInfo, "CurStationStatus")))
++                    {
++                        if (json_object_get_boolean(status) == true)
++                        {
++                            connStep = CONNECTED_STEP_GATEWAY;
++                        }
++                    }
++                }
++            }
++        }
++        zcfgFeJsonObjFree(apObject);
++        if (recvBuf)
++        {
++            free(recvBuf);
++        }
++        recvBuf = NULL;
++
++        if(!is_error(curAPInfo))
++        {
++            zcfgFeJsonObjFree(curAPInfo);
++        }
++    } /* repeater mode */
++    else /* ap mode */
++    {
++        IID_INIT(routerIid);
++        routerIid.level = 1;
++        routerIid.idx[0] = 1;
++        //ping v4 GW
++        IID_INIT(v4FwdIid);
++        while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V4_FWD, &routerIid, &v4FwdIid, &v4FwdObj) == ZCFG_SUCCESS)
++        {
++            GatewayIPAddress= json_object_get_string(json_object_object_get(v4FwdObj, "GatewayIPAddress"));
+ 
++            if (GatewayIPAddress)
++            {
++
++                IID_INIT(IpDiagIPPingIid);
++                if((ret = zcfgFeObjJsonGet(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, &diagIPPingJobj)) == ZCFG_SUCCESS)
++                {
++                    if(diagIPPingJobj != NULL)
++                    {
++                        json_object_object_add(diagIPPingJobj, "ProtocolVersion", json_object_new_string("IPv4"));
++                        json_object_object_add(diagIPPingJobj, "Host", json_object_new_string(GatewayIPAddress));
++                        json_object_object_add(diagIPPingJobj, "DiagnosticsState", json_object_new_string("Requested"));
++                        json_object_object_add(diagIPPingJobj, "NumberOfRepetitions", json_object_new_int(1));
++
++                        const char *ipping;
++                        ipping = json_object_to_json_string(diagIPPingJobj);
++                        if((ret = zcfgFeObjWrite(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, ipping, REQUEST_SET_OBJ | ZCFG_PARTIAL_OBJECT_SET, NULL)) == ZCFG_SUCCESS)
++                        {
++                            sleep(1);
++                            fp = fopen("/var/diagResult", "r");
++                            if(fp != NULL)
++                            {
++                              while (fgets(buf, 128, fp) != NULL)
++                              {
++                                  if (strstr(buf, "1 packets received") != NULL)
++                                  {
++                                      connStep = CONNECTED_STEP_GATEWAY;
++                                      strcpy(protocol,"IPv4");
++                                      break;
++                                  }
++                              }
++                              fclose(fp);
++                            }
++
++                        }
++                    }
++                    zcfgFeJsonObjFree(diagIPPingJobj);
++                }
++                zcfgFeJsonObjFree(v4FwdObj);
++                break;
++            }
++            zcfgFeJsonObjFree(v4FwdObj);
++        }
++
++        //ping v6 GW
++        if (connStep == CONNECTED_STEP_EXTENDER)
++        {
++            IID_INIT(routerIid);
++            routerIid.level = 1;
++            routerIid.idx[0] = 1;
++
++            IID_INIT(v6FwdIid);
++            while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_ROUTING_ROUTER_V6_FWD, &routerIid, &v6FwdIid, &v6FwdObj) == ZCFG_SUCCESS)
++            {
++                NextHop= json_object_get_string(json_object_object_get(v6FwdObj, "NextHop"));
++                if (NextHop)
++                {
++                    IID_INIT(IpDiagIPPingIid);
++                    if((ret = zcfgFeObjJsonGet(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, &diagIPPingJobj)) == ZCFG_SUCCESS)
++                    {
++                        if(diagIPPingJobj != NULL)
++                        {
++                            json_object_object_add(diagIPPingJobj, "ProtocolVersion", json_object_new_string("IPv6"));
++                            json_object_object_add(diagIPPingJobj, "Host", json_object_new_string(NextHop));
++                            json_object_object_add(diagIPPingJobj, "DiagnosticsState", json_object_new_string("Requested"));
++                            json_object_object_add(diagIPPingJobj, "NumberOfRepetitions", json_object_new_int(1));
++
++                            const char *ipping;
++                            ipping = json_object_to_json_string(diagIPPingJobj);
++                            if((ret = zcfgFeObjWrite(RDM_OID_IP_DIAG_IPPING, &IpDiagIPPingIid, ipping, REQUEST_SET_OBJ | ZCFG_PARTIAL_OBJECT_SET, NULL)) == ZCFG_SUCCESS)
++                            {
++                                sleep(1);
++                                fp = fopen("/var/diagResult", "r");
++                                if(fp != NULL)
++                                {
++                                  while (fgets(buf, 128, fp) != NULL)
++                                  {
++                                      if (strstr(buf, "1 packets received") != NULL)
++                                      {
++                                          connStep = CONNECTED_STEP_GATEWAY;
++                                          strcpy(protocol,"IPv6");
++                                          break;
++                                      }
++                                  }
++                                  fclose(fp);
++                                }
++                            }
++                        }
++                        zcfgFeJsonObjFree(diagIPPingJobj);
++                    }
++                    zcfgFeJsonObjFree(v6FwdObj);
++                    break;
++
++                }
++                zcfgFeJsonObjFree(v6FwdObj);
++            }
++        }
++    } /* ap mode */
++    //ping internet
++    Jaddi(Jobj, "connStep", connStep);
++    Jadds(Jobj, "Mode", extMode);
++    Jadds(Jobj, "Protocol", protocol);
++
++    return ret;
++}
++zcfgRet_t zcfgFeDalExtenderNetworkMAPGet(struct json_object *Jobj, struct json_object *Jarray, char *replyMsg)
++{
++    struct json_object    *networkMAPInfoJobj = NULL;
++    struct json_object    *extenderStatusJobj = NULL;
++
++    networkMAPInfoJobj = json_object_new_object();
++    json_object_array_add(Jarray, networkMAPInfoJobj);
++
++    extenderStatusJobj = json_object_new_object();
++    json_object_object_add(networkMAPInfoJobj, "extenderStatus", extenderStatusJobj);
++    zcfgFeDalExtenderConnStatusGet(extenderStatusJobj, NULL, NULL);
++
++    return ZCFG_SUCCESS;
++}
++
++zcfgRet_t zcfgFeDalExtenderNetworkMAP(const char *method, struct json_object *Jobj, struct json_object *Jarray,char *replyMsg)
++{
++    zcfgRet_t ret = ZCFG_SUCCESS;
++
++    if(!method || !Jobj)
++        return ZCFG_INTERNAL_ERROR;
++
++    if(!strcmp(method, "GET")){
++        ret = zcfgFeDalExtenderNetworkMAPGet(Jobj, Jarray, NULL);
++    }
++    return ret;
++}
++#endif
+ 
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal_common.h	2020-04-28 09:59:03.382295744 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal_common.h	2020-04-28 09:59:03.410295744 +0800
+@@ -147,6 +147,15 @@
+     dalType_ShaperIntf
+ };
+ 
++#ifdef ZYXEL_OPAL_EXTENDER
++typedef enum
++{
++    CONNECTED_STEP_EXTENDER = 0,
++    CONNECTED_STEP_GATEWAY,
++    CONNECTED_STEP_INTERNET
++}connetedStep_t;
++#endif
++
+ bool getSpecificObj(zcfg_offset_t oid, char *key, json_type type, void *value, objIndex_t *outIid, struct json_object **outJobj);
+ int replaceParam(struct json_object *Jobj1, char *key1, struct json_object *Jobj2, char *key2);
+ int isDigitString(char *getString);
+Index: libzcfg_fe_dal-1.0/zcfg_fe_dal.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/zcfg_fe_dal.c	2020-04-28 09:59:03.382295744 +0800
++++ libzcfg_fe_dal-1.0/zcfg_fe_dal.c	2020-04-28 09:59:03.410295744 +0800
+@@ -396,6 +396,7 @@
+ 
+ #ifdef ZYXEL_OPAL_EXTENDER
+ extern void zcfgFeDalShowOperatingModes(struct json_object *Jarray);
++extern zcfgRet_t zcfgFeDalExtenderNetworkMAP(const char *method, struct json_object *Jobj, struct json_object *Jarray, char *replyMsg);
+ #endif
+ 
+ 
+@@ -539,7 +540,8 @@
+ {"ZYDUACT", ZYEE_DU_param, zcfgFeDalDUAction,  NULL,       "edit",             "",																							0},
+ #endif
+ #ifdef ZYXEL_OPAL_EXTENDER
+-{"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes, 	zcfgFeDalShowOperatingModes, 		"edit|get", 			"Wireless",								0},
++{"OperatingModes", WIFI_OperatingModes_param, zcfgFeDalOperatingModes, 	zcfgFeDalShowOperatingModes,		"edit|get", 			"Wireless",								0},
++{"ExtenderNetMAP",  NETWORK_MAP_param, zcfgFeDalExtenderNetworkMAP,    NULL,                                "get",                  "",                                  0},
+ #endif
+ {NULL,				NULL,				NULL, 					NULL,						NULL,				 NULL,														NULL}
+ };

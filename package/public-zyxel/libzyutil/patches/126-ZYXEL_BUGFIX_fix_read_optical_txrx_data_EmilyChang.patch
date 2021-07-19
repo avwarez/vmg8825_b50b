@@ -1,0 +1,20 @@
+Index: libzyutil-1.0/zyutil_sfp.c
+===================================================================
+--- libzyutil-1.0.orig/zyutil_sfp.c	2020-05-07 18:45:06.338931072 +0800
++++ libzyutil-1.0/zyutil_sfp.c	2020-05-07 19:12:48.250934554 +0800
+@@ -523,13 +523,13 @@
+         ddmi_state->tx_power = -41;
+         ddmi_state->temperature = 0;
+     }
+-
++#ifdef WIND_ITALY_CUSTOMIZATION
+ 	//check filber is connected or not(rx lose bit). fix bug for sfp tx reading. workaround.
+ 	if (ddmi2_data[DDMI2_STATUS_CONTROL_OFFSET]){
+ 		ddmi_state->rx_power = -41;
+ 		ddmi_state->tx_power = -41;
+ 	}
+-
++#endif //WIND_ITALY_CUSTOMIZATION
+     return 0;
+ }
+ 

@@ -1,0 +1,15 @@
+Index: linux-4.1.52/net/ipv4/netfilter/nf_nat_ipsec.c
+===================================================================
+--- linux-4.1.52.orig/net/ipv4/netfilter/nf_nat_ipsec.c	2018-01-22 14:21:12.665630788 +0800
++++ linux-4.1.52/net/ipv4/netfilter/nf_nat_ipsec.c	2018-01-24 13:53:14.032768520 +0800
+@@ -46,8 +46,10 @@
+    struct iphdr *iph = ip_hdr(skb);
+    struct udphdr *udph = (void *)iph + iph->ihl * 4;
+ 
++#if 0 //PeterSu
+    /* make sure source port is 500 */
+    udph->source = htons(IPSEC_PORT);
++#endif
+    udph->check = 0;
+    
+    return NF_ACCEPT;

@@ -1,0 +1,93 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_scheduler.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_scheduler.c	2019-11-20 16:21:02.475143529 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_scheduler.c	2019-11-27 13:27:25.576630149 +0800
+@@ -39,7 +39,7 @@
+ 
+ 	strcpy(inputSSID,ssid);
+ 	IID_INIT(iid);
+-	while(zcfgFeObjJsonGetNext(RDM_OID_WIFI_SSID, &iid, &ssidObj) == ZCFG_SUCCESS){
++	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WIFI_SSID, &iid, &ssidObj) == ZCFG_SUCCESS){
+ 
+ 		tmpSSID = json_object_get_string(json_object_object_get(ssidObj,"SSID"));
+ 		if(!strcmp(inputSSID,tmpSSID)){
+@@ -125,7 +125,7 @@
+ 	struct json_object *timeStopMin = NULL;
+ 	
+ 	IID_INIT(objIid);
+-	while(zcfgFeObjJsonGetNext(RDM_OID_WLAN_SCHEDULER, &objIid, &wlanSchObj) == ZCFG_SUCCESS){
++	while(zcfgFeObjJsonGetNextWithoutUpdate(RDM_OID_WLAN_SCHEDULER, &objIid, &wlanSchObj) == ZCFG_SUCCESS){
+ 		enable = json_object_object_get(wlanSchObj, "Enable");
+ 		name = json_object_object_get(wlanSchObj, "Name");
+ 		description = json_object_object_get(wlanSchObj, "Description");
+@@ -200,7 +200,7 @@
+ 			printf("Cannot add entry since the maximum number of entries has been reached.\n");
+ 		return ret;
+ 	}	
+-	if((ret = zcfgFeObjJsonGet(RDM_OID_WLAN_SCHEDULER, &objIid, &WlanSchedulerJobj)) != ZCFG_SUCCESS) {
++	if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WLAN_SCHEDULER, &objIid, &WlanSchedulerJobj)) != ZCFG_SUCCESS) {
+ 		printf("%s: Object retrieve fail\n", __FUNCTION__);
+ 		return ret;
+ 	}	
+@@ -290,7 +290,7 @@
+ 		printf("Wrong index..\n");
+ 		return ret;
+ 	}
+-	if((ret = zcfgFeObjJsonGet(RDM_OID_WLAN_SCHEDULER, &objIid, &WlanSchedulerJobj)) != ZCFG_SUCCESS) {
++	if((ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WLAN_SCHEDULER, &objIid, &WlanSchedulerJobj)) != ZCFG_SUCCESS) {
+ 		return ret;
+ 	}
+ 
+@@ -385,7 +385,9 @@
+ 	int Index = 0;
+ 
+ 	enum json_type jsonType;
++	int len = 0;
+ 	
++	len = json_object_array_length(Jobj) - 1;
+ 	while((reqObj = json_object_array_get_idx(Jobj, reqObjIdx)) !=NULL){
+ 
+ 		Index = json_object_get_int(json_object_object_get(reqObj, "Index"));
+@@ -396,14 +398,17 @@
+ 		schedulerIid.level = 1;
+ 		schedulerIid.idx[0] = Index;
+ 	
+-		ret = zcfgFeObjJsonGet(RDM_OID_WLAN_SCHEDULER, &schedulerIid, &wlanSchedulerActiveObj);
++		ret = zcfgFeObjJsonGetWithoutUpdate(RDM_OID_WLAN_SCHEDULER, &schedulerIid, &wlanSchedulerActiveObj);
+ 		if(ret == ZCFG_SUCCESS) {
+ 			json_object_object_add(wlanSchedulerActiveObj, "Enable", json_object_new_boolean(enable));
+-			ret = zcfgFeObjJsonSet(RDM_OID_WLAN_SCHEDULER, &schedulerIid, wlanSchedulerActiveObj, NULL);
++			if(Index == len) {
++				ret = zcfgFeObjJsonSet(RDM_OID_WLAN_SCHEDULER, &schedulerIid, wlanSchedulerActiveObj, NULL);
++			}
++			else {
++				ret = zcfgFeObjJsonSetWithoutApply(RDM_OID_WLAN_SCHEDULER, &schedulerIid, wlanSchedulerActiveObj, NULL);
++			}
+ 		}
+-		
+ 		zcfgFeJsonObjFree(wlanSchedulerActiveObj);
+-		zcfgFeJsonObjFree(reqObj);
+ 	}
+ 	
+ 	return ret;
+@@ -432,6 +437,7 @@
+ 	if(!method || !Jobj)
+ 		return ZCFG_INTERNAL_ERROR;
+ 
++
+ 	if(!strcmp(method, "PUT")) {
+ 		if(json_object_get_type(Jobj) == json_type_array){ // for GUI, tmp solution
+ 			ret = zcfgFeDalWlanSchedulerActiveEdit(Jobj, NULL); 
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_scheduler_access.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_scheduler_access.c	2019-11-20 16:21:01.883143542 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_scheduler_access.c	2019-11-27 13:27:45.952629714 +0800
+@@ -131,7 +131,7 @@
+ 			json_object_object_add(wlanSchedulerActiveObj, "MasterShip", json_object_new_boolean(masterShip));
+ #endif //ZYXEL_WLAN_SCHEDULER_AUTO_SWITCH_RADIO_ON
+ 
+-		ret = zcfgFeObjJsonSet(RDM_OID_WLAN_SCHEDULER_ACCESS, &schedulerIid, wlanSchedulerActiveObj, NULL);
++		ret = zcfgFeObjJsonSetWithoutApply(RDM_OID_WLAN_SCHEDULER_ACCESS, &schedulerIid, wlanSchedulerActiveObj, NULL);
+ 	}
+ 	
+ 	return ret;

@@ -1,0 +1,105 @@
+Index: wide-dhcpv6-20080615/dhcp6c.c
+===================================================================
+--- wide-dhcpv6-20080615.orig/dhcp6c.c	2020-05-06 16:40:08.174552131 +0800
++++ wide-dhcpv6-20080615/dhcp6c.c	2020-05-06 16:42:04.031658784 +0800
+@@ -94,6 +94,11 @@
+ 
+ #include <json/json.h>
+ 
++
++extern int addAftr;
++int restart_dhcp6c = 0;
++
++
+ extern struct dhcp6c_Msg dhcp6cMsg;
+ //extern struct json_object *dhcp6cMsg;
+ extern zcfgRet_t dhcp6MsgSend(int, int, const char *);
+@@ -329,7 +334,9 @@
+ 	struct addrinfo hints, *res;
+ 	static struct sockaddr_in6 sa6_allagent_storage;
+ 	int error, on = 1;
+-    struct ifreq ifr;
++	struct ifreq ifr;
++
++	addAftr = 0;
+ 
+ 	/* get our DUID */
+ 	if (get_duid(DUID_FILE, &client_duid)) {
+@@ -2329,6 +2336,24 @@
+ 	return (0);
+ }
+ 
++/*zyxel*/
++int dhcp6sConfDSlitenameListCheck(struct dhcp6_optinfo *opt)
++{
++	struct dhcp6_listval *d;
++
++	dprintf(LOG_ERR, FNAME, "%s : Enter\n", __FUNCTION__);
++
++
++	d = TAILQ_FIRST(&opt->dslitename_list);
++	if(d != NULL)
++		restart_dhcp6c = 0;
++	else
++		restart_dhcp6c = 1;
++
++	return 0;
++}
++
++
+ static int
+ client6_recvreply(ifp, dh6, len, optinfo)
+ 	struct dhcp6_if *ifp;
+@@ -2568,6 +2593,15 @@
+ 	dhcp6sConfDnsListUpdate(optinfo);
+ 	addMapInfoToMsg(optinfo);
+ 
++	dhcp6sConfDSlitenameListCheck(optinfo);
++	if(restart_dhcp6c && addAftr){
++		free_resources(NULL);
++		sleep(10);
++		client6_startall(1);
++		return 0;
++	}	
++
++
+ 	if (!TAILQ_EMPTY(&optinfo->ntp_list)) {
+ 		struct dhcp6_listval *d;
+ 		int i = 0;
+@@ -3131,7 +3165,10 @@
+ 		 * Solution: always set to '\0', but better to figure out why!
+ 		 */
+ 		if (strlen(domainName) > 0) domainName[strlen(domainName)-1]='\0';
+-	}
++		restart_dhcp6c = 0;
++	}else
++		restart_dhcp6c = 1;
++
+ 
+ 	addDnsInfoToMsg(nameserver, domainName);
+ 
+Index: wide-dhcpv6-20080615/config.c
+===================================================================
+--- wide-dhcpv6-20080615.orig/config.c	2020-05-06 16:40:08.174552131 +0800
++++ wide-dhcpv6-20080615/config.c	2020-05-06 16:43:21.483388217 +0800
+@@ -72,6 +72,8 @@
+ 
+ extern int errno;
+ 
++int addAftr;
++
+ struct prefix_ifconf *prefix_ifconflist;
+ struct dhcp6_list siplist, sipnamelist, dnslist, dnsnamelist, ntplist;
+ struct dhcp6_list nislist, nisnamelist;
+@@ -1557,6 +1559,11 @@
+ 	struct ia_conf *iac;
+ 
+ 	for (cfl = cfl0; cfl; cfl = cfl->next) {
++
++		if(cfl->type == DHCPOPT_DSLITENAME){
++			addAftr = 1;
++		}
++
+ 		switch(cfl->type) {
+ 		case DHCPOPT_RAPID_COMMIT:
+ 			switch (opcode) {

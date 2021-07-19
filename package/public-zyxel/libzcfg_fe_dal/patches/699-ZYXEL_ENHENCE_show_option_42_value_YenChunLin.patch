@@ -1,0 +1,35 @@
+Index: libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/broadband/zcfg_fe_dal_broadband.c	2019-08-27 19:18:01.951175083 +0800
++++ libzcfg_fe_dal-1.0/network/broadband/zcfg_fe_dal_broadband.c	2019-08-27 19:59:12.952392177 +0800
+@@ -92,6 +92,7 @@
+ 	{"IPv6Manual_IAPD",		dalType_boolean,	0,	0,	NULL},	
+ 	//DHCP
+ 	{"option42Enable",		dalType_boolean,	0,	0,	NULL},
++	{"option42Value",		dalType_string,	0,	255,	NULL, NULL, dalcmd_Forbid},
+ 	{"option43Enable",		dalType_boolean,	0,	0,	NULL},
+ 	{"option120Enable",		dalType_boolean,	0,	0,	NULL},
+ 	{"option121Enable",		dalType_boolean,	0,	0,	NULL},
+@@ -325,6 +326,9 @@
+ 		printf("%-2s %-30s %-10s \n", "", "Apply as Default Gateway :", json_object_get_string(json_object_object_get(obj_idx, "sysGwEnable")));
+ 		if(!json_object_get_boolean(json_object_object_get(obj_idx, "ipStatic"))){
+ 			printf("DHCPC Options: \n");
++#ifdef ZyXEL_DHCP_OPTION42
++			printf("%-2s %-20s %-10s %s\n", "", "options42", json_object_get_string(json_object_object_get(obj_idx, "option42Enable")), json_object_get_string(json_object_object_get(obj_idx, "option42Value")));
++#endif
+ 			printf("%-2s %-20s %-10s \n", "", "options43", json_object_get_string(json_object_object_get(obj_idx, "option43Enable")));
+ 			printf("%-2s %-20s %-10s \n", "", "options60", json_object_get_string(json_object_object_get(obj_idx, "option60Enable")));
+ 			printf("%-2s %-20s %-10s \n", "", "options61", json_object_get_string(json_object_object_get(obj_idx, "option61Enable")));
+@@ -4361,8 +4365,11 @@
+ 		while(zcfgFeSubInObjJsonGetNextWithoutUpdate(RDM_OID_DHCPV4_REQ_OPT, &v4ClientIid, &iid, &obj) == ZCFG_SUCCESS){
+ 			tag = json_object_get_int(json_object_object_get(obj, "Tag"));
+ 			opt = json_object_get_boolean(json_object_object_get(obj, "Enable"));
+-			if(tag == 42 )
++			if(tag == 42 ){
+ 				json_object_object_add(pramJobj, "option42Enable", json_object_new_boolean(opt));
++				if(opt)
++					json_object_object_add(pramJobj, "option42Value", json_object_new_string(value));
++			}
+ 			else if(tag == 43)
+ 				json_object_object_add(pramJobj, "option43Enable", json_object_new_boolean(opt));
+ 			else if(tag == 120 )

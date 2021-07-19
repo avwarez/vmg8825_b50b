@@ -1,0 +1,36 @@
+Index: libzyutil-1.0/zyutil_cofw.c
+===================================================================
+--- libzyutil-1.0.orig/zyutil_cofw.c	2020-04-17 08:40:40.251895742 +0000
++++ libzyutil-1.0/zyutil_cofw.c	2020-04-17 08:45:44.583892840 +0000
+@@ -66,6 +66,14 @@
+                         return MODEL_DX5301_B1;
+                 }else if (strstr(modelName,"EX5301-B1") != NULL){
+                         return MODEL_EX5301_B1;
++                }else if (strstr(modelName,"DX5301-B2") != NULL){
++                        return MODEL_DX5301_B2;
++                }else if (strstr(modelName,"EX5301-B2") != NULL){
++                        return MODEL_EX5301_B2;
++                }else if (strstr(modelName,"DX5301-B3") != NULL){
++                        return MODEL_DX5301_B3;
++                }else if (strstr(modelName,"EX5301-B3") != NULL){
++                        return MODEL_EX5301_B3;
+                 }
+ 	}
+ 
+Index: libzyutil-1.0/zyutil_cofw.h
+===================================================================
+--- libzyutil-1.0.orig/zyutil_cofw.h	2020-04-17 08:40:40.251895742 +0000
++++ libzyutil-1.0/zyutil_cofw.h	2020-04-17 08:46:28.811892418 +0000
+@@ -28,7 +28,11 @@
+     MODEL_DX5301_B0,
+     MODEL_EX5301_B0,
+     MODEL_DX5301_B1,
+-    MODEL_EX5301_B1
++    MODEL_EX5301_B1,
++    MODEL_DX5301_B2,
++    MODEL_EX5301_B2,
++    MODEL_DX5301_B3,
++    MODEL_EX5301_B3
+ } model_name_t;
+ 
+ /*!

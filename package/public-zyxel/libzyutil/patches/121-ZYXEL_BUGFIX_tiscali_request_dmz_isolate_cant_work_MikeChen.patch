@@ -1,0 +1,32 @@
+Index: libzyutil-1.0/common.c
+===================================================================
+--- libzyutil-1.0.orig/common.c	2020-02-06 11:01:34.110611451 +0800
++++ libzyutil-1.0/common.c	2020-02-06 11:11:00.955156592 +0800
+@@ -166,6 +166,13 @@
+ 		system(sysCmd);
+ 		sprintf(sysCmd, "sendarp -s %s -d %s", bridgeName, ifName);
+ 		system(sysCmd);
++#if defined (ZYXEL_VMG8924_B10D_TISCALI_ISOLATE_DMZ)
++		system("kill $(ps | grep \"/etc/isolateDMZ_Wind_Italy_VMG8924_b10d.sh\" | awk 'FNR==1' | awk '{print $1}')");
++		system("/etc/isolateDMZ_Wind_Italy_VMG8924_b10d.sh remap &"); // check dmz port and isolate dmz port
++#elif defined (ZYXEL_VMG8825_T50K_TISCALI_ISOLATE_DMZ)
++		system("kill $(ps | grep \"/etc/isolateDMZ_VMG8825_T50K.sh\" | awk 'FNR==1' | awk '{print $1}')");
++		system("/etc/isolateDMZ_VMG8825_T50K.sh &");
++#endif
+ 	}
+ }
+ 
+@@ -179,6 +186,13 @@
+ 	system(sysCmd);
+ 	sprintf(sysCmd, "sendarp -s %s -d %s", bridgeName, ifName);
+ 	system(sysCmd);
++#if defined (ZYXEL_VMG8924_B10D_TISCALI_ISOLATE_DMZ)
++	system("kill $(ps | grep \"/etc/isolateDMZ_Wind_Italy_VMG8924_b10d.sh\" | awk 'FNR==1' | awk '{print $1}')");
++	system("/etc/isolateDMZ_Wind_Italy_VMG8924_b10d.sh remap &"); // check dmz port and isolate dmz port
++#elif defined (ZYXEL_VMG8825_T50K_TISCALI_ISOLATE_DMZ)
++	system("kill $(ps | grep \"/etc/isolateDMZ_VMG8825_T50K.sh\" | awk 'FNR==1' | awk '{print $1}')");
++	system("/etc/isolateDMZ_VMG8825_T50K.sh &");
++#endif
+ }
+ 
+ #if 0	//move to libzyutil_brcm_wrapper.c

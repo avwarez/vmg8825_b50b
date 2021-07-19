@@ -1,0 +1,44 @@
+Index: busybox-1_20_1/loginutils/login.c
+===================================================================
+--- busybox-1_20_1.orig/loginutils/login.c	2019-07-11 14:33:12.211670824 +0800
++++ busybox-1_20_1/loginutils/login.c	2019-07-11 14:34:05.584981819 +0800
+@@ -796,7 +796,7 @@
+ 		if (correct_password(pw)){
+ #ifdef ZCFG_SUPPORT
+ 			reset_authorize_fail_cnt(cur_user_idx);
+-#endif
++
+ 			if (authGpPrivilege){
+ 				objIndex_t logAccountObjIid;
+ 				rdm_ZyLogCfgGpAccount_t *accountObj = NULL;
+@@ -935,7 +935,7 @@
+ 
+ #endif
+ 			}
+-
++#endif
+ 			break;
+ 		}
+ #endif /* ENABLE_PAM */
+Index: busybox-1_20_1/modutils/depmod.c
+===================================================================
+--- busybox-1_20_1.orig/modutils/depmod.c	2019-07-11 14:35:08.974892987 +0800
++++ busybox-1_20_1/modutils/depmod.c	2019-07-11 14:35:22.202856450 +0800
+@@ -14,7 +14,7 @@
+ #include "modutils.h"
+ #include <sys/utsname.h> /* uname() */
+ 
+-#if 1 /* <JoannaSu>, <20180420>, <modify buffer for filepath to avoid segfault> */
++#if defined(ZCFG_SUPPORT) /* <JoannaSu>, <20180420>, <modify buffer for filepath to avoid segfault> */
+ #include "zos_api.h"
+ #include "zlog_api.h"
+ #define   ZYXEL_TMP_BASE_PATH "/var/"
+@@ -130,7 +130,7 @@
+ static void xfreopen_write(const char *file, FILE *f)
+ {
+ #if 1 //due to depmod can't generate file at read-only file system, so modify the path that generate file
+-    #if 1 /* <JoannaSu>, <20180420>, <modify buffer for filepath to avoid segfault> */
++    #if defined(ZCFG_SUPPORT) /* <JoannaSu>, <20180420>, <modify buffer for filepath to avoid segfault> */
+     char *modulePath = NULL;
+ 
+     modulePath = ZOS_MALLOC(strlen(ZYXEL_TMP_BASE_PATH) + strlen(file) + 1);

@@ -1,0 +1,24 @@
+diff -urN libzcfg_fe_dal-1.0.org/network/homeNetworking/zcfg_fe_dal_lansetup.c libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c
+--- libzcfg_fe_dal-1.0.org/network/homeNetworking/zcfg_fe_dal_lansetup.c	2019-12-30 15:18:10.946501100 +0800
++++ libzcfg_fe_dal-1.0/network/homeNetworking/zcfg_fe_dal_lansetup.c	2020-01-17 14:50:45.235602294 +0800
+@@ -605,9 +605,19 @@
+ 	if(enableDhcp && !strcmp(DHCPType, "DHCPRelay")){
+ 		dhcpRelayAddr = json_object_get_string(json_object_object_get(Jobj, "DHCP_RelayAddr"));
+ 		if(dhcpRelayAddr == NULL){
+-			if(curdhcpRelayAddr == NULL || curdhcpRelayAddr[0] == '\0')
++			if(curdhcpRelayAddr == NULL || curdhcpRelayAddr[0] == '\0'){
+ 				printf("\nInvalid parameter: DHCP_RelayAddr\n");
+ 				return ZCFG_INVALID_PARAM_VALUE;
++			}
++			else{
++				/*
++					For editing LanInfo in Lan card page,
++					it will not send dhcpRelayAddr information here,
++					so use value stored in json.
++				*/
++				dhcpRelayAddr = curdhcpRelayAddr;
++			}
++				
+ 		}
+ 
+ 		setNat();

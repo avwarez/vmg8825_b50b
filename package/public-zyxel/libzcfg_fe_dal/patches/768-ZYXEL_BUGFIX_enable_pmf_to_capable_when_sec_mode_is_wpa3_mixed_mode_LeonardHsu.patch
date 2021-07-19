@@ -1,0 +1,33 @@
+Index: libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-17 13:26:39.208950216 +0800
++++ libzcfg_fe_dal-1.0/network/wireless/zcfg_fe_dal_wifi_general.c	2020-04-17 13:26:39.232950216 +0800
+@@ -1136,18 +1136,18 @@
+ 		}
+ 		else if(!strcmp(wpaMode,"wpa3sae") || !strcmp(wpaMode,"wpa2pskwpa3sae"))
+ 		{
++#ifndef ZYXEL_PMF_SET_MANUALLY
++			if (wlEnable == true) { //interface enable
++				json_object_object_add(wifiSecObj, "EnableManagementFrameProtection", json_object_new_boolean(true));
++				json_object_object_add(wifiSecObj, "X_ZYXEL_PmfMethod", json_object_new_int(0));
++				/* Set PMF with capable when enable WPA2-PSK for other interfaces with the same band */
++				if ((ret = editWiFiPMFtoCapable(wifiSecIid.idx[0])) != ZCFG_SUCCESS) {
++					return ret;
++				}
++			}
++#endif
+ 			if(!strcmp(wpaMode,"wpa3sae")){
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal"));
+-			#ifndef ZYXEL_PMF_SET_MANUALLY
+-				if (wlEnable == true) { //interface enable
+-					json_object_object_add(wifiSecObj, "EnableManagementFrameProtection", json_object_new_boolean(true));
+-					json_object_object_add(wifiSecObj, "X_ZYXEL_PmfMethod", json_object_new_int(0));
+-					/* Set PMF with capable when enable WPA2-PSK for other interfaces with the same band */
+-					if ((ret = editWiFiPMFtoCapable(wifiSecIid.idx[0])) != ZCFG_SUCCESS) {
+-						return ret;
+-					}
+-				}
+-			#endif
+ 			}
+ 			else{
+ 				json_object_object_add(wifiSecObj, "ModeEnabled", json_object_new_string("WPA3-Personal-Transition"));

@@ -1,0 +1,23 @@
+Index: linux-4.1.52/net/netfilter/nf_conntrack_standalone.c
+===================================================================
+--- linux-4.1.52.orig/net/netfilter/nf_conntrack_standalone.c	2019-11-11 11:42:44.750228765 +0800
++++ linux-4.1.52/net/netfilter/nf_conntrack_standalone.c	2019-11-11 19:06:56.795625187 +0800
+@@ -521,6 +521,7 @@
+ 
+ static int sess_ctl_open(struct inode *inode, struct file *file)
+ {
++#if 0
+ 	struct seq_file *seq;
+ 	struct ct_iter_state *st;
+ 	int ret;
+@@ -538,6 +539,10 @@
+ out_free:
+ 	kfree(st);
+ 	return ret;
++#else
++	return seq_open_net(inode, file, &sess_ctl_seq_ops,
++			sizeof(struct ct_iter_state));
++#endif
+ }
+ 
+ static const struct file_operations sess_ctl_file_ops = {

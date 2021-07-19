@@ -1,0 +1,63 @@
+Index: libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-07-30 09:22:01.429272437 +0800
++++ libzcfg_fe_dal-1.0/security/parentalControl/zcfg_fe_dal_parentalControl.c	2019-07-30 09:28:47.212952407 +0800
+@@ -174,16 +174,16 @@
+ 	char buf[256] = {0};
+ 	char buf2[128] = {0};
+ 	char buf3[128] = {0};
+-	char buf4[128] = {0};
++	char buf4[256] = {0};
+ 	
+ 	char timeEnableList[256] = {0};
+ 	char timeDaysList[256] = {0};	
+ 	char timeTypeList[256] = {0};
+ 
+-	char timeEnable[64] = {0};
++	char timeEnable[128] = {0};
+ 	boolean timEnableVal = 0;
+-	char timeType[64] = {0};	
+-	char timeDays[64] = {0};
++	char timeType[128] = {0};	
++	char timeDays[256] = {0};
+ 
+ 	char *TimeType = NULL;
+ 	char *TimeEnable = NULL;
+@@ -339,9 +339,9 @@
+ 	uint8_t iidIdx =0;
+ 	char buf[128] = {0};
+ #ifdef ZYXEL_HOME_CYBER_SECURITY	
+-	char buf2[64] = {0};
+-	char buf3[64] = {0};
+-	char buf4[64] = {0};
++	char buf2[128] = {0};
++	char buf3[128] = {0};
++	char buf4[256] = {0};
+ 
+ 	char *ptr2,*ptr3,*tmp2,*tmp3,*ptr4,*tmp4;		
+ #endif
+@@ -645,9 +645,9 @@
+ 	uint8_t iidIdx =0;
+ 	char buf[128] = {0};
+ #ifdef ZYXEL_HOME_CYBER_SECURITY
+-	char buf2[64] = {0};
+-	char buf3[64] = {0};
+-	char buf4[64] = {0};	
++	char buf2[128] = {0};
++	char buf3[128] = {0};
++	char buf4[256] = {0};	
+ 	char *ptr2,*ptr3,*tmp2,*tmp3,*ptr4,*tmp4;
+ #endif
+ 	char *ptr, *tmp;
+Index: libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c
+===================================================================
+--- libzcfg_fe_dal-1.0.orig/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-07-30 09:22:01.429272437 +0800
++++ libzcfg_fe_dal-1.0/security/schedulerRule/zcfg_fe_dal_schedulerRule.c	2019-07-30 09:24:16.580285594 +0800
+@@ -224,6 +224,7 @@
+ 		timeStartMin = json_object_object_get(ScheduleJobj, "TimeStartMin");
+ 		timeStopHour = json_object_object_get(ScheduleJobj, "TimeStopHour");
+ 		timeStopMin = json_object_object_get(ScheduleJobj, "TimeStopMin");
++		type = json_object_object_get(ScheduleJobj, "Type");
+ 		isPcpRule = false;
+ 
+ 		pramJobj = json_object_new_object();
