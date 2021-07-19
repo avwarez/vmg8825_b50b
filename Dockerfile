@@ -6,8 +6,9 @@ ENV BUILD_UID=1000
 
 WORKDIR $HOME
 
+COPY sources.list /etc/apt/sources.list
 RUN apt-get update && \
-    apt-get install -y build-essential libncurses5-dev libncursesw5-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync wget unzip python subversion vim sudo && \
+    apt-get install -y build-essential libncurses5-dev libncursesw5-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync wget unzip python subversion vim sudo bc && \
     useradd -u $BUILD_UID $BUILD_USER && \
     echo "$BUILD_USER ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
     locale-gen "en_US.UTF-8" && \
